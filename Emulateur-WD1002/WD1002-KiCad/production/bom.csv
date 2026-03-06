@@ -1,0 +1,18 @@
+﻿Designator,Footprint,Quantity,Value,LCSC Part #
+"C1, C5, C6",0603,3,100nF,
+C2,0603,1,4.7uF,
+C3,1206,1,10uF,
+C4,1206,1,22uF,
+"D1, D2, D3, D4, D5, D6, D7, D8",0603,8,LED,
+J1,PinHeader_1x06_P2.54mm_Horizontal,1,SWD,
+J3,PinHeader_2x20_P2.54mm_Vertical,1,WD1002,
+J4,microSD_HC_Hirose_DM3AT-SF-PEJM5,1,Micro_SD,
+MUBUS26,PinHeader_2x13_P2.54mm_Vertical,1,Conn_02x13_Odd_Even,
+"R1, R10, R11",0603,3,10k,
+R12,0603,1,100k,
+"R2, R3, R4, R5, R6, R7, R8, R9",0603,8,1k,
+"S1, S2, S3",SW-SMD_4P-L5.1-W5.1-P3.70-LS6.5-TL-2,3,"Tactile Button, 160gf",C318884
+U1,SOIC-16_3.9x9.9mm_P1.27mm,1,74HC138,
+U2,LQFP-64_10x10mm_P0.5mm,1,STM32F446RETx,
+"U3, U4",TSSOP-24_4.4x7.8mm_P0.65mm,2,SN74LVC8T245,
+U5,SOT-223-3_TabPin2,1,AMS1117-3.3,

@@ -1,0 +1,3 @@
+../Core/Src/floppy.c:13:9:InitFloppy	3
+../Core/Src/floppy.c:31:9:ReadBlocFloppy	5
+../Core/Src/floppy.c:54:9:WriteBlocFloppy	5

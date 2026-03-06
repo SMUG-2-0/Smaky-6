@@ -11,3 +11,11 @@ Ces contrôleurs sont bien documentés :
 
 Le circuit utilise un microcontrôleur **STM32**, cadençé à une fréquence suffisante (180 MHz) pour pouvoir répondre aux requêtes du Z80.
 Branché sur le connecteur **MUBUS-26**, au bord droit de la carte mêre du Smaky 6, il possède un socle pour une carte micr-SD, qui contient des images de disques ou disquettes Smaky 6.
+
+Le dossier WD1002SD contient le projet complet pour le firmware de l'émulateur.
+C'est un projet STM32cubeIDE.
+
+Le dossier WD1002-KiCAD contient le circuit imprimé sous forme d'un projet KiCad,
+dont voici le schéma : [Schéma émulateur WD1002](WD1002-schema.pdf)
+
+[Emulateur branché à un Smaky 6](WD1002-Smaky6.png)

@@ -1,0 +1,3 @@
+../Core/Src/lz4_decompress.c:13:12:LZ4_decompress_generic	14
+../Core/Src/lz4_decompress.c:80:5:LZ4_decompress_safe	1
+../Core/Src/lz4_decompress.c:93:5:decompress_block	2
