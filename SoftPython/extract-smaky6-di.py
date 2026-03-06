@@ -62,7 +62,7 @@ for idFi in range(32): # parcours les entrées du directoire
             if der==0 : der = 256
             f.write(dsk[(deb*256):((fin-1)*256)+der])
             f.close()
-        info = {"INDEX": index, "BEGIN": deb, "END": fin, "ATTRIB": attrib, "LOAD": load, "GO": start, "DATE": date}
+        info = {"INDEX": index, "BEGIN": deb, "END": fin, "LAST": der, "ATTRIB": attrib, "LOAD": load, "GO": start, "DATE": date}
         fichiers[nomFi] = info
         index += 1
         if lastFin<fin : lastFin = fin
