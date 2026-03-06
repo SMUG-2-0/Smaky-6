@@ -1,21 +1,22 @@
 # -*- coding: utf8 -*-
 
-# 2025, Epsitec SA, Pierre-Yves Rochat, pyr@pyr.ch
+# 2025-2026, Epsitec SA, Pierre-Yves Rochat, pyr@pyr.ch
 # - Lecture des fichiers d'une disquette Smaky 6
-# - Copie avec le programme DUMPSM6.SR
-#   avec l'interface Simser-USB (Arduino Mini)
+# - Copie possible avec le programme DUMPSM6.SR
+#   à travers l'interface Simser-USB (Arduino Mini)
 # - Création d'un dossier avec les fichiers
+# - Création d'un fichier .json avec les entrées du directoire
 #
 # 16/06/2025 : nom du fichier sur ligne de commande
 # 11/11/2025 : patch du SYS.SY pour disque dur (pour émulateur WD1002)
 # 26/11/2025 : création fichier .json (avec adresse load and go)
-#              création d'un source en C
+#
+# Le programme build-smaky6-di.py permet de créer une image,
+# à partir des fichiers décrits dans un fichier .json
 
 import os
 import sys
 import json
-
-LG_MAX = 1024*250
 
 print ("Extraction des fichiers d'une copie de disque Smaky 6")
 print ("2025, Epsitec SA, Pierre-Yves Rochat, pyr@pyr.ch")
@@ -24,7 +25,7 @@ print ("python extract-smaky6-di.py nom_image_disque [nom_nouvelle_image] [SYSWI
 print ("\nLigne de commande :", sys.argv)
 
 file = sys.argv[1] # nom du fichier de la copie du disque Smaky 6
-if file.find(".")<0 : file += ".DI6"
+if file.find(".")<0 : file += ".dsk"
 
 dir = file.split(".")[0] # création d'un dossier qui contiendra les fichiers
 if not os.path.exists(dir):
@@ -35,12 +36,11 @@ with open(file, "rb") as f: # lecture du disque
 print("Longueur de l'image", len(dsk))
 
 sysExist = False
-fichiers = {}
+fichiers = {} # dictionnaire des entrées du directoire
 index = 0
 lastFin = 0
-coupeApres = "BASIC.DR"
 coupe = False
-for idFi in range(32): # parcours
+for idFi in range(32): # parcours les entrées du directoire
     if dsk[idFi*24] != 0:
         fi = dsk[idFi*24:(idFi*24)+24] # entrée du directoire
         
@@ -49,9 +49,12 @@ for idFi in range(32): # parcours
         nomFi = (nom+"."+ext)
         deb = int.from_bytes(fi[10:10+2], byteorder='little') # bloc de début
         fin = int.from_bytes(fi[12:12+2], byteorder='little') # bloc de fin
+        attr = fi[14]
+        attrib = "".join(l if attr & (1<<b) else "-" for b,l in [(0,'W'),(1,'R'),(2,'P'),(3,'C'),(4,'O')])
         der = int.from_bytes(fi[16:16+1]) # taille valide du dernier bloc
         load = int.from_bytes(fi[17:17+2], byteorder='little') # adresse de chargement
         start = int.from_bytes(fi[19:19+2], byteorder='little') # adresse d'exécution
+        date = f"{fi[21]:02X}.{fi[22]:02X}.{fi[23]:02X}"
         
         print(nomFi, " bloc de début :", deb, " bloc de fin:", fin, " dernier bloc:", der, \
              " load:", oct(load), " start:", oct(start))
@@ -59,59 +62,17 @@ for idFi in range(32): # parcours
             if der==0 : der = 256
             f.write(dsk[(deb*256):((fin-1)*256)+der])
             f.close()
-        info = {"index": index, "begin": deb, "end": fin, "load": load, "go": start}
+        info = {"INDEX": index, "BEGIN": deb, "END": fin, "ATTRIB": attrib, "LOAD": load, "GO": start, "DATE": date}
         fichiers[nomFi] = info
         index += 1
-
-        if nomFi.find("SYS.SY")==0:
-            print("Fichier SYS.SY trouvé !")
-            sysExist = True
-            debSys = deb
-            finSys = fin
-            derSys = der
-            loadSys = load
-            startSys = start
-        if nomFi.find(coupeApres)==0:
-            print("Dernier fichier trouvé !")
-            coupe = True
-        if coupe :
-            dsk[idFi*24:(idFi*24)+24] = b"\x00" * 24 # efface l'entrée du fichier
-        else :
-            if lastFin<fin : lastFin = fin
+        if lastFin<fin : lastFin = fin
             
             
-    # sauvegarde de la structure :
+# sauvegarde de la structure :
 with open(os.path.join(dir, 'index.json'), 'w') as f:
     json.dump(fichiers, f, indent=4)
     f.close
     
 print("Dernier bloc utile du disque :", lastFin, "taille : ", lastFin*256)
 
-# Substitution du fichier SYS.SY par un
-if sysExist:
-    print("SYS.SY : ", debSys, " -> ", finSys)
-
-if len(sys.argv)>3:
-    winDi = sys.argv[2]
-    winSys = sys.argv[3]
-    print("Création d'une image pour disque dur : ", winDi, "à partir de ", winSys)
-    
-    with open(winSys, "rb") as f:
-        sysSy = f.read()
-        f.close()
-    
-    # print("Longueur du .DI6 : ", len(dsk) )
-    print("Longueur du .DI6 : ", lastFin*256 )
-    print("Début : bloc ", debSys)
-    print("longueur SYS.SY : ", len(sysSy) , " = ", len(sysSy)/256, " blocs")
-    print("Récriture du solde dès : ", finSys, " blocs")
-    
-    with open(winDi, "wb") as f:
-        f.write(dsk[:debSys*256]); print(debSys*256 )
-        f.write(sysSy); print(len(sysSy))
-        # f.write(dsk[finSys*256:LG_MAX])
-        f.write(dsk[finSys*256:lastFin*256])
-        print( len(dsk)-(finSys*256) )
-        f.close
-    
 

@@ -1,0 +1,218 @@
+{
+    "ZSY.SY": {
+        "INDEX": 0,
+        "BEGIN": 3,
+        "END": 37,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 22464,
+        "DATE": "08.09.82"
+    },
+    "ZCLI.SY": {
+        "INDEX": 1,
+        "BEGIN": 37,
+        "END": 63,
+        "ATTRIB": "-----",
+        "LOAD": 22016,
+        "GO": 22018,
+        "DATE": "08.09.82"
+    },
+    "ER.SY": {
+        "INDEX": 2,
+        "BEGIN": 63,
+        "END": 66,
+        "ATTRIB": "W-P--",
+        "LOAD": 0,
+        "GO": 0,
+        "DATE": "08.09.82"
+    },
+    "OVEDIT0.SM": {
+        "INDEX": 3,
+        "BEGIN": 66,
+        "END": 80,
+        "ATTRIB": "-----",
+        "LOAD": 11264,
+        "GO": 1,
+        "DATE": "22.09.82"
+    },
+    "OVEDIT2.SM": {
+        "INDEX": 4,
+        "BEGIN": 80,
+        "END": 95,
+        "ATTRIB": "-----",
+        "LOAD": 11264,
+        "GO": 1,
+        "DATE": "22.09.82"
+    },
+    "OVEDIT3.SM": {
+        "INDEX": 5,
+        "BEGIN": 95,
+        "END": 115,
+        "ATTRIB": "-----",
+        "LOAD": 11264,
+        "GO": 1,
+        "DATE": "22.09.82"
+    },
+    "SYS.SY": {
+        "INDEX": 6,
+        "BEGIN": 177,
+        "END": 212,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 22464,
+        "DATE": "22.01.83"
+    },
+    "CLI.SY": {
+        "INDEX": 7,
+        "BEGIN": 212,
+        "END": 251,
+        "ATTRIB": "-----",
+        "LOAD": 22016,
+        "GO": 22725,
+        "DATE": "26.02.83"
+    },
+    "LPEDIT3.SM": {
+        "INDEX": 8,
+        "BEGIN": 251,
+        "END": 255,
+        "ATTRIB": "-----",
+        "LOAD": 15104,
+        "GO": 1,
+        "DATE": "05.01.84"
+    },
+    "LP.SY": {
+        "INDEX": 9,
+        "BEGIN": 255,
+        "END": 258,
+        "ATTRIB": "-----",
+        "LOAD": 8960,
+        "GO": 1,
+        "DATE": "19.02.83"
+    },
+    "LPEDIT1.SM": {
+        "INDEX": 10,
+        "BEGIN": 258,
+        "END": 262,
+        "ATTRIB": "-----",
+        "LOAD": 15104,
+        "GO": 1,
+        "DATE": "05.01.84"
+    },
+    "MOVE.SM": {
+        "INDEX": 11,
+        "BEGIN": 262,
+        "END": 273,
+        "ATTRIB": "-----",
+        "LOAD": 22016,
+        "GO": 22016,
+        "DATE": "08.01.83"
+    },
+    "CCOPY.SM": {
+        "INDEX": 12,
+        "BEGIN": 273,
+        "END": 294,
+        "ATTRIB": "-----",
+        "LOAD": 21760,
+        "GO": 21760,
+        "DATE": "03.09.81"
+    },
+    "PO.ED": {
+        "INDEX": 13,
+        "BEGIN": 294,
+        "END": 330,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 61939,
+        "DATE": "20.0D.00"
+    },
+    "MATRIX.92": {
+        "INDEX": 14,
+        "BEGIN": 330,
+        "END": 331,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 1,
+        "DATE": "30.03.83"
+    },
+    "PHYS.ED": {
+        "INDEX": 15,
+        "BEGIN": 331,
+        "END": 349,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 47795,
+        "DATE": "20.0D.00"
+    },
+    "MATAG.ED": {
+        "INDEX": 16,
+        "BEGIN": 349,
+        "END": 356,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 63904,
+        "DATE": "06.09.83"
+    },
+    "EDIT.DR": {
+        "INDEX": 17,
+        "BEGIN": 356,
+        "END": 570,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 0,
+        "DATE": "01.02.84"
+    },
+    "EDIT.SM": {
+        "INDEX": 18,
+        "BEGIN": 570,
+        "END": 633,
+        "ATTRIB": "-----",
+        "LOAD": 22016,
+        "GO": 22188,
+        "DATE": "22.09.82"
+    },
+    "GESTAD.DR": {
+        "INDEX": 19,
+        "BEGIN": 741,
+        "END": 1041,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 0,
+        "DATE": "14.09.83"
+    },
+    "LPEDIT2.SM": {
+        "INDEX": 20,
+        "BEGIN": 1041,
+        "END": 1046,
+        "ATTRIB": "-----",
+        "LOAD": 15104,
+        "GO": 1,
+        "DATE": "30.07.83"
+    },
+    "SHOWLP.SM": {
+        "INDEX": 21,
+        "BEGIN": 1046,
+        "END": 1048,
+        "ATTRIB": "-----",
+        "LOAD": 21761,
+        "GO": 21761,
+        "DATE": "05.01.84"
+    },
+    "TRI.SM": {
+        "INDEX": 22,
+        "BEGIN": 1048,
+        "END": 1219,
+        "ATTRIB": "-----",
+        "LOAD": 21760,
+        "GO": 21910,
+        "DATE": "29.02.84"
+    },
+    "OVEDIT1.SM": {
+        "INDEX": 23,
+        "BEGIN": 1219,
+        "END": 1229,
+        "ATTRIB": "-----",
+        "LOAD": 11264,
+        "GO": 1,
+        "DATE": "22.09.82"
+    }
+}

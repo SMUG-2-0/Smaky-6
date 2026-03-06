@@ -18,4 +18,4 @@ C'est un projet STM32cubeIDE.
 Le dossier WD1002-KiCAD contient le circuit imprimé sous forme d'un projet KiCad,
 dont voici le schéma : [Schéma émulateur WD1002](WD1002-schema.pdf)
 
-[Emulateur branché à un Smaky 6](WD1002-Smaky6.png)
+![Emulateur branché à un Smaky 6](WD1002-Smaky6.png)

@@ -1,0 +1,290 @@
+{
+    "SYS.SY": {
+        "INDEX": 0,
+        "BEGIN": 3,
+        "END": 38,
+        "ATTRIB": "W-P--",
+        "LOAD": 24576,
+        "GO": 22464,
+        "DATE": "FF.FF.FF"
+    },
+    "CLI.SY": {
+        "INDEX": 1,
+        "BEGIN": 38,
+        "END": 65,
+        "ATTRIB": "W-P--",
+        "LOAD": 22016,
+        "GO": 22018,
+        "DATE": "FF.FF.FF"
+    },
+    "ER.SY": {
+        "INDEX": 2,
+        "BEGIN": 65,
+        "END": 68,
+        "ATTRIB": "W-P--",
+        "LOAD": 0,
+        "GO": 0,
+        "DATE": "FF.FF.FF"
+    },
+    "OKI80LP.SY": {
+        "INDEX": 3,
+        "BEGIN": 68,
+        "END": 71,
+        "ATTRIB": "-----",
+        "LOAD": 8960,
+        "GO": 1,
+        "DATE": "FF.FF.FF"
+    },
+    "OKI82LP.SY": {
+        "INDEX": 4,
+        "BEGIN": 71,
+        "END": 74,
+        "ATTRIB": "-----",
+        "LOAD": 8960,
+        "GO": 1,
+        "DATE": "FF.FF.FF"
+    },
+    "OKI84LP.SY": {
+        "INDEX": 5,
+        "BEGIN": 74,
+        "END": 77,
+        "ATTRIB": "-----",
+        "LOAD": 8960,
+        "GO": 1,
+        "DATE": "FF.FF.FF"
+    },
+    "MATPAC.SY": {
+        "INDEX": 6,
+        "BEGIN": 77,
+        "END": 97,
+        "ATTRIB": "W-P--",
+        "LOAD": 11264,
+        "GO": 1,
+        "DATE": "FF.FF.FF"
+    },
+    "HP.SY": {
+        "INDEX": 7,
+        "BEGIN": 97,
+        "END": 154,
+        "ATTRIB": "W-P--",
+        "LOAD": 0,
+        "GO": 0,
+        "DATE": "FF.FF.FF"
+    },
+    "FLO.ST": {
+        "INDEX": 8,
+        "BEGIN": 154,
+        "END": 165,
+        "ATTRIB": "W-P--",
+        "LOAD": 0,
+        "GO": 62528,
+        "DATE": "FF.FF.FF"
+    },
+    "SM6.ST": {
+        "INDEX": 9,
+        "BEGIN": 165,
+        "END": 173,
+        "ATTRIB": "W-P--",
+        "LOAD": 0,
+        "GO": 63264,
+        "DATE": "FF.FF.FF"
+    },
+    "MAT.ST": {
+        "INDEX": 10,
+        "BEGIN": 173,
+        "END": 175,
+        "ATTRIB": "W-P--",
+        "LOAD": 0,
+        "GO": 64880,
+        "DATE": "FF.FF.FF"
+    },
+    "SMILE.SM": {
+        "INDEX": 11,
+        "BEGIN": 175,
+        "END": 226,
+        "ATTRIB": "W----",
+        "LOAD": 21760,
+        "GO": 21760,
+        "DATE": "FF.FF.FF"
+    },
+    "SHOW.SM": {
+        "INDEX": 12,
+        "BEGIN": 226,
+        "END": 232,
+        "ATTRIB": "W----",
+        "LOAD": 22016,
+        "GO": 22016,
+        "DATE": "FF.FF.FF"
+    },
+    "EDISK.SM": {
+        "INDEX": 13,
+        "BEGIN": 232,
+        "END": 245,
+        "ATTRIB": "W----",
+        "LOAD": 22016,
+        "GO": 22446,
+        "DATE": "FF.FF.FF"
+    },
+    "TDISK.SM": {
+        "INDEX": 14,
+        "BEGIN": 245,
+        "END": 251,
+        "ATTRIB": "W----",
+        "LOAD": 22016,
+        "GO": 22016,
+        "DATE": "FF.FF.FF"
+    },
+    "CCOPY.SM": {
+        "INDEX": 15,
+        "BEGIN": 251,
+        "END": 272,
+        "ATTRIB": "W----",
+        "LOAD": 21760,
+        "GO": 21760,
+        "DATE": "FF.FF.FF"
+    },
+    "SAVE.SM": {
+        "INDEX": 16,
+        "BEGIN": 272,
+        "END": 275,
+        "ATTRIB": "W----",
+        "LOAD": 21760,
+        "GO": 21760,
+        "DATE": "FF.FF.FF"
+    },
+    "RESTORE.SM": {
+        "INDEX": 17,
+        "BEGIN": 275,
+        "END": 280,
+        "ATTRIB": "W----",
+        "LOAD": 21760,
+        "GO": 21760,
+        "DATE": "FF.FF.FF"
+    },
+    "FPRINT80.SM": {
+        "INDEX": 18,
+        "BEGIN": 280,
+        "END": 284,
+        "ATTRIB": "-----",
+        "LOAD": 11264,
+        "GO": 11510,
+        "DATE": "FF.FF.FF"
+    },
+    "FPRINT82.SM": {
+        "INDEX": 19,
+        "BEGIN": 284,
+        "END": 289,
+        "ATTRIB": "-----",
+        "LOAD": 11264,
+        "GO": 11571,
+        "DATE": "FF.FF.FF"
+    },
+    "FPRINT84.SM": {
+        "INDEX": 20,
+        "BEGIN": 289,
+        "END": 294,
+        "ATTRIB": "-----",
+        "LOAD": 11264,
+        "GO": 11644,
+        "DATE": "FF.FF.FF"
+    },
+    "CLI.SM": {
+        "INDEX": 21,
+        "BEGIN": 294,
+        "END": 325,
+        "ATTRIB": "W----",
+        "LOAD": 22016,
+        "GO": 28911,
+        "DATE": "FF.FF.FF"
+    },
+    "BASIC.SM": {
+        "INDEX": 22,
+        "BEGIN": 325,
+        "END": 378,
+        "ATTRIB": "W----",
+        "LOAD": 21760,
+        "GO": 21825,
+        "DATE": "FF.FF.FF"
+    },
+    "BASIC.HP": {
+        "INDEX": 23,
+        "BEGIN": 378,
+        "END": 409,
+        "ATTRIB": "W----",
+        "LOAD": 0,
+        "GO": 26112,
+        "DATE": "FF.FF.FF"
+    },
+    "SMILE.HP": {
+        "INDEX": 24,
+        "BEGIN": 409,
+        "END": 420,
+        "ATTRIB": "W----",
+        "LOAD": 0,
+        "GO": 26624,
+        "DATE": "FF.FF.FF"
+    },
+    "BASIC.DR": {
+        "INDEX": 25,
+        "BEGIN": 420,
+        "END": 637,
+        "ATTRIB": "W----",
+        "LOAD": 0,
+        "GO": 0,
+        "DATE": "FF.FF.FF"
+    },
+    "HELP.DR": {
+        "INDEX": 26,
+        "BEGIN": 637,
+        "END": 804,
+        "ATTRIB": "W----",
+        "LOAD": 0,
+        "GO": 0,
+        "DATE": "FF.FF.FF"
+    },
+    "NATHALIE.IM": {
+        "INDEX": 27,
+        "BEGIN": 804,
+        "END": 819,
+        "ATTRIB": "W----",
+        "LOAD": 17920,
+        "GO": 1,
+        "DATE": "FF.FF.FF"
+    },
+    "LP.SR": {
+        "INDEX": 28,
+        "BEGIN": 819,
+        "END": 910,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 0,
+        "DATE": "FF.FF.FF"
+    },
+    "FPRINT.SR": {
+        "INDEX": 29,
+        "BEGIN": 910,
+        "END": 975,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 26112,
+        "DATE": "FF.FF.FF"
+    },
+    "HORLOGE.SR": {
+        "INDEX": 30,
+        "BEGIN": 975,
+        "END": 1005,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 57800,
+        "DATE": "FF.FF.FF"
+    },
+    "BIORY.BS": {
+        "INDEX": 31,
+        "BEGIN": 1005,
+        "END": 1024,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 39367,
+        "DATE": "FF.FF.FF"
+    }
+}

@@ -1,0 +1,227 @@
+{
+    "SYS.SY": {
+        "INDEX": 0,
+        "BEGIN": 3,
+        "END": 38,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 22464,
+        "DATE": "FF.FF.FF"
+    },
+    "CLI.SY": {
+        "INDEX": 1,
+        "BEGIN": 38,
+        "END": 44,
+        "ATTRIB": "-----",
+        "LOAD": 22016,
+        "GO": 22016,
+        "DATE": "FF.FF.FF"
+    },
+    "ER.SY": {
+        "INDEX": 2,
+        "BEGIN": 44,
+        "END": 47,
+        "ATTRIB": "-----",
+        "LOAD": 8448,
+        "GO": 1,
+        "DATE": "FF.FF.FF"
+    },
+    "LP.SY": {
+        "INDEX": 3,
+        "BEGIN": 47,
+        "END": 50,
+        "ATTRIB": "-----",
+        "LOAD": 8448,
+        "GO": 1,
+        "DATE": "FF.FF.FF"
+    },
+    "BACT.SM": {
+        "INDEX": 4,
+        "BEGIN": 50,
+        "END": 73,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24737,
+        "DATE": "FF.FF.FF"
+    },
+    "FLIPPER.SM": {
+        "INDEX": 5,
+        "BEGIN": 73,
+        "END": 101,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "CHESS.SM": {
+        "INDEX": 6,
+        "BEGIN": 101,
+        "END": 134,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 30195,
+        "DATE": "FF.FF.FF"
+    },
+    "CALCUL.SM": {
+        "INDEX": 7,
+        "BEGIN": 134,
+        "END": 158,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "COLLIDE.SM": {
+        "INDEX": 8,
+        "BEGIN": 158,
+        "END": 160,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "COGITE.SM": {
+        "INDEX": 9,
+        "BEGIN": 160,
+        "END": 167,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "GOGO.SM": {
+        "INDEX": 10,
+        "BEGIN": 167,
+        "END": 171,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "CARS.SM": {
+        "INDEX": 11,
+        "BEGIN": 171,
+        "END": 175,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "SERATA.SM": {
+        "INDEX": 12,
+        "BEGIN": 175,
+        "END": 186,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24625,
+        "DATE": "FF.FF.FF"
+    },
+    "MUSIC.SM": {
+        "INDEX": 13,
+        "BEGIN": 186,
+        "END": 199,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "LIFE.SM": {
+        "INDEX": 14,
+        "BEGIN": 199,
+        "END": 203,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "MOULIN.SM": {
+        "INDEX": 15,
+        "BEGIN": 203,
+        "END": 268,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "MARIEN.SM": {
+        "INDEX": 16,
+        "BEGIN": 268,
+        "END": 273,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "DEMOGRA.SM": {
+        "INDEX": 17,
+        "BEGIN": 273,
+        "END": 293,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "BING.SM": {
+        "INDEX": 18,
+        "BEGIN": 293,
+        "END": 300,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 25243,
+        "DATE": "FF.FF.FF"
+    },
+    "GO.SM": {
+        "INDEX": 19,
+        "BEGIN": 300,
+        "END": 308,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 25021,
+        "DATE": "FF.FF.FF"
+    },
+    "STARWAR.SM": {
+        "INDEX": 20,
+        "BEGIN": 308,
+        "END": 314,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "DOCKING.SM": {
+        "INDEX": 21,
+        "BEGIN": 314,
+        "END": 319,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "CHAR.SM": {
+        "INDEX": 22,
+        "BEGIN": 319,
+        "END": 328,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24576,
+        "DATE": "FF.FF.FF"
+    },
+    "PISTON.SM": {
+        "INDEX": 23,
+        "BEGIN": 328,
+        "END": 331,
+        "ATTRIB": "-----",
+        "LOAD": 24576,
+        "GO": 24587,
+        "DATE": "FF.FF.FF"
+    },
+    "MR4.SR": {
+        "INDEX": 24,
+        "BEGIN": 331,
+        "END": 349,
+        "ATTRIB": "-----",
+        "LOAD": 0,
+        "GO": 49408,
+        "DATE": "15.04.25"
+    }
+}
