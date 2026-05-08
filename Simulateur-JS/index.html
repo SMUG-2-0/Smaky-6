@@ -1,0 +1,1767 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Smaky 6 Simulator</title>
+<script>
+// Intercepte toutes les erreurs JS et les affiche dans la barre de statut
+window.onerror = function(msg, src, line, col, err) {
+    var el = document.getElementById('load-status');
+    var text = 'ERREUR JS [' + (src||'').replace(/.*\//,'') + ':' + line + '] ' + msg;
+    if (el) el.textContent = text;
+    else    document.title = text;
+    return false;
+};
+</script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    background: #1a1a1a;
+    color: #aaa;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    padding: 6px;
+    user-select: none;
+}
+
+/* ─── Barre de chargement ─── */
+#load-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 3px;
+    margin-bottom: 6px;
+    flex-wrap: wrap;
+}
+#load-bar label { color: #666; }
+#load-bar input[type=file] { color: #aaa; font: inherit; font-size: 11px; }
+#load-bar button {
+    background: #2a2a2a; color: #ccc; border: 1px solid #555;
+    font: inherit; padding: 2px 10px; cursor: pointer; border-radius: 2px;
+}
+#load-bar button:hover { background: #3a3a3a; }
+#load-bar button:disabled { opacity: 0.4; cursor: default; }
+#load-status { color: #666; font-size: 11px; flex: 1; }
+#speed-input {
+    width: 52px; background: #111; color: #aaa; border: 1px solid #444;
+    font: inherit; font-size: 10px; padding: 1px 3px; text-align: right;
+}
+
+/* ─── Écran principal ─── */
+#screen-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+}
+#screen-wrap {
+    position: relative;
+    border: 1px solid #444;
+    display: inline-block;
+    line-height: 0;
+}
+#disk-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 3px 4px;
+    border: 1px solid #333;
+    background: #131313;
+    font-size: 10px;
+    font-family: 'Courier New', monospace;
+    min-width: 148px;
+}
+.dp-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.dp-name  { color: #666; width: 58px; }
+.dp-badge {
+    width: 52px; text-align: center;
+    border-radius: 2px; padding: 0 2px;
+    font-size: 9px;
+}
+.dp-absent   { color: #444; background: transparent; }
+.dp-present  { color: #888; background: #222; }
+.dp-selected { color: #00cc00; background: #002200; font-weight: bold; }
+.dp-btn {
+    font-size: 9px; padding: 0 3px; cursor: pointer;
+    background: #001a3a; color: #2277cc; border: 1px solid #003a7a;
+    border-radius: 2px;
+}
+.dp-btn:hover { background: #002a5a; color: #44aaff; }
+.dp-btn-take { background: #003a1a; color: #22cc77; border-color: #007a3a; }
+.dp-btn-take:hover { background: #005a2a; color: #44ffaa; }
+.dp-btn:disabled { opacity: 0.25; cursor: default; }
+.dp-fkey { color: #3a5a3a; font-size: 9px; width: 16px; text-align: center; }
+
+/* ─── Panneau série ─── */
+#serial-panel {
+    padding: 4px 4px;
+    border: 1px solid #333;
+    background: #131313;
+    font-size: 10px;
+    font-family: 'Courier New', monospace;
+    min-width: 148px;
+}
+.sp-section { margin-bottom: 6px; }
+.sp-section:last-child { margin-bottom: 0; }
+.sp-title { color: #2277cc; font-weight: bold; font-size: 10px; margin-bottom: 3px; }
+.sp-status { color: #555; font-size: 9px; margin: 2px 0; min-height: 11px;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
+.sp-status.active { color: #00cc00; }
+.sp-btn {
+    font-size: 9px; padding: 0 4px; cursor: pointer;
+    background: #001a3a; color: #2277cc; border: 1px solid #003a7a;
+    border-radius: 2px; margin-right: 3px;
+}
+.sp-btn:hover { background: #002a5a; color: #44aaff; }
+.sp-btn-stop {
+    background: #3a0000; color: #cc4444; border-color: #7a0000;
+}
+.sp-btn-stop:hover { background: #5a0000; color: #ff6666; }
+#gfx-canvas {
+    position: absolute;
+    top: 0; left: 0;
+    display: none;
+    pointer-events: none;
+}
+#text-canvas {
+    display: block;
+    cursor: text;
+}
+
+/* ─── Touches fonction ─── */
+#fn-row, #fn-row2, #fn-row3 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    padding: 3px 2px;
+    margin-top: 2px;
+}
+.fn-cb { display: flex; align-items: center; gap: 3px; cursor: pointer; color: #888; font-size: 11px; }
+.fn-cb input { accent-color: #00cc00; cursor: pointer; }
+.fn-cb:hover { color: #ccc; }
+.fn-label { display: inline-flex; flex-direction: column; line-height: 1.2; }
+.fn-key-hint { color: #3a7a5a; font-size: 9px; line-height: 1; }
+.fn-btn { font-size: 11px; padding: 0 5px; cursor: pointer; background: #333; color: #aaa; border: 1px solid #555; border-radius: 3px; }
+.fn-btn:hover { background: #555; color: #fff; }
+.fn-btn-sys { background: #3a1a00; color: #cc7722; border-color: #7a3a00; }
+.fn-btn-sys:hover { background: #5a2a00; color: #ffaa44; }
+.fn-btn-key { background: #003a1a; color: #22cc77; border-color: #007a3a; }
+.fn-btn-key:hover { background: #005a2a; color: #44ffaa; }
+.fn-btn-zoom { background: #001a3a; color: #2277cc; border-color: #003a7a; }
+.fn-btn-zoom:hover { background: #002a5a; color: #44aaff; }
+
+/* ─── Zone debug ─── */
+#debug-wrap {
+    border: 1px solid #333;
+    background: #0d0d0d;
+    margin-top: 4px;
+}
+#debug-text {
+    width: 100%;
+    height: 14em;
+    background: transparent;
+    color: #999;
+    font: 11px/1.45 'Courier New', monospace;
+    border: none;
+    resize: vertical;
+    outline: none;
+    padding: 4px 6px;
+    white-space: pre;
+    overflow-y: scroll;
+}
+
+/* ─── Barre de commande ─── */
+#cmd-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 2px;
+    margin-top: 2px;
+}
+#cmd-help { color: #555; font-size: 10px; flex: 1; }
+#cmd-input {
+    background: #111; color: #fff; border: 1px solid #444;
+    font: inherit; font-size: 11px; padding: 2px 6px; width: 200px;
+    outline: none;
+}
+#cmd-input:focus { border-color: #666; }
+#mode-lbl { font-weight: bold; font-size: 12px; min-width: 80px; text-align: right; }
+.mode-run   { color: #66ff66; }
+.mode-step  { color: #ffaa00; }
+.mode-stop  { color: #ff6666; }
+
+/* ─── Scroll debug auto ─── */
+#debug-text { scrollbar-width: thin; scrollbar-color: #333 #111; }
+
+/* ─── Modal aide ─── */
+#help-overlay {
+    display: none;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.75);
+    z-index: 100;
+    overflow-y: auto;
+}
+#help-box {
+    background: #1e1e1e;
+    color: #ccc;
+    max-width: 640px;
+    margin: 40px auto;
+    padding: 28px 32px;
+    border-radius: 8px;
+    border: 1px solid #555;
+    font-family: sans-serif;
+    font-size: 14px;
+    line-height: 1.7;
+}
+#help-box h1 { color: #00cc00; font-size: 1.4em; margin-bottom: 6px; }
+#help-box h2 { color: #88cc88; font-size: 1.1em; margin: 18px 0 6px; border-bottom: 1px solid #333; padding-bottom: 3px; }
+#help-box hr  { border: none; border-top: 1px solid #333; margin: 14px 0; }
+#help-box ul  { padding-left: 20px; }
+#help-box li  { margin: 3px 0; }
+#help-box strong { color: #fff; }
+#help-box code { background: #2a2a2a; color: #ffcc66; padding: 1px 5px; border-radius: 3px; font-family: 'Courier New', monospace; }
+#help-close {
+    float: right; background: none; border: 1px solid #555;
+    color: #aaa; cursor: pointer; font-size: 16px;
+    padding: 2px 8px; border-radius: 4px;
+}
+#help-close:hover { background: #333; color: #fff; }
+
+/* ─── Modal images disques ─── */
+#dsk-overlay {
+    display: none;
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.75);
+    z-index: 101;
+    overflow-y: auto;
+}
+#dsk-box {
+    background: #1e1e1e;
+    color: #aaa;
+    max-width: 560px;
+    margin: 40px auto;
+    padding: 28px 32px;
+    border-radius: 8px;
+    border: 1px solid #555;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+}
+#dsk-box h1 { color: #00cc00; font-size: 1.4em; margin-bottom: 6px; }
+#dsk-box p  { color: #777; font-size: 13px; margin-bottom: 24px; line-height: 1.6; }
+#dsk-box table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+#dsk-box td { padding: 7px 10px; border-bottom: 1px solid #2a2a2a; }
+#dsk-box td:first-child { color: #ccc; font-weight: bold; width: 160px; }
+#dsk-box td:last-child  { color: #666; font-size: 12px; }
+#dsk-box a.dl {
+    display: inline-block;
+    background: #1e1e1e;
+    color: #00cc00;
+    border: 1px solid #2a6a2a;
+    padding: 3px 14px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 12px;
+}
+#dsk-box a.dl:hover { background: #2a2a2a; border-color: #00cc00; }
+#dsk-close {
+    float: right; background: none; border: 1px solid #555;
+    color: #aaa; cursor: pointer; font-size: 16px;
+    padding: 2px 8px; border-radius: 4px;
+}
+#dsk-close:hover { background: #333; color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- ─── Chargement ─────────────────────────────────────────────── -->
+<div id="load-bar">
+    <button onclick="openHelp()" title="Aide">?</button>
+    <label style="margin-left:6px">Disques :</label>
+    <!-- Electron : bouton dialog natif -->
+    <button id="disk-electron-btn" onclick="pickDiskDirElectron()" style="display:none">📁 Dossier…</button>
+    <!-- Navigateur : bouton dossier (showDirectoryPicker) + fallback webkitdirectory -->
+    <button id="disk-dir-btn" onclick="pickDiskDir()" style="font-size:11px">📁 Images disques…</button>
+    <input type="file" id="disk-dir-fallback" accept=".DSK,.dsk,.img"
+           multiple webkitdirectory onchange="onDiskDirSelected(this)"
+           style="display:none">
+    <button id="disk-resume-btn" style="display:none;font-size:11px">🔓 Reprendre le dossier précédent</button>
+    <span id="disk-dir-name" style="color:#777;font-size:11px;margin-left:4px"></span>
+    <button id="start-btn" onclick="onStart()" style="margin-left:8px">▶ Démarrer</button>
+    <span id="load-status" style="margin-left:8px">Sélectionnez le dossier contenant SM6WIN0-7.DSK, puis Démarrer.</span>
+</div>
+
+<!-- ─── Modal aide ─────────────────────────────────────────────── -->
+<div id="help-overlay" onclick="if(event.target===this)closeHelp()">
+  <div id="help-box"><button id="help-close" onclick="closeHelp()">✕</button>
+<h1>Simulateur Smaky 6</h1>
+<p>2026 Epsitec SA et Pierre-Yves Rochat, version 0.2<br><br>
+<p>Bienvenue dans le simulateur du Smaky 6 !<br>
+Sélectionnez le dossier des images disques, puis cliquez <strong>▶ Démarrer</strong>.<br>
+<small style="color:#888">Vous n'avez pas encore les images ? <a href="#" onclick="closeHelp();openDsk();return false;" style="color:#00cc00">Téléchargez-les ici.</a></small></p>
+<hr>
+<h2>Mode RUN — touches spéciales</h2>
+<ul>
+  <li><strong>Pause/Break</strong> ou <strong>⏹ Arrêt</strong> — retour mode interactif</li>
+  <li><strong>Insert</strong> — touche <em>define</em> du Smaky (<code>0x1F</code>)</li>
+  <li><strong>Flèches, Home, PageUp, PageDown</strong> — déplacements curseur</li>
+  <li><strong>RESET</strong> (bouton) — recharge la ROM et redémarre en 0x0000</li>
+  <li><strong>NMI</strong> (bouton) — déclenche une interruption non-masquable (saut en <code>0x0066</code>)</li>
+</ul>
+<hr>
+<h2>Touches fonction Smaky</h2>
+<p>Les touches ci-dessous s'utilisent <strong>maintenues</strong> pendant une frappe.</p>
+<ul>
+  <li><strong>Ctrl gauche</strong> — <code>CURSOR</code></li>
+  <li><strong>Win gauche/droit</strong> — <code>KILL</code></li>
+  <li><strong>Alt gauche</strong> — <code>COPY</code></li>
+  <li><strong>AltGr</strong> ou <strong>F9</strong> — <code>PROGRA</code></li>
+  <li><strong>Fn</strong> (case) ou <strong>F10</strong> — <code>SHOW</code></li>
+  <li><strong>Menu</strong> — <code>SEARCH</code></li>
+  <li><strong>Ctrl droit</strong> — <code>CHANGE</code></li>
+</ul>
+<p style="margin-top:6px;color:#888;font-size:13px">Les cases à cocher dans la barre du bas permettent de verrouiller une touche fonction.</p>
+<hr>
+<h2>Changement d'image disque dur</h2>
+<ul>
+  <li><strong>F1–F7</strong> — charger <code>SM6WIN1.DSK</code> … <code>SM6WIN7.DSK</code></li>
+  <li><strong>F8</strong> — charger <code>SM6WIN0.DSK</code> (disque principal, chargé au début)</li>
+</ul>
+<hr>
+<h2>Mode interactif — commandes</h2>
+<ul>
+  <li><strong>Entrée</strong> — démarrer l'exécution (<code>run</code>)</li>
+  <li><strong>S</strong> — un pas ; <strong><code>n</code>S</strong> — <em>n</em> pas (ex : <code>10S</code>)</li>
+  <li><strong>X</strong> — désassembler au PC ; <strong><code>addr</code>X</strong> — à <em>addr</em></li>
+  <li><strong>V</strong> — voir la mémoire au PC ; <strong><code>addr</code>V</strong> — à <em>addr</em></li>
+  <li><strong>W</strong> — afficher le dernier secteur WD1002 lu</li>
+  <li><strong><code>addr</code>P</strong> — poser un point d'arrêt ; <strong><code>addr</code>R</strong> — le retirer</li>
+  <li><strong>P</strong> — lister les points d'arrêt</li>
+  <li><strong>Q</strong> — quitter le simulateur</li>
+</ul>
+<p style="margin-top:6px;color:#888;font-size:13px">Les adresses et valeurs sont en <strong>hexadécimal</strong> (ex : <code>4000X</code>).</p>
+<hr>
+<p style="font-size:13px;color:#888">Télécharger la dernière version du simulateur :
+<a href="https://smaky6.pyr.ch/download" style="color:#00cc00">smaky6.pyr.ch/download</a></p>
+</div>
+</div>
+
+<!-- ─── Modal images disques ───────────────────────────────────── -->
+<div id="dsk-overlay" onclick="if(event.target===this)closeDsk()">
+  <div id="dsk-box"><button id="dsk-close" onclick="closeDsk()">✕</button>
+<h1>Images disques Smaky 6</h1>
+<p>Téléchargez les images nécessaires au fonctionnement du simulateur.<br>
+Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulateur.</p>
+
+<table>
+  <tr>
+    <td>SM6WIN0.DSK</td>
+    <td><a class="dl" href="SM6WIN0.DSK" download>Télécharger</a></td>
+    <td>Disque principal</td>
+  </tr>
+  <tr>
+    <td>SM6WIN1.DSK</td>
+    <td><a class="dl" href="SM6WIN1.DSK" download>Télécharger</a></td>
+    <td>Disque de démo (non bootable : démarrez sur la première image, passez à la démo avec F1 et activez le bouton NMI qui recharge le menu de la démo</td>
+  </tr>
+</table>
+
+<p style="color:#444;font-size:11px">© 2026 Epsitec SA et Pierre-Yves Rochat</p>
+  </div>
+</div>
+
+<!-- ─── Écran Smaky + panneau disques ────────────────────────── -->
+<div id="screen-row">
+  <div id="screen-wrap">
+      <canvas id="gfx-canvas"></canvas>
+      <canvas id="text-canvas" tabindex="0"></canvas>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:6px">
+    <div id="disk-panel"><!-- généré par buildDiskPanel() --></div>
+    <div id="serial-panel">
+      <div class="sp-section">
+        <div class="sp-title">$PR — Lecteur de ruban</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="sp-btn" onclick="prChoose()">📂 Fichier…</button>
+          <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pr-binary"> binaire</label>
+        </div>
+        <div class="sp-status" id="pr-status">—</div>
+        <div style="color:#3a5a3a;font-size:9px;margin-top:2px">Kill termine le transfert</div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-title">$PP — Perforateur de ruban</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <button class="sp-btn sp-btn-stop" onclick="ppSave()">💾 Enregistrer</button>
+          <button class="sp-btn sp-btn-stop" onclick="ppClear()">■ Effacer</button>
+          <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pp-binary"> binaire</label>
+        </div>
+        <div class="sp-status" id="pp-status">—</div>
+      </div>
+    </div>
+    <div id="serial-panel">
+      <div class="sp-section" style="margin-bottom:0">
+        <div class="sp-title">Vitesse</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <input type="number" id="speed-input" value="100" min="1" max="9999"
+                 title="Vitesse en % (100 = Z80 réel 3.5 MHz)"
+                 oninput="onSpeedChange(this.value)">
+          <span style="color:#666;font-size:10px">%</span>
+          <button class="sp-btn" onclick="onSpeedChange(100)" title="Revenir à 100%">100%</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Touches fonction ─────────────────────────────────────── -->
+<div id="fn-row">
+    <label class="fn-cb"><input type="checkbox" data-mask="0x40"><span class="fn-label">CURSOR<span class="fn-key-hint">Ctrl</span></span></label>
+    <label class="fn-cb"><input type="checkbox" data-mask="0x10"><span class="fn-label">KILL<span class="fn-key-hint">Alt</span></span></label>
+    <label class="fn-cb"><input type="checkbox" data-mask="0x20"> COPY</label>
+    <span style="display:inline-block;width:10px"></span>
+    <button class="fn-btn fn-btn-sys" onclick="doReset()" title="Recharge la ROM et redémarre en 0">RESET</button>
+    <button class="fn-btn fn-btn-sys" onclick="doNMI()"   title="Saut NMI → adresse 0x0066">NMI</button>
+    <span style="display:inline-block;width:10px"></span>
+    <label class="fn-cb"><input type="checkbox" data-mask="0x08"><span class="fn-label">PROGRA<span class="fn-key-hint">Ctrl→</span></span></label>
+    <label class="fn-cb"><input type="checkbox" data-mask="0x04"> SHOW</label>
+    <label class="fn-cb"><input type="checkbox" data-mask="0x02"> SEARCH</label>
+    <label class="fn-cb"><input type="checkbox" data-mask="0x01"> CHANGE</label>
+</div>
+
+<!-- ─── Deuxième ligne de modificateurs ──────────────────────── -->
+<div id="fn-row2">
+    <label class="fn-cb" id="ctrl-label"><input type="checkbox" id="ctrl-cb"> CTRL</label>
+    <span style="display:inline-block;width:10px"></span>
+    <button class="fn-btn fn-btn-key" onclick="doDefine()"     title="Touche DEFINE">DEFINE</button>
+    <button class="fn-btn fn-btn-key" onclick="doShowDefine()" title="SHOW + DEFINE">SHOW·DEF</button>
+    <button class="fn-btn fn-btn-key" onclick="doCopyDefine()" title="COPY + DEFINE">COPY·DEF</button>
+    <button class="fn-btn fn-btn-key" onclick="doMacro()"      title="Touche MACRO">MACRO</button>
+    <button class="fn-btn fn-btn-key" onclick="doFnct()"   title="Touche FNCT">FNCT</button>
+    <span style="display:inline-block;width:10px"></span>
+    <button class="fn-btn fn-btn-key" onclick="doSerialCmd('$PR')" title="Envoyer $PR + Entrée">$PR</button>
+    <button class="fn-btn fn-btn-key" onclick="doSerialCmd('$PP')" title="Envoyer $PP + Entrée">$PP</button>
+</div>
+
+<!-- ─── Troisième ligne : zoom / coller ─────────────────────── -->
+<div id="fn-row3">
+    <button class="fn-btn fn-btn-zoom" onclick="doZoom(+0.1)" title="Zoom avant (Ctrl++)">Zoom+</button>
+    <button class="fn-btn fn-btn-zoom" onclick="doZoom(-0.1)" title="Zoom arrière (Ctrl-)">Zoom−</button>
+    <button class="fn-btn fn-btn-zoom" onclick="doColler()" title="Coller le presse-papiers vers le Smaky">COLLER</button>
+</div>
+
+<!-- ─── Zone debug ───────────────────────────────────────────── -->
+<div id="debug-wrap" style="display:none">
+    <textarea id="debug-text" readonly spellcheck="false"></textarea>
+</div>
+
+<!-- ─── Barre de commande ─────────────────────────────────────── -->
+<div id="cmd-row" style="display:none">
+    <label style="color:#666">Cmd:</label>
+    <input type="text" id="cmd-input" maxlength="8" placeholder="hex…" autocomplete="off">
+    <span id="cmd-help">[Entrée]=run  [N]S=step  [ADDR]X=disas  [ADDR]V=mem  W  [ADDR]P/R=bp  Q=quit</span>
+    <span id="mode-lbl" class="mode-stop">● ARRÊT</span>
+</div>
+
+<!-- ─── Scripts ──────────────────────────────────────────────── -->
+<script src="rom18.js"></script>
+<script src="z80.js"></script>
+<script src="disasm.js"></script>
+<script src="smaky.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════════
+// UI principale du simulateur Smaky 6
+// ═══════════════════════════════════════════════════════════════════
+
+// Les constantes HEIGHT, WIDTH, GFX_W, GFX_H, GFX_BPR, VIDEO_START, GFX_ADDR
+// sont définies dans smaky.js (même scope global)
+
+// ─── État ────────────────────────────────────────────────────────
+let sim         = null;
+let romBuffer   = null;
+let diskBuffer  = null;
+let breakpoints = new Set();
+let fnKeysMouse = 0;   // bits actifs via cases à cocher
+let fnKeysKbd   = 0;   // bits actifs via clavier
+let altgrPending = false;
+let altgrSynthCtrl = null;  // code du Ctrl synthétique envoyé avec AltGr
+let altgrLastCtrl  = null;  // dernier Ctrl pressé (candidat fantôme pour AltGr)
+
+// Canvas (initialisés dans initCanvas())
+const textCanvas = document.getElementById('text-canvas');
+const gfxCanvas  = document.getElementById('gfx-canvas');
+let textCtx = null;
+let gfxCtx  = null;
+
+// Mesures de caractère (calculées à l'init)
+let charW = 9, charH = 16;
+
+// Cache rendu texte (évite redraws inutiles)
+let prevCells = Array.from({length: HEIGHT}, () => new Uint8Array(WIDTH).fill(255));
+let prevNox   = null;
+// Cache GFX
+let prevGfxMem  = null;
+let prevGfxGros = null;
+let prevGfxGra  = false;
+
+// ─── Initialisation du canvas ────────────────────────────────────
+function initCanvas() {
+    textCtx = textCanvas.getContext('2d');
+    gfxCtx  = gfxCanvas.getContext('2d');
+    const FONT_SIZE = 14;
+    const FONT      = `${FONT_SIZE}px 'Courier New', monospace`;
+    textCtx.font    = FONT;
+    const m = textCtx.measureText('M');
+    charW = Math.ceil(m.width);
+    charH = Math.round(FONT_SIZE * 1.5);  // line height ≈ 1.5 × font-size
+
+    const W = charW * WIDTH  + 8;
+    const H = charH * HEIGHT + 8;
+
+    textCanvas.width  = W;
+    textCanvas.height = H;
+    gfxCanvas.width   = W;
+    gfxCanvas.height  = H;
+
+    // Fond noir initial
+    textCtx.fillStyle = '#000';
+    textCtx.fillRect(0, 0, W, H);
+}
+
+// ─── Rendu texte ─────────────────────────────────────────────────
+const SMAKY_CHARS_JS = [];
+{
+    const _S2I = [
+         0,  1,  2,  3,  4,  5,  6,  7,
+         8,  9, 10, 11, 12, 13, 14,0xFC,
+      0xE0,0xE2,0xE9,0xE8,0xEB,0xEA,0xEF,0xEE,
+      0xF4,0xF9,0xFB,0xE4,0xF6,0xE7,0xAB,0xBB,
+        32, 33, 34, 35, 36, 37, 38, 39,
+        40, 41, 42, 43, 44, 45, 46, 47,
+        48, 49, 50, 51, 52, 53, 54, 55,
+        56, 57, 58, 59, 60, 61, 62, 63,
+        64, 65, 66, 67, 68, 69, 70, 71,
+        72, 73, 74, 75, 76, 77, 78, 79,
+        80, 81, 82, 83, 84, 85, 86, 87,
+        88, 89, 90, 91, 92, 93, 94, 95,
+        96, 97, 98, 99,100,101,102,103,
+       104,105,106,107,108,109,110,111,
+       112,113,114,115,116,117,118,119,
+       120,121,122,123,124,125,126,127,
+    ];
+    for (let c = 0; c < 128; c++)
+        SMAKY_CHARS_JS.push(_S2I[c] >= 32 ? String.fromCharCode(_S2I[c]) : ' ');
+}
+
+// Table inverse : Unicode → caractère Smaky (pour le collage)
+// On part de l'indice 15 pour ignorer les codes de contrôle 0-14.
+const UNICODE_TO_SMAKY = new Map();
+for (let i = 15; i < 128; i++) {
+    const ch = SMAKY_CHARS_JS[i];
+    if (ch !== ' ' || i === 32)
+        UNICODE_TO_SMAKY.set(ch, String.fromCharCode(i));
+}
+
+function renderText(textMem, gfxMode) {
+    const FONT = `${Math.round(charH * 0.7)}px 'Courier New', monospace`;
+    textCtx.font = FONT;
+    const pad = 4;
+    const nox = gfxMode.nox;
+    const stateChanged = (nox !== prevNox);
+    prevNox = nox;
+
+    if (nox) {
+        // Masquer entièrement l'alpha : fond noir transparent
+        textCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
+        return;
+    }
+
+    for (let y = 0; y < HEIGHT; y++) {
+        for (let x = 0; x < WIDTH; x++) {
+            const b   = textMem[y * WIDTH + x] & 0xFF;
+            const old = prevCells[y][x];
+            if (b === old && !stateChanged) continue;
+            prevCells[y][x] = b;
+
+            const inv = !!(b & 0x80);
+            const ch  = SMAKY_CHARS_JS[b & 0x7F];
+            const px  = pad + x * charW;
+            const py  = pad + y * charH;
+
+            const fg = inv ? '#000'     : '#00cc00';
+            const bg = inv ? '#00cc00' : '#000';
+            textCtx.fillStyle = bg;
+            textCtx.fillRect(px, py, charW, charH);
+            textCtx.fillStyle = fg;
+            if (ch === '_') {
+                // Dessin manuel : barre en bas de la cellule, sans débordement
+                const lh = Math.max(1, Math.round(charH * 0.1));
+                textCtx.fillRect(px, py + charH - lh, charW, lh);
+            } else {
+                textCtx.save();
+                textCtx.beginPath();
+                textCtx.rect(px, py, charW, charH);
+                textCtx.clip();
+                textCtx.fillText(ch, px, py + charH - 3);
+                textCtx.restore();
+            }
+        }
+    }
+}
+
+// ─── Rendu GFX ───────────────────────────────────────────────────
+// Précalcul : nb de lignes/colonnes canvas par ligne/colonne GFX (Bresenham)
+function makeRowRepeats(canvasH) {
+    return Array.from({length: GFX_H}, (_, i) =>
+        Math.floor(canvasH * (i+1) / GFX_H) - Math.floor(canvasH * i / GFX_H));
+}
+function makeColRepeats(canvasW) {
+    return Array.from({length: GFX_W}, (_, i) =>
+        Math.floor(canvasW * (i+1) / GFX_W) - Math.floor(canvasW * i / GFX_W));
+}
+
+let gfxRowRepeats = null;
+let gfxColRepeats = null;
+let gfxImgData    = null;
+
+function renderGfx(gfxMem, gfxMode) {
+    if (!gfxMode.gra) {
+        if (prevGfxGra) {
+            gfxCanvas.style.display = 'none';
+            prevGfxGra = false;
+        }
+        return;
+    }
+    if (!prevGfxGra) {
+        gfxCanvas.style.display = 'block';
+        prevGfxGra = true;
+    }
+
+    const gros  = gfxMode.gros;
+    const canvasH = textCanvas.height;
+    const canvasW = textCanvas.width;
+
+    // Recompute si taille changée
+    if (!gfxRowRepeats || gfxCanvas.height !== canvasH || gfxCanvas.width !== canvasW) {
+        gfxRowRepeats = makeRowRepeats(canvasH);
+        gfxColRepeats = makeColRepeats(canvasW);
+        gfxImgData    = gfxCtx.createImageData(canvasW, canvasH);
+    }
+
+    // Skip si rien n'a changé
+    if (prevGfxMem && gros === prevGfxGros) {
+        let same = true;
+        for (let i = 0; i < gfxMem.length; i++) {
+            if (gfxMem[i] !== prevGfxMem[i]) { same = false; break; }
+        }
+        if (same) return;
+    }
+    if (!prevGfxMem) prevGfxMem = new Uint8Array(gfxMem.length);
+    prevGfxMem.set(gfxMem);
+    prevGfxGros = gros;
+
+    const data = gfxImgData.data;
+    let canvasRow = 0;
+
+    // Ligne transparente réutilisable (pixels éteints = transparents pour laisser passer le texte)
+    const blackRow = new Uint8Array(canvasW * 4);  // zéros = fully transparent
+
+    for (let gy = 0; gy < GFX_H; gy++) {
+        const base  = (gy >> 1) * GFX_BPR;
+        const isTop = (gy & 1) === 0;
+        const rep   = gfxRowRepeats[gy];
+
+        // Construire la ligne de pixels (canvasW pixels × RGBA) — scaling Bresenham
+        const rowBuf = new Uint8Array(canvasW * 4);
+        let cx = 0;
+        for (let gx = 0; gx < GFX_W; gx++) {
+            const b     = gfxMem[base + (gx >> 2)];
+            const pixel = isTop
+                ? (b >> (7 - (gx & 3))) & 1
+                : (b >> (3 - (gx & 3))) & 1;
+            const on = pixel === 1;
+            const rep = gfxColRepeats[gx];
+            for (let r = 0; r < rep; r++, cx++) {
+                const lit = on && (gros || r === 0);
+                rowBuf[cx*4+1] = lit ? 0xCC : 0;
+                rowBuf[cx*4+3] = lit ? 255 : 0;  // transparent si pixel éteint
+            }
+        }
+
+        for (let r = 0; r < rep; r++, canvasRow++) {
+            // En mode petit : lignes paires = pixels, lignes impaires = noires
+            const row = (gros || r === 0) ? rowBuf : blackRow;
+            data.set(row, canvasRow * canvasW * 4);
+        }
+    }
+
+    gfxCtx.putImageData(gfxImgData, 0, 0);
+}
+
+// ─── Callback onFrame ────────────────────────────────────────────
+function onFrame(textMem, gfxMem, gfxMode) {
+    renderGfx(gfxMem, gfxMode);
+    renderText(textMem, gfxMode);
+    syncFnCheckboxes();
+}
+
+// ─── Mode label ──────────────────────────────────────────────────
+const modeLbl = document.getElementById('mode-lbl');
+function setModeLabel(mode) {
+    if (mode === 'running') {
+        modeLbl.textContent = '▶ RUN';
+        modeLbl.className   = 'mode-run';
+    } else if (mode === 'stepping') {
+        modeLbl.textContent = '⏭ STEP';
+        modeLbl.className   = 'mode-step';
+    } else {
+        modeLbl.textContent = '● ARRÊT';
+        modeLbl.className   = 'mode-stop';
+    }
+}
+
+// ─── Zone debug ──────────────────────────────────────────────────
+const debugEl = document.getElementById('debug-text');
+function setDebug(text) {
+    debugEl.value = text;
+    debugEl.scrollTop = debugEl.scrollHeight;
+}
+
+function buildStateText() {
+    if (!sim) return '';
+    const st = sim.getCpuState();
+    const f  = st.flags;
+    const fs = [f.S?'S':'-',f.Z?'Z':'-',f.Y?'Y':'-',f.H?'H':'-',
+                f.X?'X':'-',f.P?'P':'-',f.N?'N':'-',f.C?'C':'-'].join('');
+    const h = (v, n) => v.toString(16).toUpperCase().padStart(n,'0');
+    const cpu = sim.cpu;
+
+    const dis = sim.disasmAt(st.pc);
+
+    // Stack
+    const stack = [];
+    for (let i = 0; i < 4; i++) {
+        const a = (st.sp + i*2) & 0xFFFF;
+        const lo = sim.memRead(a), hi = sim.memRead((a+1)&0xFFFF);
+        stack.push(`SP+${(i*2).toString(16).toUpperCase()}:${h((hi<<8)|lo,4)}`);
+    }
+
+    const wd = st.wd;
+    const bpStr = breakpoints.size ? [...breakpoints].map(a=>h(a,4)).join(' ') : '(aucun)';
+
+    return [
+        `PC=${h(st.pc,4)} SP=${h(st.sp,4)} IX=${h(st.ix,4)} IY=${h(st.iy,4)}  IM=${st.im} IFF=${st.iff1}${st.iff2} HLT=${st.halted}`,
+        `AF=${h(st.af,4)} BC=${h(st.bc,4)} DE=${h(st.de,4)} HL=${h(st.hl,4)}  A=${h(st.a,2)} F=${h(st.f,2)} (${fs})`,
+        `AF'=${h(st.af_,4)} BC'=${h(st.bc_,4)} DE'=${h(st.de_,4)} HL'=${h(st.hl_,4)}`,
+        `EXEC @${h(st.pc,4)}: ${[0,1,2,3].map(i=>h(sim.memRead((st.pc+i)&0xFFFF),2)).join(' ')}   ${dis.text}`,
+        `STACK: ${stack.join('  ')}`,
+        `ENI50=${sim.eni50?'ON':'off'}  WD: ERR=${h(wd.error,2)} SC=${h(wd.sectorCount,2)} SN=${h(wd.sectorNum,2)} CY=${h(wd.cyl,4)} HD=${h(wd.head,2)} MODE=${wd.mode??'-'} IDX=${wd.idx}`,
+        `KB FIFO (${st.kbFifoLen})   FN=${h(st.fnKeys,2)}`,
+        `BP: ${bpStr}`,
+    ].join('\n');
+}
+
+function showDisasm(addr) {
+    if (!sim) return;
+    const lines = [];
+    let a = addr & 0xFFFF;
+    for (let i = 0; i < 24; i++) {
+        const { text, length } = sim.disasmAt(a);
+        const bs = Array.from({length}, (_, j) => sim.memRead((a+j)&0xFFFF).toString(16).padStart(2,'0')).join(' ');
+        const mark = (a === sim.cpu.pc) ? '>' : ' ';
+        lines.push(`${mark}${a.toString(16).toUpperCase().padStart(4,'0')}: ${bs.padEnd(12)} ${text}`);
+        a = (a + length) & 0xFFFF;
+    }
+    setDebug(lines.join('\n'));
+}
+
+function showMemory(addr) {
+    if (!sim) return;
+    const lines = [];
+    for (let n = 0; n < 256; n += 16) {
+        const a     = (addr + n) & 0xFFFF;
+        const bytes = Array.from({length:16}, (_, i) => sim.memRead((a+i)&0xFFFF));
+        const hx    = bytes.map(b => b.toString(16).padStart(2,'0')).join(' ');
+        const asc   = bytes.map(b => (b >= 32 && b < 127) ? String.fromCharCode(b) : '.').join('');
+        lines.push(`${a.toString(16).toUpperCase().padStart(4,'0')}: ${hx}  ${asc}`);
+    }
+    setDebug(lines.join('\n'));
+}
+
+function showWdSector() {
+    if (!sim) return;
+    const wd = sim._wdLastRead;
+    if (!wd) { setDebug('WD: (aucun bloc lu)'); return; }
+    const lba = sim._wdLastReadLba;
+    const lines = [];
+    for (let s = 0; s < wd.length; s += 16) {
+        const chunk = wd.slice(s, s+16);
+        const hx  = [...chunk].map(b=>b.toString(16).padStart(2,'0')).join(' ').padEnd(47);
+        const asc = [...chunk].map(b=>(b>=32&&b<127)?String.fromCharCode(b):'.').join('');
+        const lbaStr = lba != null ? `LBA ${String(lba).padStart(6,'0')} +` : '';
+        lines.push(`${lbaStr}${s.toString(16).padStart(4,'0')}: ${hx}  ${asc}`);
+    }
+    setDebug(lines.join('\n'));
+}
+
+function enterInteractive() {
+    sim.mode = 'interactive';
+    setModeLabel('interactive');
+    document.getElementById('debug-wrap').style.display = '';
+    document.getElementById('cmd-row').style.display = '';
+    document.getElementById('load-status').textContent = 'Simulateur en pause.';
+    setDebug(buildStateText());
+    // Forcer un rendu final de l'écran
+    if (sim.onFrame) {
+        const cpu = sim.cpu;
+        const textMem = cpu.mem.subarray(0x4000, 0x4000 + HEIGHT*WIDTH);
+        const gfxMem  = cpu.mem.subarray(0x4600, 0x4600 + GFX_BPR * (GFX_H>>1));
+        onFrame(textMem, gfxMem, {gra: sim.gfxGra, nox: sim.gfxNox, gros: sim.gfxGros});
+    }
+    const startBtn = document.getElementById('start-btn');
+    startBtn.textContent = sim ? '▶ Reprise' : '▶ Démarrer';
+    document.getElementById('cmd-input').focus();
+}
+
+function doReset() {
+    if (sim) sim.stop();
+    gfxCanvas.style.display = 'none';
+    prevGfxGra = false;
+    startSimulation();
+    textCanvas.focus();
+}
+
+// ─── Ligne série ($PR / $PP) ──────────────────────────────────────
+function updatePrStatus() {
+    const el = document.getElementById('pr-status');
+    if (!sim || sim._prFifo.length === 0) {
+        el.textContent = '—'; el.className = 'sp-status'; return;
+    }
+    el.textContent = sim._prFifo.length + ' octet(s) restant(s)';
+    el.className = 'sp-status active';
+}
+
+function updatePpStatus() {
+    const el = document.getElementById('pp-status');
+    if (!sim || sim._ppBuffer.length === 0) {
+        el.textContent = '—'; el.className = 'sp-status'; return;
+    }
+    el.textContent = sim._ppBuffer.length + ' octet(s) reçu(s)';
+    el.className = 'sp-status active';
+}
+
+async function prChoose() {
+    if (!window.electronAPI) return;
+    const result = await window.electronAPI.serialReadFile();
+    if (!result || !sim) return;
+    const binary = document.getElementById('pr-binary').checked;
+    let fifo;
+    if (binary) {
+        fifo = Array.from(result.data);
+    } else {
+        // Décoder en UTF-8 et convertir en codes Smaky
+        const text = new TextDecoder('utf-8').decode(result.data);
+        const normalized = text.replace(/\r\n/g, '\r').replace(/\n/g, '\r');
+        fifo = [];
+        for (const ch of normalized) {
+            if (ch === '\r') {
+                fifo.push(13);
+            } else {
+                const smaky = UNICODE_TO_SMAKY.get(ch);
+                if (smaky !== undefined) fifo.push(smaky.charCodeAt(0));
+            }
+        }
+    }
+    sim._prFifo = fifo;
+    sim.onPrEmpty = () => { updatePrStatus(); };
+    document.getElementById('pr-status').textContent = result.name;
+    document.getElementById('pr-status').className = 'sp-status active';
+    updatePrStatus();
+    textCanvas.focus();
+}
+
+function prStop() {
+    if (sim) { sim._prFifo = []; sim.onPrEmpty = null; }
+    updatePrStatus();
+    textCanvas.focus();
+}
+
+async function ppSave() {
+    if (!sim || sim._ppBuffer.length === 0) return;
+    const binary = document.getElementById('pp-binary').checked;
+    let data;
+    if (binary) {
+        data = sim._ppBuffer;
+    } else {
+        // Convertir les codes Smaky en Unicode (UTF-8)
+        let text = '';
+        for (const b of sim._ppBuffer) {
+            if (b === 13) { text += '\r\n'; }
+            else { text += SMAKY_CHARS_JS[b & 0x7F] || ''; }
+        }
+        data = Array.from(new TextEncoder().encode(text));
+    }
+    if (window.electronAPI) {
+        await window.electronAPI.serialSaveFile(data);
+    } else {
+        const blob = new Blob([new Uint8Array(data)]);
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = binary ? 'smaky_pp.bin' : 'smaky_pp.txt';
+        a.click();
+    }
+    textCanvas.focus();
+}
+
+function ppClear() {
+    if (sim) sim._ppBuffer = [];
+    updatePpStatus();
+    textCanvas.focus();
+}
+
+function doSerialCmd(cmd) {
+    if (!sim || sim.mode !== 'running') return;
+    for (const ch of cmd) sim.injectKey(ch);
+    sim.injectKey('\r');
+    textCanvas.focus();
+}
+
+function doZoom(delta) {
+    if (window.electronAPI) window.electronAPI.zoom(delta);
+}
+
+let _collerTimer = null;
+
+async function doColler() {
+    if (!sim || sim.mode !== 'running') return;
+    if (!window.electronAPI) return;
+    const text = await window.electronAPI.clipboardRead();
+    if (!text) return;
+
+    // Construire la liste des caractères Smaky à injecter
+    const normalized = text.replace(/\r\n/g, '\r').replace(/\n/g, '\r');
+    const chars = [];
+    for (const ch of normalized) {
+        if (ch === '\r') {
+            chars.push('\r');
+        } else {
+            const smaky = UNICODE_TO_SMAKY.get(ch);
+            if (smaky !== undefined) chars.push(smaky);
+        }
+    }
+
+    // Arrêter un collage précédent encore en cours
+    if (_collerTimer) { clearInterval(_collerTimer); _collerTimer = null; }
+
+    // La FIFO est limitée à 256 caractères et drainée à ~25 chars/s par
+    // l'ISR 50 Hz. On remplit ce qu'on peut, puis on retente à intervalle
+    // régulier tant qu'il reste du texte.
+    let i = 0;
+    const refill = () => {
+        if (!sim || sim.mode !== 'running') {
+            clearInterval(_collerTimer); _collerTimer = null; return;
+        }
+        while (i < chars.length && sim.injectKey(chars[i])) i++;
+        if (i >= chars.length) { clearInterval(_collerTimer); _collerTimer = null; }
+    };
+    refill();
+    if (i < chars.length) _collerTimer = setInterval(refill, 200);
+
+    textCanvas.focus();
+}
+
+function doFnct() {
+    if (!sim || sim.mode !== 'running') return;
+    sim.injectKey('\x0e');
+    textCanvas.focus();
+}
+
+function doDefine() {
+    if (!sim || sim.mode !== 'running') return;
+    sim.injectKey('\x1f');
+    textCanvas.focus();
+}
+
+function doShowDefine() {
+    if (!sim || sim.mode !== 'running') return;
+    sim.injectKey('\x1f', sim._fnKeys | 0x04);  // SHOW + define
+    textCanvas.focus();
+}
+
+function doCopyDefine() {
+    if (!sim || sim.mode !== 'running') return;
+    sim.injectKey('\x1f', sim._fnKeys | 0x20);  // COPY + define
+    textCanvas.focus();
+}
+
+function doMacro() {
+    if (!sim || sim.mode !== 'running') return;
+    sim.injectKey('\x1e');
+    textCanvas.focus();
+}
+
+function doNMI() {
+    if (!sim) return;
+    if (sim.mode !== 'running') {
+        sim.mode = 'running';
+        setModeLabel('running');
+        sim._scheduleNext();
+    }
+    sim.nmi();
+    textCanvas.focus();
+}
+
+// ─── Touches fonction ────────────────────────────────────────────
+function syncFnCheckboxes() {
+    if (!sim) return;
+    const fn = fnKeysKbd | fnKeysMouse;
+    document.querySelectorAll('.fn-cb input').forEach(cb => {
+        if (!cb.dataset.mask) return;
+        const mask = parseInt(cb.dataset.mask, 16);
+        cb.checked = !!(fn & mask);
+    });
+}
+
+function syncFnToSim() {
+    if (!sim) return;
+    sim.setFnKeys(fnKeysKbd | fnKeysMouse);
+}
+
+// Empêcher les barres fn-keys de voler le focus au canvas
+document.getElementById('fn-row').addEventListener('mousedown', e => {
+    e.preventDefault();
+});
+document.getElementById('fn-row2').addEventListener('mousedown', e => {
+    e.preventDefault();
+});
+document.getElementById('fn-row3').addEventListener('mousedown', e => {
+    e.preventDefault();
+});
+
+// Vider fnKeysKbd si la fenêtre perd le focus (évite les touches "collées")
+window.addEventListener('blur', () => {
+    fnKeysKbd    = 0;
+    altgrPending = false;
+    altgrSynthCtrl = null;
+    syncFnToSim();
+    syncFnCheckboxes();
+});
+
+document.querySelectorAll('.fn-cb input').forEach(cb => {
+    if (!cb.dataset.mask) return;
+    cb.addEventListener('change', () => {
+        const mask = parseInt(cb.dataset.mask, 16);
+        if (cb.checked) fnKeysMouse |=  mask;
+        else            fnKeysMouse &= ~mask & 0x7F;
+        syncFnToSim();
+        syncFnCheckboxes();
+    });
+});
+
+// ─── Clavier (mapping PC → Smaky) ────────────────────────────────
+const KEY_MAP = {
+    'Enter':     '\r',
+    'Escape':    '\x06',   // ESC6 (0x06), touche ESC du Smaky 6
+    '§':         '\x1b',   // ESC  (0x1B), touche § = position ESC du clavier PC
+    'Backspace': '\x08',
+    'Tab':       '\x09',
+    'End':       '\x04',
+    'Delete':    '\x7f',
+    'Insert':    '\x1f',
+};
+
+// Touches modificatrices → fn_keys  (basé sur e.code pour distinguer gauche/droit)
+// Sur Windows, AltGr envoie ControlRight+AltRight → on efface le bit change fantôme.
+const CODE_FNKEYS = {
+    'ControlLeft':  0x40,  // cursor
+    'ControlRight': 0x08,  // progra (effacé si AltRight suit = AltGr)
+    'AltLeft':      0x10,  // kill
+    'AltRight':     0x08,  // progra (AltGr)
+    'ContextMenu':  0x02,  // search
+    'F9':           0x08,  // progra (alias)
+    'F10':          0x04,  // show   (alias)
+};
+
+// Flèches → cursor+char
+const CURSOR_KEYS = {
+    'ArrowUp':    'R',
+    'ArrowDown':  'C',
+    'ArrowLeft':  'D',
+    'ArrowRight': 'F',
+    'Home':       'T',
+    'PageUp':     'E',
+    'PageDown':   'X',
+};
+
+// F1-F8 → disque
+const DISK_IMAGES = {
+    'F1':'SM6WIN1.DSK','F2':'SM6WIN2.DSK','F3':'SM6WIN3.DSK',
+    'F4':'SM6WIN4.DSK','F5':'SM6WIN5.DSK','F6':'SM6WIN6.DSK',
+    'F7':'SM6WIN7.DSK','F8':'SM6WIN0.DSK',
+};
+
+textCanvas.addEventListener('keydown', e => {
+    if (!sim) return;
+
+    // Touches modificatrices / fn_keys (détection par e.code)
+    if (e.code in CODE_FNKEYS) {
+        if (e.code === 'AltRight') {
+            // AltGr sur Windows : précédé par ControlRight OU ControlLeft fantôme
+            fnKeysKbd &= ~(0x08 | 0x40);  // effacer progra ET cursor fantômes
+            altgrSynthCtrl = altgrLastCtrl; // transférer seulement ici
+            altgrLastCtrl  = null;
+            altgrPending = true;
+        } else {
+            // Mémoriser le dernier Ctrl pressé (candidat fantôme si AltRight suit)
+            if (e.code === 'ControlLeft' || e.code === 'ControlRight') {
+                altgrLastCtrl = e.code;
+            }
+            fnKeysKbd |= CODE_FNKEYS[e.code];
+        }
+        syncFnToSim();
+        syncFnCheckboxes();
+        e.preventDefault();
+        return;
+    }
+
+    // F1-F8 : changer disque
+    if (e.key in DISK_IMAGES) {
+        requestDiskChange(DISK_IMAGES[e.key]);
+        e.preventDefault();
+        return;
+    }
+
+    if (sim.mode !== 'running') return;
+
+    // Pause/Break → arrêt du simulateur
+    if (e.key === 'Pause') {
+        enterInteractive();
+        e.preventDefault();
+        return;
+    }
+
+    // Flèches → cursor+char
+    if (e.key in CURSOR_KEYS) {
+        sim.injectCursorKey(CURSOR_KEYS[e.key]);
+        e.preventDefault();
+        return;
+    }
+
+    // Résoudre AltGr en attente
+    let fnSnap = null;
+    if (altgrPending) {
+        altgrPending = false;
+        // AltGr produit un char spécial si la touche n'est pas une lettre,
+        // ou si elle produit un char différent de la lettre de base (ex. KeyA → '@').
+        const isLetter = e.code.startsWith('Key');
+        const isSpecial = e.key.length === 1 && (
+            !isLetter ||
+            (e.key !== e.code.slice(3).toLowerCase() &&
+             e.key !== e.code.slice(3).toUpperCase()));
+        if (!isSpecial) {
+            fnKeysKbd |= 0x08;
+            fnSnap = fnKeysKbd | fnKeysMouse;
+            syncFnToSim();
+            syncFnCheckboxes();
+        }
+    }
+
+    // Touches spéciales
+    if (e.key in KEY_MAP) {
+        sim.injectKey(KEY_MAP[e.key], fnSnap);
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
+
+    // Char imprimable
+    if (e.key.length === 1 && e.key.charCodeAt(0) >= 32) {
+        // Case Ctrl cochée : lettre → code Ctrl (1-26)
+        const ctrlCb = document.getElementById('ctrl-cb');
+        if (ctrlCb && ctrlCb.checked && e.key.length === 1) {
+            const code = e.key.toUpperCase().charCodeAt(0);
+            if (code >= 65 && code <= 90) {
+                sim.injectKey(String.fromCharCode(code & 0x1F), fnSnap);
+                ctrlCb.checked = false;
+                e.preventDefault();
+                return;
+            }
+        }
+        // Conversion Unicode → encodage Smaky
+        const smakyChar = UNICODE_TO_SMAKY.get(e.key) ?? e.key;
+        sim.injectKey(smakyChar, fnSnap);
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+    }
+});
+
+textCanvas.addEventListener('keyup', e => {
+    if (!sim) return;
+    if (e.code in CODE_FNKEYS) {
+        if (e.code === 'AltRight') altgrPending = false;
+        // Ignorer le keyup du Ctrl fantôme généré par AltGr (ControlRight ou ControlLeft)
+        if (e.code === altgrSynthCtrl) { altgrSynthCtrl = null; e.preventDefault(); return; }
+        fnKeysKbd &= ~CODE_FNKEYS[e.code] & 0x7F;
+        syncFnToSim();
+        syncFnCheckboxes();
+        e.preventDefault();
+    }
+});
+
+// ─── Commandes ───────────────────────────────────────────────────
+const CMD_LETTERS = new Set(['S','X','V','W','P','R','Q']);
+const cmdInput    = document.getElementById('cmd-input');
+
+cmdInput.addEventListener('keydown', e => {
+    if (!sim) return;
+    const ch = e.key;
+
+    if (ch === 'Enter') {
+        const prefix = cmdInput.value.trim();
+        cmdInput.value = '';
+        execCmd('', prefix);
+        e.preventDefault();
+        return;
+    }
+
+    const up = ch.toUpperCase();
+    if (CMD_LETTERS.has(up)) {
+        const prefix = cmdInput.value.trim().toUpperCase();
+        cmdInput.value = '';
+        execCmd(up, prefix);
+        e.preventDefault();
+        return;
+    }
+
+    // Autoriser seulement chiffres hex + backspace
+    if (ch.length === 1 && !/[0-9a-fA-F]/.test(ch) && ch !== 'Backspace') {
+        e.preventDefault();
+    }
+});
+
+function execCmd(cmd, prefix) {
+    if (!sim) return;
+
+    if (cmd === '' || cmd === undefined) {
+        // Entrée → run
+        sim.resume();
+        setModeLabel('running');
+        textCanvas.focus();
+        return;
+    }
+
+    if (cmd === 'Q') {
+        // Pas de fermeture de fenêtre dans le navigateur — juste arrêter
+        enterInteractive();
+        setDebug('Simulation arrêtée. Rechargez la page pour redémarrer.');
+        return;
+    }
+
+    if (cmd === 'S') {
+        const n = prefix ? (parseInt(prefix, 16) || 1) : 1;
+        sim.step(Math.max(1, n));
+        setModeLabel('stepping');
+        return;
+    }
+
+    if (cmd === 'P') {
+        if (!prefix) {
+            const bpList = breakpoints.size
+                ? 'Breakpoints :\n' + [...breakpoints].map(a=>`  @${a.toString(16).toUpperCase().padStart(4,'0')}`).join('\n')
+                : 'BP: (aucun)';
+            setDebug(bpList);
+        } else {
+            const addr = parseInt(prefix, 16) & 0xFFFF;
+            if (!isNaN(addr)) {
+                breakpoints.add(addr);
+                sim.addBreakpoint(addr);
+                setDebug(`BP + @${addr.toString(16).toUpperCase().padStart(4,'0')}\n` + buildStateText());
+            }
+        }
+        return;
+    }
+
+    if (cmd === 'R') {
+        const addr = parseInt(prefix, 16) & 0xFFFF;
+        if (!isNaN(addr)) {
+            breakpoints.delete(addr);
+            sim.removeBreakpoint(addr);
+            setDebug(`BP - @${addr.toString(16).toUpperCase().padStart(4,'0')}\n` + buildStateText());
+        }
+        return;
+    }
+
+    if (cmd === 'X') {
+        const addr = isNaN(parseInt(prefix, 16)) ? sim.cpu.pc : parseInt(prefix, 16) & 0xFFFF;
+        showDisasm(addr);
+        return;
+    }
+
+    if (cmd === 'V') {
+        const addr = isNaN(parseInt(prefix, 16)) ? sim.cpu.pc : parseInt(prefix, 16) & 0xFFFF;
+        showMemory(addr);
+        return;
+    }
+
+    if (cmd === 'W') {
+        showWdSector();
+        return;
+    }
+}
+
+// ─── Changement de disque (via file picker) ───────────────────────
+function requestDiskChange(path) {
+    // Dans le navigateur, proposer un file picker
+    const inp = document.createElement('input');
+    inp.type  = 'file';
+    inp.accept = '.DSK,.dsk,.img';
+    inp.onchange = () => {
+        if (!inp.files.length) return;
+        readFile(inp.files[0]).then(buf => {
+            diskBuffer = buf;
+            if (sim) {
+                sim.loadDisk(diskBuffer);
+                document.getElementById('load-status').textContent = `Disque : ${inp.files[0].name}`;
+            }
+        });
+    };
+    inp.click();
+}
+
+// ─── ROM embarquée ───────────────────────────────────────────────
+// Décoder ROM18_B64 (défini dans rom18.js) en ArrayBuffer
+function _decodeROM() {
+    var bin = atob(ROM18_B64);
+    var buf = new ArrayBuffer(bin.length);
+    var u8  = new Uint8Array(buf);
+    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    return buf;
+}
+
+// ─── Disques : Map nom→ArrayBuffer chargée depuis le dossier ─────
+var diskFiles      = {};   // { 'SM6WIN0.DSK': ArrayBuffer, ... }
+var availableDisks = new Set(); // noms présents (ex: 'SM6WIN0.DSK')
+
+// Correspondance numéro → touche F
+const DISK_FKEY = ['F8','F1','F2','F3','F4','F5','F6','F7'];
+
+// ─── Panneau disques ──────────────────────────────────────────────
+function buildDiskPanel() {
+    const panel = document.getElementById('disk-panel');
+    panel.innerHTML = '';
+    for (let i = 0; i <= 7; i++) {
+        const name = `SM6WIN${i}.DSK`;
+        const base = `SM6WIN${i}`;
+        const fkey = DISK_FKEY[i];
+        const row  = document.createElement('div');
+        row.className   = 'dp-row';
+        row.dataset.disk = name;
+        row.innerHTML =
+            `<span class="dp-name">${base}</span>` +
+            `<span class="dp-badge dp-absent" id="dp-badge-${i}">absent</span>` +
+            `<button class="dp-btn" onclick="requestDiskChange('${name}')" title="${fkey}">SÉLECT.</button>` +
+            `<button class="dp-btn dp-btn-take" onclick="diskTake('${name}')" title="Charger un fichier .DSK dans cet emplacement">Prend</button>` +
+            `<button class="dp-btn" id="dp-dl-${i}" onclick="diskDownload('${name}')" title="Télécharger l'image actuelle" disabled>⬇</button>` +
+            `<span class="dp-fkey">${fkey}</span>`;
+        panel.appendChild(row);
+    }
+}
+
+function updateDiskPanel() {
+    const activeName = (sim && sim.diskName) ? sim.diskName.toUpperCase() : null;
+    for (let i = 0; i <= 7; i++) {
+        const name  = `SM6WIN${i}.DSK`;
+        const badge = document.getElementById(`dp-badge-${i}`);
+        if (!badge) continue;
+        const present  = availableDisks.has(name);
+        const selected = activeName === name;
+        badge.className = 'dp-badge ' +
+            (selected ? 'dp-selected' : present ? 'dp-present' : 'dp-absent');
+        badge.textContent = selected ? 'sélect.' : present ? 'présent' : 'absent';
+        const dlBtn = document.getElementById(`dp-dl-${i}`);
+        if (dlBtn) dlBtn.disabled = !present && !selected;
+    }
+}
+
+// Lecture d'un File en ArrayBuffer
+function readFile(file) {
+    return new Promise(function(res, rej) {
+        var reader = new FileReader();
+        reader.onload  = function(e) { res(e.target.result); };
+        reader.onerror = function()  { rej(new Error('Lecture : ' + file.name)); };
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+// ─── IndexedDB : persistance du handle de dossier ────────────────
+function idbOpen() {
+    return new Promise(function(resolve, reject) {
+        var req = indexedDB.open('smaky6', 1);
+        req.onupgradeneeded = function() { req.result.createObjectStore('handles'); };
+        req.onsuccess = function() { resolve(req.result); };
+        req.onerror   = function() { reject(req.error); };
+    });
+}
+async function idbSaveHandle(handle) {
+    try {
+        var db = await idbOpen();
+        var tx = db.transaction('handles', 'readwrite');
+        tx.objectStore('handles').put(handle, 'diskDir');
+    } catch(e) {}
+}
+async function idbLoadHandle() {
+    try {
+        var db = await idbOpen();
+        return await new Promise(function(resolve) {
+            var tx  = db.transaction('handles', 'readonly');
+            var req = tx.objectStore('handles').get('diskDir');
+            req.onsuccess = function() { resolve(req.result || null); };
+            req.onerror   = function() { resolve(null); };
+        });
+    } catch(e) { return null; }
+}
+
+// ─── Chargement effectif depuis un FileSystemDirectoryHandle ─────
+async function loadFromDirHandle(dirHandle) {
+    var status = document.getElementById('load-status');
+    diskFiles = {};
+    for await (var entry of dirHandle.values()) {
+        if (entry.kind !== 'file') continue;
+        var upper = entry.name.toUpperCase();
+        if (/^SM6WIN[0-9]\.DSK$/.test(upper)) {
+            var file = await entry.getFile();
+            diskFiles[upper] = await readFile(file);
+        }
+    }
+    availableDisks = new Set(Object.keys(diskFiles).map(k => k.toUpperCase()));
+    var loaded = Object.keys(diskFiles).sort();
+    document.getElementById('disk-dir-name').textContent = dirHandle.name;
+    if (loaded.length) {
+        status.textContent = 'OK — ' + loaded.length + ' image(s) : ' + loaded.join(', ');
+        diskBuffer = diskFiles['SM6WIN0.DSK'] || null;
+        if (sim) sim.loadDisk(diskBuffer);
+        return true;
+    } else {
+        status.textContent = 'Aucun fichier SM6WIN*.DSK trouvé dans ce dossier.';
+        return false;
+    }
+}
+
+// ─── Navigateur : sélection dossier ─────────────────────────────
+async function pickDiskDir() {
+    if (window.showDirectoryPicker) {
+        var dirHandle;
+        try { dirHandle = await window.showDirectoryPicker(); }
+        catch(e) { return; }  // annulé
+        await idbSaveHandle(dirHandle);
+        hideDirResumeBtn();
+        await loadFromDirHandle(dirHandle);
+    } else {
+        // Fallback Firefox : sélecteur de dossier classique
+        document.getElementById('disk-dir-fallback').click();
+    }
+}
+
+// ─── Reprise du dossier précédent (bouton affiché si besoin) ──────
+function hideDirResumeBtn() {
+    var btn = document.getElementById('disk-resume-btn');
+    if (btn) btn.style.display = 'none';
+}
+
+async function tryRestoreDiskDir() {
+    if (!window.showDirectoryPicker) return;
+    var handle = await idbLoadHandle();
+    if (!handle) return;
+    // Vérifier la permission sans interaction utilisateur
+    var perm = await handle.queryPermission({ mode: 'read' });
+    if (perm === 'granted') {
+        await loadFromDirHandle(handle);
+    } else {
+        // Afficher un bouton discret pour demander la permission
+        var btn = document.getElementById('disk-resume-btn');
+        btn.style.display = '';
+        btn.onclick = async function() {
+            var p = await handle.requestPermission({ mode: 'read' });
+            if (p === 'granted') {
+                hideDirResumeBtn();
+                await loadFromDirHandle(handle);
+            }
+        };
+    }
+}
+
+// Fallback webkitdirectory (Firefox)
+function onDiskDirSelected(input) {
+    var status = document.getElementById('load-status');
+    var files  = Array.from(input.files);
+    if (!files.length) return;
+    diskFiles = {};
+    var pending = 0;
+    var dirName = (files[0].webkitRelativePath || files[0].name).split('/')[0] || 'images';
+    files.forEach(function(f) {
+        var name = f.name.toUpperCase();
+        if (/^SM6WIN[0-9]\.DSK$/.test(name)) {
+            pending++;
+            readFile(f).then(function(buf) {
+                diskFiles[name] = buf;
+                if (--pending === 0) {
+                    var loaded = Object.keys(diskFiles).sort().join(', ');
+                    document.getElementById('disk-dir-name').textContent = dirName;
+                    status.textContent = 'OK — ' + Object.keys(diskFiles).length + ' image(s) : ' + loaded;
+                    diskBuffer = diskFiles['SM6WIN0.DSK'] || null;
+                    if (sim) { sim.diskName = 'SM6WIN0.DSK'; sim.loadDisk(diskBuffer); }
+                    availableDisks = new Set(Object.keys(diskFiles));
+                    updateDiskPanel();
+                }
+            }).catch(function(e) { status.textContent = 'Erreur : ' + e.message; });
+        }
+    });
+    if (pending === 0)
+        status.textContent = 'Aucun fichier SM6WIN*.DSK trouvé dans ce dossier.';
+}
+
+// ─── Electron : sélection dossier via dialog natif ───────────────
+async function pickDiskDirElectron() {
+    var status = document.getElementById('load-status');
+    var result = await window.electronAPI.pickDiskDir();
+    if (!result) return;
+    localStorage.setItem('diskDir', result.dir);
+    document.getElementById('disk-dir-name').textContent = result.dir.replace(/.*[\\/]/, '');
+    status.textContent = 'OK — ' + result.disks.length + ' image(s) : ' + result.disks.join(', ');
+    availableDisks = new Set(result.disks.map(d => d.toUpperCase()));
+    updateDiskPanel();
+    await loadDiskElectron('SM6WIN0.DSK');
+}
+
+async function loadDiskElectron(name) {
+    var upper = name.toUpperCase();
+    var data  = await window.electronAPI.readDisk(upper);
+    if (data) {
+        // data est un Uint8Array (IPC sérialise Buffer → Uint8Array)
+        diskBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    } else {
+        diskBuffer = null;
+    }
+    if (sim) {
+        sim.diskName = upper;
+        sim.loadDisk(diskBuffer);
+    }
+    return diskBuffer;
+}
+
+// ─── Changement de disque (F1-F8) ────────────────────────────────
+async function requestDiskChange(name) {
+    var upper  = name.toUpperCase();
+    var status = document.getElementById('load-status');
+    if (window.electronAPI) {
+        await loadDiskElectron(upper);
+        status.textContent = 'Disque : ' + upper + (diskBuffer ? '' : ' (absent)');
+    } else {
+        var buf = diskFiles[upper] || null;
+        diskBuffer = buf;
+        if (sim) { sim.diskName = upper; sim.loadDisk(buf); }
+        status.textContent = 'Disque : ' + upper + (buf ? '' : ' (absent)');
+    }
+    updateDiskPanel();
+}
+
+// ─── Disque : charger un fichier dans un emplacement ─────────────
+function diskTake(name) {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.DSK,.dsk';
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inp.onchange = () => {
+        document.body.removeChild(inp);
+        if (!inp.files.length) return;
+        readFile(inp.files[0]).then(async buf => {
+            await requestDiskChange(name);   // SELECT d'abord
+            diskFiles[name] = buf;
+            diskBuffer = buf;
+            sim.loadDisk(buf);
+            updateDiskPanel();
+            textCanvas.focus();
+        });
+    };
+    inp.click();
+}
+
+// ─── Disque : télécharger l'image actuelle ────────────────────────
+function diskDownload(name) {
+    const upper = name.toUpperCase();
+    let buf = null;
+    if (sim && sim.diskName && sim.diskName.toUpperCase() === upper)
+        buf = sim._wdImage;
+    if (!buf) buf = diskFiles[upper] || null;
+    if (!buf) return;
+    const blob = new Blob([buf], { type: 'application/octet-stream' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;  a.download = upper;  a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    textCanvas.focus();
+}
+
+// ─── Vitesse ─────────────────────────────────────────────────────
+function onSpeedChange(val) {
+    const pct = Math.min(9999, Math.max(1, Math.round(parseFloat(val))));
+    if (isNaN(pct)) return;
+    document.getElementById('speed-input').value = pct;
+    if (sim) sim.speed = pct / 100 * 3.5;
+}
+
+// ─── Clic Démarrer / Arrêt / Reprise ────────────────────────────
+function onStart() {
+    if (sim && sim.mode === 'running') {
+        sim.stop();
+        enterInteractive();
+    } else if (sim && sim.mode === 'interactive') {
+        sim.resume();
+        setModeLabel('running');
+        document.getElementById('start-btn').textContent = '⏹ Arrêt';
+        textCanvas.focus();
+    } else {
+        startSimulation();
+    }
+}
+
+
+// ─── Démarrage ───────────────────────────────────────────────────
+function startSimulation() {
+
+    const pct = parseFloat(document.getElementById('speed-input').value);
+
+    // Créer le simulateur
+    sim = new Smaky();
+    sim.speed = (isNaN(pct) ? 100 : pct) / 100 * 3.5;
+    sim.loadROM(romBuffer);
+    if (diskBuffer) sim.loadDisk(diskBuffer);
+
+    sim.diskName  = 'SM6WIN0.DSK';
+    sim.onPpByte  = () => updatePpStatus();
+    updateDiskPanel();
+    sim.onFrame   = onFrame;
+    // Electron : persister les écritures disque sur le système de fichiers
+    if (window.electronAPI) {
+        sim.onDiskWrite = (name, buf) => window.electronAPI.writeDisk(name, buf);
+    }
+    sim.onStopped = (reason) => {
+        enterInteractive();
+        if (reason === 'breakpoint') {
+            setDebug(`*** BREAKPOINT @${sim.cpu.pc.toString(16).toUpperCase().padStart(4,'0')} ***\n` + buildStateText());
+        }
+    };
+
+    // Réinitialiser le cache rendu
+    prevCells = Array.from({length: HEIGHT}, () => new Uint8Array(WIDTH).fill(255));
+    prevNox   = null;
+    prevGfxMem  = null;
+    prevGfxGros = null;
+    prevGfxGra  = false;
+    gfxRowRepeats = null;
+    gfxColRepeats = null;
+    gfxImgData    = null;
+    fnKeysKbd   = 0;
+    fnKeysMouse = 0;
+    altgrPending = false;
+    altgrSynthCtrl = null;
+    breakpoints.clear();
+
+    document.getElementById('debug-wrap').style.display = 'none';
+    document.getElementById('cmd-row').style.display = 'none';
+    const startBtn = document.getElementById('start-btn');
+    startBtn.textContent = '⏹ Arrêt';
+    startBtn.disabled = false;
+    document.getElementById('load-status').textContent = 'SIMULATION en cours…';
+
+    sim.start();
+    setModeLabel('running');
+    textCanvas.focus();
+}
+
+// ─── Démarrage de l'UI ───────────────────────────────────────────
+romBuffer = _decodeROM();   // ROM embarquée, toujours disponible
+initCanvas();
+buildDiskPanel();
+
+// Adapter l'interface selon le contexte (Electron / navigateur)
+if (window.electronAPI) {
+    document.getElementById('disk-electron-btn').style.display = '';
+    document.getElementById('disk-dir-btn').style.display      = 'none';
+    // Restaurer le dossier disques de la session précédente
+    (async () => {
+        var saved = localStorage.getItem('diskDir');
+        if (saved) {
+            var result = await window.electronAPI.restoreDiskDir(saved);
+            if (result) {
+                document.getElementById('disk-dir-name').textContent = result.dir.replace(/.*[\\/]/, '');
+                document.getElementById('load-status').textContent =
+                    'OK — ' + result.disks.length + ' image(s) : ' + result.disks.join(', ');
+                availableDisks = new Set(result.disks.map(d => d.toUpperCase()));
+                updateDiskPanel();
+                await loadDiskElectron('SM6WIN0.DSK');
+                return;
+            }
+        }
+        document.getElementById('load-status').textContent =
+            'Choisissez le dossier disques, puis Démarrer.';
+        openHelp();
+    })();
+} else {
+    tryRestoreDiskDir().then(function() {
+        if (!diskBuffer) openHelp();
+    });
+}
+setDebug('Chargez ROM18.bin pour démarrer.\n\nCommandes (mode arrêt) :\n' +
+    '  [Entrée]      → run\n' +
+    '  [N]S          → step N instructions (ex: 10S)\n' +
+    '  [ADDR]X       → désassembler à ADDR (ex: 4000X)\n' +
+    '  [ADDR]V       → vue mémoire 256 octets\n' +
+    '  [ADDR]P       → ajouter breakpoint\n' +
+    '  [ADDR]R       → retirer breakpoint\n' +
+    '  W             → dernier secteur WD1002 lu\n' +
+    '  Q             → arrêter\n\n' +
+    'Clavier (mode run) :\n' +
+    '  Pause/Break   → arrêt\n' +
+    '  Flèches       → curseur Smaky\n' +
+    '  Ctrl          → fn: cursor    Alt       → fn: kill\n' +
+    '  AltGr         → fn: progra\n' +
+    '  F9            → fn: progra    F10       → fn: show\n' +
+    '  Menu          → fn: search\n' +
+    '  F1-F7         → SM6WIN1-7.DSK   F8 → SM6WIN0.DSK\n');
+
+// ─── Aide ────────────────────────────────────────────────────────
+function openHelp() {
+    document.getElementById('help-overlay').style.display = 'block';
+}
+function closeHelp() { document.getElementById('help-overlay').style.display = 'none'; }
+function openDsk()  { document.getElementById('dsk-overlay').style.display = 'block'; }
+function closeDsk() { document.getElementById('dsk-overlay').style.display = 'none'; }
+
+// Ouvrir les liens externes dans le navigateur système (Electron)
+document.getElementById('help-box').addEventListener('click', function(e) {
+    const a = e.target.closest('a[href]');
+    if (!a) return;
+    const url = a.getAttribute('href');
+    if (url.startsWith('http') && window.electronAPI) {
+        e.preventDefault();
+        window.electronAPI.openExternal(url);
+    }
+});
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') { closeHelp(); closeDsk(); }
+});
+
+// Exposer sim pour debug console
+window.sim = null;
+Object.defineProperty(window, 'sim', { get: () => sim, set: v => { sim = v; } });
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# Dépendances npm — régénérées par `npm install`
+node_modules/
+
+# Artefacts de build — produits par `npm run dist`
+dist/
+
+# Anciennes releases / téléchargements (déplacés dans ../SimSmaky6JS-releases/)
+download/
+
+# Build HTML autonome — produit par `node build.js`
+smaky6.html
+
+# Raccourci Firefox (lien personnel)
+url
+
+# Logs npm / divers
+*.log
+npm-debug.log*
+
+# Métadonnées de l'OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Fichiers temporaires d'éditeurs
+*.swp
+*~
+.vscode/
+.idea/
+
+# Réglages locaux de Claude Code (spécifiques à la machine)
+.claude/

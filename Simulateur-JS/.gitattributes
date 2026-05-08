@@ -1,0 +1,18 @@
+# Tous les fichiers texte : auto-détection, stockés en LF, restitués en LF
+# sur toutes les plateformes (Windows, Linux, macOS).
+* text=auto eol=lf
+
+# Binaires explicites — Git ne les touche jamais
+*.png   binary
+*.ico   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.gz    binary
+*.tar   binary
+*.zip   binary
+*.exe   binary
+*.dll   binary
+*.dsk   binary
+*.bin   binary
+*.pdf   binary
