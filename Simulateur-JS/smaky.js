@@ -98,6 +98,19 @@ class Smaky {
         // échoue), 3 = laisse passer ~95%, 5 = fiable en pratique.
         this.kbGapTicks     = 8;
         this._kbGapLeft     = 0;
+        // Durée (en ticks 50 Hz) pendant laquelle fn_keys est exposé sur
+        // port $0 avant l'armement du strobe. La ROM polle fn_keys et
+        // peut rater quelques cycles si une routine plus longue est en
+        // cours. 4 ticks (80 ms) = compromis fiabilité / réactivité ;
+        // 1 ou 2 ticks produisent des races intermittentes sur les
+        // flèches (char F/D/R/C interprété comme littéral).
+        this.kbFnExposeTicks = 4;
+        this._kbFnExposeLeft = 0;
+        // Mini-gap après une touche avec fn co-tenu (ex. cursor+F) :
+        // garde fn_keys exposé quelques ticks pour la ROM qui relirait
+        // l'image après le char. Distinct de kbGapTicks (anti-rebond
+        // auto-repeat de chars identiques).
+        this.kbFnHoldGapTicks = 4;
 
         // ── USART 8251 (ports 4-5) ───────────────────────────────
         this._8251phase = 'mode';  // 'mode' | 'cmd' (après reset)
@@ -339,7 +352,10 @@ class Smaky {
         if (this._kbState === 'pending') return;
 
         if (this._kbState === 'fn_expose') {
-            // Le masque fn_keys a été exposé pendant un tick, on arme le char.
+            // Maintenir fn_keys exposé pendant plusieurs ticks pour que la
+            // ROM ait le temps d'observer le bit cursor (ou autre modifier)
+            // dans son polling avant de voir le strobe.
+            if (--this._kbFnExposeLeft > 0) return;
             this._kbState = 'pending';
             this._kbLatch = true;
             return;
@@ -360,7 +376,8 @@ class Smaky {
             this._kbCurCode = e.code;
             if (e.fn !== null) {
                 this._kbCurFn = e.fn;
-                this._kbState = 'fn_expose';   // latch reste à 0, fn exposé 1 tick
+                this._kbFnExposeLeft = this.kbFnExposeTicks;
+                this._kbState = 'fn_expose';   // latch reste à 0, fn exposé N ticks
             } else {
                 this._kbCurFn = null;
                 this._kbState = 'pending';
@@ -491,16 +508,31 @@ class Smaky {
                 // a alors besoin de voir bit2=0 plusieurs ticks pour ne pas
                 // confondre avec un auto-repeat. Sinon on repart immédiate-
                 // ment en idle (un char par tick 50 Hz = ~50 chars/s).
+                // Cas particulier : char avec fn co-tenu (ex. cursor+F) →
+                // on force aussi un gap pour que la ROM, en relisant
+                // fn_keys juste après, voie encore le bit cursor. Mais
+                // un gap COURT (kbFnHoldGapTicks) pour ne pas dégrader
+                // la réactivité des flèches.
                 const next = this._kbFifo[0];
-                if (next && next.code === code && next.fn === null) {
+                const repeatGap = (next && next.code === code && next.fn === null);
+                const hasFnHold = (this._kbCurFn !== null);
+                if (repeatGap || hasFnHold) {
                     this._kbState = 'gap';
-                    this._kbGapLeft = this.kbGapTicks;
+                    this._kbGapLeft = repeatGap ? this.kbGapTicks : this.kbFnHoldGapTicks;
                 } else {
                     this._kbState = 'idle';
                 }
                 return code | 0x80;
             }
             if (this._kbState === 'fn_expose') {
+                return this._kbCurFn & 0x7F;
+            }
+            // Pendant 'gap' (juste après lecture du char), garder le bit
+            // cursor co-tenu : sur le vrai Smaky 6, la flèche maintient
+            // physiquement la touche cursor pendant que la lettre F/D/R/C
+            // est lue. Sans ça, la ROM relit fn_keys=0 et traite le char
+            // comme un littéral.
+            if (this._kbState === 'gap' && this._kbCurFn !== null) {
                 return this._kbCurFn & 0x7F;
             }
             return this._fnKeys & 0x7F;

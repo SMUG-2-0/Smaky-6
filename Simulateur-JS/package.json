@@ -1,12 +1,14 @@
 {
   "name": "smaky6-simulator",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Simulateur Smaky 6 — Epsitec SA",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dist":       "electron-builder --win",
-    "dist:linux": "electron-builder --linux"
+    "dist:linux": "electron-builder --linux",
+    "dist:mac":   "electron-builder --mac",
+    "dist:all":   "electron-builder --win --linux"
   },
   "build": {
     "appId": "ch.epsitec.smaky6sim",
@@ -28,6 +30,12 @@
       "target": ["tar.gz"],
       "category": "Development",
       "icon": "icon.png"
+    },
+    "mac": {
+      "target": ["zip"],
+      "icon": "icon.png",
+      "category": "public.app-category.developer-tools",
+      "identity": null
     }
   },
   "devDependencies": {
