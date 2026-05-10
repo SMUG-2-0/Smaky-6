@@ -1,0 +1,12 @@
+[
+  {
+    "from": 0,
+    "to": 3888,
+    "kind": "code"
+  },
+  {
+    "from": 3888,
+    "to": 4096,
+    "kind": "ptr-table-rst20h"
+  }
+]
