@@ -67,12 +67,13 @@ function transcodeLine(zilogText, labels) {
     // Pseudo-instructions sans opérande
     if (t === 'NOP')   return { calm: 'NOP', extraComment: null };
     if (t === 'HALT')  return { calm: 'HALT', extraComment: null };
-    if (t === 'DI')    return { calm: 'DI', extraComment: null };
-    if (t === 'EI')    return { calm: 'EI', extraComment: null };
     if (t === 'EXX')   return { calm: 'EXX', extraComment: null };
-    if (t === 'CCF')   return { calm: 'CCF', extraComment: null };
-    if (t === 'SCF')   return { calm: 'SCF', extraComment: null };
     if (t === 'DAA')   return { calm: 'DAA', extraComment: null };
+    // Mnémoniques 1re gen non confirmés : émettre l'octet brut + commentaire
+    if (t === 'DI')    return { calm: ".B H'F3", extraComment: 'DI - mnémonique CALM 1re gen ?' };
+    if (t === 'EI')    return { calm: ".B H'FB", extraComment: 'EI - mnémonique CALM 1re gen ?' };
+    if (t === 'SCF')   return { calm: ".B H'37", extraComment: 'SCF - mnémonique CALM 1re gen ?' };
+    if (t === 'CCF')   return { calm: ".B H'3F", extraComment: 'CCF - mnémonique CALM 1re gen ?' };
     if (t === 'CPL')   return { calm: 'CPL A', extraComment: null };
     if (t === 'NEG')   return { calm: 'NEG A', extraComment: null };
     if (t === 'RET')   return { calm: 'RET', extraComment: null };
@@ -218,9 +219,17 @@ function transcodeLine(zilogText, labels) {
         return { calm: `${mnem} ${args}`, extraComment: null };
     }
 
-    // Rotations (Z80 CB-prefixed) : RLC, RRC, RL, RR, SLA, SRA, SLL, SRL
-    if (['RLC','RRC','RL','RR','SLA','SRA','SLL','SRL'].includes(mnem)) {
+    // Rotations (Z80 CB-prefixed) : RLC, RRC, RL, RR
+    if (['RLC','RRC','RL','RR'].includes(mnem)) {
         return { calm: `${mnem} ${args}`, extraComment: null };
+    }
+    // Décalages : Zilog SLA → CALM 1re gen SL ; SRA → SR (à confirmer)
+    if (mnem === 'SLA') {
+        return { calm: `SL ${args}`, extraComment: null };
+    }
+    if (mnem === 'SRA' || mnem === 'SRL' || mnem === 'SLL') {
+        // À confirmer : nom exact en CALM 1re gen
+        return { calm: `${mnem} ${args}`, extraComment: `?? mnémonique CALM 1re gen à confirmer` };
     }
 
     // PUSH, POP : registre seul
