@@ -24,7 +24,7 @@
 ;=====================
 
 
-RST00:   .B H'F3                 ;0000: F3           DI - mnémonique CALM 1re gen ?
+RST00:   IOF                     ;0000: F3         
  LOAD SP,#H'4530                 ;0001: 31 30 45   
  JUMP L_0105                     ;0004: C3 05 01   
  LOAD D,H                        ;0007: 54         
@@ -107,7 +107,7 @@ L_007B:  POP HL                  ;007B: E1
  POP DE                          ;007C: D1         
  POP BC                          ;007D: C1         
  POP AF                          ;007E: F1         
- .B H'FB                         ;007F: FB           EI - mnémonique CALM 1re gen ?
+ ION                             ;007F: FB         
  RET                             ;0080: C9         
 L_0081:  LOAD HL,H'455E          ;0081: 2A 5E 45   
  LOAD A,H                        ;0084: 7C         
@@ -197,7 +197,7 @@ L_0121:  .W ?BRANC               ;0121: E7 1C
  JUMP CS,L_011B                  ;0123: 38 F6      
  PUSH DE                         ;0125: D5         
  RET                             ;0126: C9         
- .B H'F3                         ;0127: F3           DI - mnémonique CALM 1re gen ?
+ IOF                             ;0127: F3         
  LOAD H'4554,A                   ;0128: 32 54 45   
  EX (SP),HL                      ;012B: E3         
  LOAD A,(HL)                     ;012C: 7E         
@@ -218,7 +218,7 @@ L_013B:  ADD A,L                 ;013B: 85
  POP AF                          ;0141: F1         
  LOAD A,H'4554                   ;0142: 3A 54 45   
  EX (SP),HL                      ;0145: E3         
- .B H'FB                         ;0146: FB           EI - mnémonique CALM 1re gen ?
+ ION                             ;0146: FB         
  RET                             ;0147: C9         
 L_0148:  LOAD HL,#FLOFF          ;0148: 21 BF 45   
  LOAD A,(HL)                     ;014B: 7E         
@@ -353,7 +353,7 @@ L_0209:  RR H                    ;0209: CB 1C
  SUBC HL,BC                      ;0219: ED 42      
  POP HL                          ;021B: E1         
  JUMP CC,L_0230                  ;021C: 30 12      
-L_021E:  .B H'37                 ;021E: 37           SCF - mnémonique CALM 1re gen ?
+L_021E:  SETC                    ;021E: 37         
  RL E                            ;021F: CB 13      
  RL D                            ;0221: CB 12      
  RL L                            ;0223: CB 15      
@@ -363,17 +363,17 @@ L_021E:  .B H'37                 ;021E: 37           SCF - mnémonique CALM 1re 
  ;TODO BIT 0,A                   ;022A: CB 47        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
  JUMP EQ,L_0232                  ;022C: 28 04      
  JUMP CS,L_0237                  ;022E: 38 07      
-L_0230:  .B H'37                 ;0230: 37           SCF - mnémonique CALM 1re gen ?
+L_0230:  SETC                    ;0230: 37         
  RET                             ;0231: C9         
 L_0232:  JUMP CC,L_0237          ;0232: 30 03      
  ADD HL,BC                       ;0234: 09         
  ;TODO RES 0,E                   ;0235: CB 83        LOAD A,E ; OR/AND A,#mask ; LOAD E,A
-L_0237:  SRL A                   ;0237: CB 3F        ?? mnémonique CALM 1re gen à confirmer
+L_0237:  SRC A                   ;0237: CB 3F        ?? CALM 1re gen à confirmer
  DEC A                           ;0239: 3D         
  JUMP NE,L_021E                  ;023A: 20 E2      
  OR A,A                          ;023C: B7         
  RET                             ;023D: C9         
- .B H'F3                         ;023E: F3           DI - mnémonique CALM 1re gen ?
+ IOF                             ;023E: F3         
  INC SP                          ;023F: 33         
  INC SP                          ;0240: 33         
  EX (SP),HL                      ;0241: E3         
@@ -384,7 +384,7 @@ L_0237:  SRL A                   ;0237: CB 3F        ?? mnémonique CALM 1re gen
  EX (SP),HL                      ;0246: E3         
  DEC SP                          ;0247: 3B         
  DEC SP                          ;0248: 3B         
- .B H'FB                         ;0249: FB           EI - mnémonique CALM 1re gen ?
+ ION                             ;0249: FB         
  RET                             ;024A: C9         
  PUSH BC                         ;024B: C5         
  EX HL,DE                        ;024C: EB         
@@ -398,7 +398,7 @@ L_024D:  LOAD B,(HL)             ;024D: 46
  INC HL                          ;0256: 23         
  INC HL                          ;0257: 23         
  JUMP L_024D                     ;0258: 18 F3      
-L_025A:  .B H'37                 ;025A: 37           SCF - mnémonique CALM 1re gen ?
+L_025A:  SETC                    ;025A: 37         
 L_025B:  EX HL,DE                ;025B: EB         
  POP BC                          ;025C: C1         
  RET                             ;025D: C9         
@@ -431,7 +431,7 @@ L_0286:  EX HL,DE                ;0286: EB
  INC SP                          ;0287: 33         
  INC SP                          ;0288: 33         
  RET                             ;0289: C9         
-L_028A:  .B H'37                 ;028A: 37           SCF - mnémonique CALM 1re gen ?
+L_028A:  SETC                    ;028A: 37         
  JUMP L_0286                     ;028B: 18 F9      
  LOAD HL,MAXMEM                  ;028D: 2A 60 45   
  RET                             ;0290: C9         
@@ -550,9 +550,9 @@ L_0350:  COMP A,#24              ;0350: FE 14
  JUMP CS,L_0358                  ;0352: 38 04      
  SUB A,#24                       ;0354: D6 14      
  JUMP L_0350                     ;0356: 18 F8      
-L_0358:  SRL A                   ;0358: CB 3F        ?? mnémonique CALM 1re gen à confirmer
+L_0358:  SRC A                   ;0358: CB 3F        ?? CALM 1re gen à confirmer
  RR L                            ;035A: CB 1D      
- SRL A                           ;035C: CB 3F        ?? mnémonique CALM 1re gen à confirmer
+ SRC A                           ;035C: CB 3F        ?? CALM 1re gen à confirmer
  RR L                            ;035E: CB 1D      
  ADD A,#H'40                     ;0360: C6 40      
  LOAD H,A                        ;0362: 67         
@@ -563,7 +563,7 @@ L_0368:  PUSH AF                 ;0368: F5
  .W ?BEEP                        ;036B: E7 3E
  POP AF                          ;036D: F1         
  RET                             ;036E: C9         
- .B H'F3                         ;036F: F3           DI - mnémonique CALM 1re gen ?
+ IOF                             ;036F: F3         
  PUSH BC                         ;0370: C5         
  PUSH AF                         ;0371: F5         
  AND A,#7                        ;0372: E6 07      
@@ -581,7 +581,7 @@ L_037E:  DEC A                   ;037E: 3D
  DECJ,NE B,L_0375                ;0384: 10 EF      
  POP AF                          ;0386: F1         
  POP BC                          ;0387: C1         
- .B H'FB                         ;0388: FB           EI - mnémonique CALM 1re gen ?
+ ION                             ;0388: FB         
  RET                             ;0389: C9         
 L_038A:  .W ?BEEP                ;038A: E7 3E
  POP AF                          ;038C: F1         
@@ -816,7 +816,7 @@ L_0510:  OR A,A                  ;0510: B7
  CALL L_0501                     ;0518: CD 01 05   
  JUMP NE,L_04EC                  ;051B: 20 CF      
  POP AF                          ;051D: F1         
- .B H'37                         ;051E: 37           SCF - mnémonique CALM 1re gen ?
+ SETC                            ;051E: 37         
  JUMP L_04FD                     ;051F: 18 DC      
  LOAD A,H'457E                   ;0521: 3A 7E 45   
  OR A,A                          ;0524: B7         
@@ -849,7 +849,7 @@ L_054E:  LOAD (HL),A             ;054E: 77
  DEC HL                          ;0552: 2B         
  COMP A,#H'80                    ;0553: FE 80      
  JUMP NE,L_0536                  ;0555: 20 DF      
- .B H'37                         ;0557: 37           SCF - mnémonique CALM 1re gen ?
+ SETC                            ;0557: 37         
 L_0558:  LOAD (HL),#0            ;0558: 36 00      
  LOAD HL,#BUFLIN                 ;055A: 21 C0 45   
  RET                             ;055D: C9         
@@ -896,7 +896,7 @@ L_0590:  DEC C                   ;0590: 0D
 L_05A2:  LOAD A,$(C)             ;05A2: ED 78        ?? IN r,(C) — vérifier syntaxe CALM
  AND A,#2                        ;05A4: E6 02      
  JUMP NE,L_0590                  ;05A6: 20 E8      
-L_05A8:  .B H'37                 ;05A8: 37           SCF - mnémonique CALM 1re gen ?
+L_05A8:  SETC                    ;05A8: 37         
  POP BC                          ;05A9: C1         
  RET                             ;05AA: C9         
  PUSH BC                         ;05AB: C5         
@@ -953,8 +953,8 @@ L_05DF:  INC SP                  ;05DF: 33
  SL L                            ;05F5: CB 25      
  RL A                            ;05F7: 17         
  LOAD H,A                        ;05F8: 67         
- SRL L                           ;05F9: CB 3D        ?? mnémonique CALM 1re gen à confirmer
- SRL L                           ;05FB: CB 3D        ?? mnémonique CALM 1re gen à confirmer
+ SRC L                           ;05F9: CB 3D        ?? CALM 1re gen à confirmer
+ SRC L                           ;05FB: CB 3D        ?? CALM 1re gen à confirmer
  POP AF                          ;05FD: F1         
  RET                             ;05FE: C9         
  LOAD B,C                        ;05FF: 41         
@@ -978,7 +978,7 @@ L_0623:  CALL L_063B             ;0623: CD 3B 06
  CALL L_0662                     ;0629: CD 62 06   
  CALL L_06EE                     ;062C: CD EE 06   
  JUMP L_0623                     ;062F: 18 F2      
-L_0631:  .B H'37                 ;0631: 37           SCF - mnémonique CALM 1re gen ?
+L_0631:  SETC                    ;0631: 37         
  RET                             ;0632: C9         
 L_0633:  LOAD A,(IX+0)           ;0633: DD 7E 00   
  INC IX                          ;0636: DD 23      
@@ -1049,7 +1049,7 @@ L_06A0:  LOAD L,A                ;06A0: 6F
  POP DE                          ;06A1: D1         
  CALL L_06F4                     ;06A2: CD F4 06   
  LOAD A,B                        ;06A5: 78         
- SRL A                           ;06A6: CB 3F        ?? mnémonique CALM 1re gen à confirmer
+ SRC A                           ;06A6: CB 3F        ?? CALM 1re gen à confirmer
  ADD A,L                         ;06A8: 85         
  JUMP CS,L_06BC                  ;06A9: 38 11      
  PUSH AF                         ;06AB: F5         
@@ -1190,12 +1190,12 @@ L_0795:  LOAD A,D                ;0795: 7A
  LOAD D,#H'77                    ;079A: 16 77      
 L_079C:  XOR A,A                 ;079C: AF         
  LOAD B,A                        ;079D: 47         
- SRL D                           ;079E: CB 3A        ?? mnémonique CALM 1re gen à confirmer
+ SRC D                           ;079E: CB 3A        ?? CALM 1re gen à confirmer
  RL A                            ;07A0: 17         
- SRL D                           ;07A1: CB 3A        ?? mnémonique CALM 1re gen à confirmer
+ SRC D                           ;07A1: CB 3A        ?? CALM 1re gen à confirmer
  RR E                            ;07A3: CB 1B      
  RL A                            ;07A5: 17         
- SRL D                           ;07A6: CB 3A        ?? mnémonique CALM 1re gen à confirmer
+ SRC D                           ;07A6: CB 3A        ?? CALM 1re gen à confirmer
  RR E                            ;07A8: CB 1B      
  RL A                            ;07AA: 17         
  LOAD C,A                        ;07AB: 4F         
@@ -1321,8 +1321,8 @@ L_0836:  DECJ,NE B,L_0828        ;0836: 10 F0
  LOAD H,D                        ;0854: 62         
  POP DE                          ;0855: D1         
  LOAD L,E                        ;0856: 6B         
- SRL L                           ;0857: CB 3D        ?? mnémonique CALM 1re gen à confirmer
- SRL L                           ;0859: CB 3D        ?? mnémonique CALM 1re gen à confirmer
+ SRC L                           ;0857: CB 3D        ?? CALM 1re gen à confirmer
+ SRC L                           ;0859: CB 3D        ?? CALM 1re gen à confirmer
  POP BC                          ;085B: C1         
  POP AF                          ;085C: F1         
  RET                             ;085D: C9         
@@ -1570,7 +1570,7 @@ L_09C4:  LOAD HL,SAVLGO          ;09C4: 2A 46 45
 L_09D7:  LOAD A,H'4549           ;09D7: 3A 49 45   
  LOAD $0,A                       ;09DA: D3 00      
  LOAD LAMODI,A                   ;09DC: 32 7F 45   
- .B H'F3                         ;09DF: F3           DI - mnémonique CALM 1re gen ?
+ IOF                             ;09DF: F3         
  LOAD SP,#H'452C                 ;09E0: 31 2C 45   
  POP IY                          ;09E3: FD E1      
  POP IX                          ;09E5: DD E1      
@@ -1590,7 +1590,7 @@ L_09D7:  LOAD A,H'4549           ;09D7: 3A 49 45
  PUSH HL                         ;09F7: E5         
  LOAD HL,H'4540                  ;09F8: 2A 40 45   
  EX (SP),HL                      ;09FB: E3         
- .B H'FB                         ;09FC: FB           EI - mnémonique CALM 1re gen ?
+ ION                             ;09FC: FB         
  RET                             ;09FD: C9         
  JUMP EQ,L_0A03                  ;09FE: 28 03      
  LOAD H'4540,HL                  ;0A00: 22 40 45   
@@ -1660,7 +1660,7 @@ L_0A84:  PUSH AF                 ;0A84: F5
  LOAD A,LAMODI                   ;0A85: 3A 7F 45   
  LOAD H'4549,A                   ;0A88: 32 49 45   
  POP AF                          ;0A8B: F1         
- .B H'F3                         ;0A8C: F3           DI - mnémonique CALM 1re gen ?
+ IOF                             ;0A8C: F3         
  EX (SP),HL                      ;0A8D: E3         
  LOAD H'4540,HL                  ;0A8E: 22 40 45   
  LOAD H'4542,SP                  ;0A91: ED 73 42 45
@@ -1681,7 +1681,7 @@ L_0A84:  PUSH AF                 ;0A84: F5
  PUSH IX                         ;0AA5: DD E5      
  PUSH IY                         ;0AA7: FD E5      
  LOAD SP,H'4542                  ;0AA9: ED 7B 42 45
- .B H'FB                         ;0AAD: FB           EI - mnémonique CALM 1re gen ?
+ ION                             ;0AAD: FB         
  RET                             ;0AAE: C9         
  .W ?RETUR                       ;0AAF: E7 23
  LOAD DE,#H'453E                 ;0AB1: 11 3E 45   
@@ -1927,7 +1927,7 @@ L_0C30:  CALL L_0BDC             ;0C30: CD DC 0B
  CALL L_0C05                     ;0C35: CD 05 0C   
  CALL L_0BD5                     ;0C38: CD D5 0B   
  JUMP EQ,L_0C30                  ;0C3B: 28 F3      
-L_0C3D:  .B H'37                 ;0C3D: 37           SCF - mnémonique CALM 1re gen ?
+L_0C3D:  SETC                    ;0C3D: 37         
  RET                             ;0C3E: C9         
 L_0C3F:  CALL L_0BD5             ;0C3F: CD D5 0B   
  JUMP NE,L_0C3D                  ;0C42: 20 F9      
@@ -2077,7 +2077,7 @@ L_0D33:  LOAD A,(HL)             ;0D33: 7E
  COMP A,#H'60                    ;0D37: FE 60      
 L_0D39:  JUMP CS,L_0D3C          ;0D39: 38 01      
  XOR A,A                         ;0D3B: AF         
-L_0D3C:  .B H'3F                 ;0D3C: 3F           CCF - mnémonique CALM 1re gen ?
+L_0D3C:  .B H'3F                 ;0D3C: 3F           CCF (toggle CF) - mnémonique 1re gen ?
  LOAD (HL),A                     ;0D3D: 77         
  INC HL                          ;0D3E: 23         
  RET                             ;0D3F: C9         
@@ -2355,7 +2355,7 @@ SDAY_HND: LOAD HL,#H'0002        ;0EE0: 21 02 00
  JUMP L_0EEE                     ;0EE6: 18 06      
 STOD_HND: LOAD HL,#RST00         ;0EE8: 21 00 00   
  LOAD DE,#H'0005                 ;0EEB: 11 05 00   
-L_0EEE:  .B H'37                 ;0EEE: 37           SCF - mnémonique CALM 1re gen ?
+L_0EEE:  SETC                    ;0EEE: 37         
 L_0EEF:  CALL HRBUF_OFS          ;0EEF: CD 1E 0F   
  LOAD (HL),A                     ;0EF2: 77         
  JUMP CC,L_0EF9                  ;0EF3: 30 04      
@@ -2374,7 +2374,7 @@ GDAY_HND: LOAD HL,#H'0002        ;0F05: 21 02 00
  JUMP L_0F13                     ;0F0B: 18 06      
 GTOD_HND: LOAD HL,#RST00         ;0F0D: 21 00 00   
  LOAD DE,#H'0005                 ;0F10: 11 05 00   
-L_0F13:  .B H'37                 ;0F13: 37           SCF - mnémonique CALM 1re gen ?
+L_0F13:  SETC                    ;0F13: 37         
 L_0F14:  CALL HRBUF_OFS          ;0F14: CD 1E 0F   
  LOAD A,(HL)                     ;0F17: 7E         
  RET CC                          ;0F18: D0         

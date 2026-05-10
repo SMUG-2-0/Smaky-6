@@ -69,11 +69,15 @@ function transcodeLine(zilogText, labels) {
     if (t === 'HALT')  return { calm: 'HALT', extraComment: null };
     if (t === 'EXX')   return { calm: 'EXX', extraComment: null };
     if (t === 'DAA')   return { calm: 'DAA', extraComment: null };
-    // Mnémoniques 1re gen non confirmés : émettre l'octet brut + commentaire
-    if (t === 'DI')    return { calm: ".B H'F3", extraComment: 'DI - mnémonique CALM 1re gen ?' };
-    if (t === 'EI')    return { calm: ".B H'FB", extraComment: 'EI - mnémonique CALM 1re gen ?' };
-    if (t === 'SCF')   return { calm: ".B H'37", extraComment: 'SCF - mnémonique CALM 1re gen ?' };
-    if (t === 'CCF')   return { calm: ".B H'3F", extraComment: 'CCF - mnémonique CALM 1re gen ?' };
+    // Mnémoniques 1re gen confirmés
+    if (t === 'DI')    return { calm: 'IOF', extraComment: null };   // disable interrupts
+    if (t === 'EI')    return { calm: 'ION', extraComment: null };   // enable interrupts
+    if (t === 'SCF')   return { calm: 'SETC', extraComment: null };  // CF := 1 (et N=0, H=0)
+    // CCF : pas de mnémonique 1re gen connu. Note : SAMOS utilisait
+    // OR A,A pour CF:=0 (clear), pas pour toggle. Les 0x3F dans le
+    // binaire sont peut-être de la donnée mal interprétée. Émis brut
+    // pour permettre la compilation.
+    if (t === 'CCF')   return { calm: ".B H'3F", extraComment: 'CCF (toggle CF) - mnémonique 1re gen ?' };
     if (t === 'CPL')   return { calm: 'CPL A', extraComment: null };
     if (t === 'NEG')   return { calm: 'NEG A', extraComment: null };
     if (t === 'RET')   return { calm: 'RET', extraComment: null };
@@ -223,14 +227,16 @@ function transcodeLine(zilogText, labels) {
     if (['RLC','RRC','RL','RR'].includes(mnem)) {
         return { calm: `${mnem} ${args}`, extraComment: null };
     }
-    // Décalages : Zilog SLA → CALM 1re gen SL ; SRA → SR (à confirmer)
-    if (mnem === 'SLA') {
-        return { calm: `SL ${args}`, extraComment: null };
-    }
-    if (mnem === 'SRA' || mnem === 'SRL' || mnem === 'SLL') {
-        // À confirmer : nom exact en CALM 1re gen
-        return { calm: `${mnem} ${args}`, extraComment: `?? mnémonique CALM 1re gen à confirmer` };
-    }
+    // Shift/rotate CALM 1re gen : SL, SLC, RL, RLC (et SR, SRC, RR, RRC).
+    // Mapping confirmé/déduit :
+    //   Zilog SLA → CALM SL  (shift left arithmétique, LSB := 0)
+    //   Zilog SLL → CALM SLC (undocumented, shift left "carry-fill" / circular)
+    //   Zilog SRA → CALM SR  (shift right arithmétique, MSB préservé)  — À CONFIRMER
+    //   Zilog SRL → CALM SRC (shift right logique, MSB := 0)            — À CONFIRMER
+    if (mnem === 'SLA') return { calm: `SL ${args}`,  extraComment: null };
+    if (mnem === 'SLL') return { calm: `SLC ${args}`, extraComment: null };
+    if (mnem === 'SRA') return { calm: `SR ${args}`,  extraComment: '?? CALM 1re gen à confirmer' };
+    if (mnem === 'SRL') return { calm: `SRC ${args}`, extraComment: '?? CALM 1re gen à confirmer' };
 
     // PUSH, POP : registre seul
     if (mnem === 'PUSH' || mnem === 'POP') {
