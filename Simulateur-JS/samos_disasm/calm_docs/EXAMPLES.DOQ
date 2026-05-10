@@ -1,0 +1,867 @@
+     EXAMPLES.DOQ                                        CALM EXAMPLES - 1
+     
+     
+     
+     
+     
+     
+                                CALM-BEISPIELE
+                                CALM EXAMPLES
+                                EXEMPLES CALM
+     
+     
+     
+     
+     
+     
+                    Programmbeispiele in Assembler mit CALM
+                  Programming examples in assembler using CALM
+               Exemples de programme en assembleur utilisant CALM
+     
+     
+     
+     
+     
+     
+     Assembled by P. F„h, La ColombiŠre, CH-1783 Pensier, Switzerland.
+     
+     
+     Die folgenden Programmierbeispiele sind oft gebrauchte Unterprogramme.
+     The following programming examples are subroutines often used.
+     Les exemples de programmation suivants sont souvent utilis‚s.
+     
+     Jedes Beispiel enth„lt zuerst einen Vorspann:
+     Each example is preceeded by a header:
+     Chaque exemple contient d'abord une entˆte:
+     
+     ;=====================================================================
+     ; TEXTIM        name of the subroutine
+     ; purpose       short description
+     ; processor     indicates the processor
+     ; use           gives an example, how the subroutine must be called
+     ; in            list of processor registers needed by the subroutine
+     ; out           list of processor registers returned by the subroutine
+     ; mod           list of processor registers modified by the subroutine
+     ;---------------------------------------------------------------------
+     
+     Abbreviations used:
+     ^    pointer to something, e.g. ^text
+     CC   Carry Clear
+     CS   Carry Set
+     
+     Notes:
+     - all subroutines start at address zero. So one can quickly determine
+       the size of a subroutine.
+     - if the subroutine calls another subroutine, the address of this
+       additional subroutine is always the same as the subroutine entry
+       (this means zero).
+                                                         CALM EXAMPLES - 2
+     
+     0000                    ;=============================================
+     0000                    ; UPCASE
+     0000                    ; purpose       convert A to upper case
+     0000                    ; processor     Z80
+     0000                    ; use           MOVE    source,A
+     0000                    ;               CALL    UPCASE
+     0000                    ; in            A
+     0000                    ; out           A
+     0000                    ; mod           A,F
+     0000                    ;---------------------------------------------
+     0000                    UPCASE:
+     0000   FE61                     COMP    #"a",A
+     0002   D8                       RET,LO                  ; < "a" ?
+     0003   FE7B                     COMP    #"z"+1,A
+     0005   D0                       RET,HS                  ; > "z" ?
+     0006   D620                     SUB     #"a"-"A",A      ; convert
+     0008   C9                       RET
+     
+     
+     0000                    ;=============================================
+     0000                    ; UPCASE
+     0000                    ; purpose       convert AL to upper case
+     0000                    ; processor     IAPX86
+     0000                    ; use           MOVE.8  source,AL
+     0000                    ;               CALL    UPCASE  ; same segment
+     0000                    ; in            AL
+     0000                    ; out           AL
+     0000                    ; mod           AL,F
+     0000                    ;---------------------------------------------
+     0000                    UPCASE:
+     0000   3C61                     COMP.8  #"a",AL
+     0002   7206                     JUMP,LO END$            ; < "a" ?
+     0004   3C7A                     COMP.8  #"z",AL
+     0006   7702                     JUMP,HI END$            ; > "z" ?
+     0008   2C20                     SUB.8   #"a"-"A",AL     ; convert
+     000A                    END$:
+     000A   C3                       RET.16
+     
+     
+     000000                  ;=============================================
+     000000                  ; UPCASE
+     000000                  ; purpose       convert D0 to upper case
+     000000                  ; processor     M68000
+     000000                  ; use           MOVE.8  source,D0
+     000000                  ;               CALL    UPCASE
+     000000                  ; in            D0.8
+     000000                  ; out           D0.8
+     000000                  ; mod           D0.8,F
+     000000                  ;---------------------------------------------
+     000000                  UPCASE:
+     000000 0C000061                 COMP.8  #"a",D0
+     000004 650A                     JUMP,LO R8^END$         ; < "a" ?
+     000006 0C00007A                 COMP.8  #"z",D0
+     00000A 6204                     JUMP,HI R8^END$         ; > "z" ?
+     00000C 04000020                 SUB.8   #"a"-"A",D0     ; convert
+     000010                  END$:
+     000010 4E75                     RET
+                                                         CALM EXAMPLES - 3
+     
+     0000                    ;=============================================
+     0000                    ; NIBBLEHEX
+     0000                    ; purpose       convert A (4 bit) to hex
+     0000                    ; processor     Z80
+     0000                    ; use           MOVE    source,A
+     0000                    ;               CALL    NIBBLEHEX
+     0000                    ;               MOVE    A,destination
+     0000                    ; in            A
+     0000                    ; out           A
+     0000                    ; mod           A, F
+     0000                    ;---------------------------------------------
+     0000                    NIBBLEHEX:
+     0000   E60F                     AND     #16'F,A         ; bits 4..7=0
+     0002   C630                     ADD     #"0",A
+     0004   FE3A                     COMP    #"9"+1,A
+     0006   D8                       RET,LO                  ; 0..9 ?
+     0007   C607                     ADD     #"A"-("9"+1),A  ; 10..15
+     0009   C9                       RET
+     
+     
+     0000                    ;=============================================
+     0000                    ; NIBBLEHEX
+     0000                    ; purpose       convert AL (4 bit) to hex
+     0000                    ; processor     IAPX86
+     0000                    ; use           MOVE.8  source,AL
+     0000                    ;               CALL    NIBBLEHEX;same segment
+     0000                    ;               MOVE.8  AL,destination
+     0000                    ; in            AL
+     0000                    ; out           AL
+     0000                    ; mod           AL, F
+     0000                    ;---------------------------------------------
+     0000                    NIBBLEHEX:
+     0000   240F                     AND.8   #16'F,AL        ; bits 4..7=0
+     0002   0430                     ADD.8   #"0",AL
+     0004   3C3A                     COMP.8  #"9"+1,AL
+     0006   7202                     JUMP,LO END$            ; 0..9 ?
+     0008   0407                     ADD.8   #"A"-("9"+1),AL ; 10..15
+     000A                    END$:
+     000A   C3                       RET.16
+     
+     
+     000000                  ;=============================================
+     000000                  ; NIBBLEHEX
+     000000                  ; purpose       convert D0 (4 bit) to hex
+     000000                  ; processor     M68000
+     000000                  ; use           MOVE.8  source,D0
+     000000                  ;               CALL    NIBBLEHEX
+     000000                  ;               MOVE.8  D0,destination
+     000000                  ; in            D0.8
+     000000                  ; out           D0.8
+     000000                  ; mod           D0.8, F
+     000000                  ;---------------------------------------------
+     000000                  NIBBLEHEX:
+     000000 0200000F                 AND.8   #16'F,D0        ; bits 4..7=0
+     000004 06000030                 ADD.8   #"0",D0
+     000008 0C00003A                 COMP.8  #"9"+1,D0
+     00000C 6502                     JUMP,LO R8^END$         ; 0..9 ?
+     00000E 5E00                     ADD.8   #"A"-("9"+1),D0 ; 10..15
+     000010                  END$:
+     000010 4E75                     RET
+                                                         CALM EXAMPLES - 4
+     
+     0000                    ;=============================================
+     0000                    ; AFHEXA
+     0000                    ; purpose       show A in hexadecimal form
+     0000                    ; processor     Z80
+     0000                    ; use           MOVE    source,A
+     0000                    ;               CALL    AFHEXA
+     0000                    ; in            A
+     0000                    ; out           -
+     0000                    ; mod           -
+     0000                    ;---------------------------------------------
+     0000                    AFHEXA:
+     0000   F5                       PUSH    AF
+     0001   F5                       PUSH    AF
+     0002   0F                       RR      A
+     0003   0F                       RR      A
+     0004   0F                       RR      A
+     0005   0F                       RR      A
+     0006   CD0F00                   CALL    AFNIBBLE        ; MSD(igit)
+     0009   F1                       POP     AF
+     000A   CD0F00                   CALL    AFNIBBLE        ; LSD
+     000D   F1                       POP     AF
+     000E   C9                       RET
+     000F                    AFNIBBLE:
+     000F   E60F                     AND     #16'F,A         ; get only LSD
+     0011   C630                     ADD     #"0",A
+     0013   FE3A                     COMP    #"9"+1,A
+     0015   3802                     JUMP,LO R8^NUMBER$      ; 0..9 ?
+     0017   C607                     ADD     #"A"-("9"+1),A  ; 10..15
+     0019   CD0000           NUMBER$:CALL    SCREENA         ; show
+     001C   C9                       RET
+     
+     0000                    ;=============================================
+     0000                    ; AFHEXAL
+     0000                    ; purpose       show AL in hexadecimal form
+     0000                    ; processor     IAPX86
+     0000                    ; use           MOVE.8  source,AL
+     0000                    ;               CALL    AFHEXAL ; same segment
+     0000                    ; in            AL
+     0000                    ; out           -
+     0000                    ; mod           -
+     0000                    ;---------------------------------------------
+     0000                    AFHEXAL:
+     0000   9C                       PUSH.16 SF
+     0001   50                       PUSH.16 AX
+     0002   88C4                     MOVE.8  AL,AH
+     0004   D0E8                     SR.8    AL
+     0006   D0E8                     SR.8    AL
+     0008   D0E8                     SR.8    AL
+     000A   D0E8                     SR.8    AL
+     000C   E80800                   CALL    AFNIBBLE        ; MSD(igit)
+     000F   88E0                     MOVE.8  AH,AL
+     0011   E80300                   CALL    AFNIBBLE        ; show LSD
+     0014   58                       POP.16  AX
+     0015   9D                       POP.16  SF
+     0016   C3                       RET.16
+     0017                    AFNIBBLE:
+     0017   240F                     AND.8   #16'F,AL        ; get only LSD
+     0019   0430                     ADD.8   #"0",AL
+     001B   3C3A                     COMP.8  #"9"+1,AL
+     001D   7202                     JUMP,LO NUMBER$         ; 0..9 ?
+     001F   0407                     ADD.8   #"A"-("9"+1),AL ; 10..15
+     0021   E8DCFF           NUMBER$:CALL    SCREENA         ; show
+     0024   C3                       RET.16
+                                                         CALM EXAMPLES - 5
+     
+     0000                    ;=============================================
+     0000                    ; HEXNIBBLE
+     0000                    ; purpose       convert ["0".."9","A".."F"]
+     0000                    ; processor     Z80
+     0000                    ; use           MOVE    source,A
+     0000                    ;               CALL    HEXNIBBLE
+     0000                    ;               JUMP,CS NOHEX
+     0000                    ;               MOVE    A,destination
+     0000                    ; in            A
+     0000                    ; out           A
+     0000                    ;               CS      no valid hex letter
+     0000                    ; mod           A (unchanged if CS), F
+     0000                    ;---------------------------------------------
+     0000                    HEXNIBBLE:
+     0000   FE30                     COMP    #"0",A
+     0002   D8                       RET,LO                  ; < "0" ? (CS)
+     0003   FE3A                     COMP    #"9"+1,A
+     0005   380B                     JUMP,LO R8^DIGIT$       ; <= "9" ?
+     0007   FE41                     COMP    #"A",A
+     0009   D8                       RET,LO                  ; < "A" ? (CS)
+     000A   FE47                     COMP    #"F"+1,A
+     000C   3008                     JUMP,HS R8^NOHEX$       ; > "F" ?
+     000E   D637                     SUB     #"A"-10,A
+     0010                    END$:
+     0010   B7                       OR      A,A             ; CC
+     0011   C9                       RET
+     0012                    DIGIT$:
+     0012   D630                     SUB     #"0",A
+     0014   18FA                     JUMP    END$
+     0016                    NOHEX$:
+     0016   37                       SETC
+     0017   C9                       RET
+     
+     0000                    ;=============================================
+     0000                    ; HEXNIBBLE
+     0000                    ; purpose       convert ["0".."9","A".."F"]
+     0000                    ; processor     IAPX86
+     0000                    ; use           MOVE.8  source,AL
+     0000                    ;               CALL    HEXNIBBLE;same segment
+     0000                    ;               JUMP,CS NOHEX
+     0000                    ;               MOVE.8  A,destination
+     0000                    ; in            AL
+     0000                    ; out           AL
+     0000                    ;               CS      no valid hex letter
+     0000                    ; mod           AL (unchanged if CS), F
+     0000                    ;---------------------------------------------
+     0000                    HEXNIBBLE:
+     0000   3C30                     COMP.8  #"0",AL
+     0002   7214                     JUMP,LO NOHEX$          ; < "0" ?
+     0004   3C39                     COMP.8  #"9",AL
+     0006   760C                     JUMP,LS DIGIT$          ; <= "9" ?
+     0008   3C41                     COMP.8  #"A",AL
+     000A   720C                     JUMP,LO NOHEX$          ; < "A" ?
+     000C   3C46                     COMP.8  #"F",AL
+     000E   7708                     JUMP,HI R8^NOHEX$       ; > "F" ?
+     0010   2C37                     SUB.8   #"A"-10,AL
+     0012                    END$:
+     0012   F8                       CLRC
+     0013   C3                       RET.16
+     0014   2C30             DIGIT$: SUB.8   #"0",AL
+     0016   EBFA                     JUMP    END$
+     0018   F9               NOHEX$: SETC
+     0019   C3                       RET.16
+                                                         CALM EXAMPLES - 6
+     
+     000000                  ;=============================================
+     000000                  ; HEXNIBBLE
+     000000                  ; purpose       convert ["0".."9","A".."F"]
+     000000                  ; processor     M68000
+     000000                  ; use           MOVE.8  source,D0
+     000000                  ;               CALL    HEXNIBBLE
+     000000                  ;               JUMP,CS NOHEX
+     000000                  ;               MOVE.8  D0,destination
+     000000                  ; in            D0.8
+     000000                  ; out           D0.8
+     000000                  ;               CS      no valid hex letter
+     000000                  ; mod           D0.8 (unchanged if CS), F
+     000000                  ;---------------------------------------------
+     000000                  HEXNIBBLE:
+     000000 0C000030                 COMP.8  #"0",D0
+     000004 6522                     JUMP,LO R8^NOHEX$       ; < "0" ?
+     000006 0C000039                 COMP.8  #"9",D0
+     00000A 6316                     JUMP,LS R8^DIGIT$       ; <= "9" ?
+     00000C 0C000041                 COMP.8  #"A",D0
+     000010 6516                     JUMP,LO R8^NOHEX$       ; < "A" ?
+     000012 0C000046                 COMP.8  #"F",D0
+     000016 6210                     JUMP,HI R8^NOHEX$       ; > "F" ?
+     000018 04000037                 SUB.8   #"A"-10,D0
+     00001C 023C00FE         END$:   CLRC
+     000020 4E75                     RET
+     000022 04000030         DIGIT$: SUB.8   #"0",D0
+     000026 60F4                     JUMP    END$
+     000028 003C0001         NOHEX$: SETC
+     00002C 4E75                     RET
+     
+     0000                    ;=============================================
+     0000                    ; ADDM:
+     0000                    ; purpose       add two multidimensional nb
+     0000                    ; processor     IAPX86
+     0000                    ; use           MOVE.32 source1,DSSI
+     0000                    ;               MOVE.32 source2,ESDI
+     0000                    ;               MOVE.16 length,CX
+     0000                    ;               CALL    ADDM    ; same segment
+     0000                    ;               JUMP,CS OVERFLOW
+     0000                    ; in            DS:SI   ^source1
+     0000                    ;               ES:DI   ^source2 + destination
+     0000                    ;               CX      number of words (16)
+     0000                    ; out           destination = source1+source2
+     0000                    ;               CS      overflow
+     0000                    ; mod           F
+     0000                    ;---------------------------------------------
+     0000                    ADDM:
+     0000   50                       PUSH.16 AX
+     0001   51                       PUSH.16 CX
+     0002   57                       PUSH.16 DI
+     0003   56                       PUSH.16 SI
+     0004   F8                       CLRC
+     0005   FC                       AUTOINC
+     0006   AD               LOOP$:  MOVE.16 [DS]+{SI!},AX
+     0007   261105                   ADDC.16 AX,[ES]+{DI}
+     000A   47                       INC.16  DI
+     000B   47                       INC.16  DI
+     000C   E2F8                     DJ.16,NE CX,LOOP$
+     000E   5E                       POP.16  SI
+     000F   5F                       POP.16  DI
+     0010   59                       POP.16  CX
+     0011   58                       POP.16  AX
+     0012   C3                       RET.16
+                                                         CALM EXAMPLES - 7
+     
+     0000                    ;=============================================
+     0000                    ; AFA16CX
+     0000                    ; purpose       show a signed 16 bit number
+     0000                    ; processor     IAPX86
+     0000                    ; use           MOVE.16 number,CX
+     0000                    ;               CALL    AFA16CX ; same segment
+     0000                    ; in            CX
+     0000                    ; out           -
+     0000                    ; mod           F
+     0000                    ;---------------------------------------------
+     0000                    AFA16CX:
+     0000   50                       PUSH.16 AX
+     0001   51                       PUSH.16 CX
+     0002   52                       PUSH.16 DX
+     0003   56                       PUSH.16 SI
+     0004   09C9                     OR.16   CX,CX
+     0006   7507                     JUMP,NE NZERO$
+     0008   B030                     MOVE.8  #"0",AL         ; CX = 0
+     000A   E8F3FF                   CALL    SCREENAL        ; show AL
+     000D   EB36                     JUMP    R8^END$
+     000F                    NZERO$:
+     000F   83F900                   COMP.16 #0,CX
+     0012   7D07                     JUMP,GE GE$             ; >= 0 ?
+     0014   F7D9                     NEG.16  CX
+     0016   B02D                     MOVE.8  #"-",AL
+     0018   E8E5FF                   CALL    SCREENAL
+     001B                    GE$:
+     001B   BE4A00                   MOVE.16 #PTEN,SI        ; ^table, PTEN
+     001E   B605                     MOVE.8  #LPTEN,DH
+     0020   B200                     MOVE.8  #0,DL           ; flag
+     0022                    DIG$:
+     0022   B030                     MOVE.8  #"0",AL
+     0024                    SUB$:
+     0024   2E2B0C                   SUB.16  [CS]+{SI},CX
+     0027   7206                     JUMP,LO ADD$
+     0029   FEC0                     INC.8   AL
+     002B   FEC2                     INC.8   DL              ; no leading 0
+     002D   EBF5                     JUMP    SUB$
+     002F                    ADD$:
+     002F   2E030C                   ADD.16  [CS]+{SI},CX
+     0032   80FA00                   COMP.8  #0,DL
+     0035   7504                     JUMP,NE SE0$            ; do not test?
+     0037   3C30                     COMP.8  #"0",AL
+     0039   7403                     JUMP,EQ NO0$            ; zero ?
+     003B                    SE0$:
+     003B   E8C2FF                   CALL    SCREENAL
+     003E                    NO0$:
+     003E   83C602                   ADD.16  #2,SI
+     0041   FECE                     DEC.8   DH
+     0043   75DD                     JUMP,NE DIG$
+     0045                    END$:
+     0045   5E                       POP.16  SI
+     0046   5A                       POP.16  DX
+     0047   59                       POP.16  CX
+     0048   58                       POP.16  AX
+     0049   C3                       RET.16
+     004A   1027E80364000A000100
+                             PTEN:   .16     10000,1000,100,10,1 ; 10**
+     0054     00000005       LPTEN   =       (APC-PTEN)/2
+                                                         CALM EXAMPLES - 8
+     
+     0000                    ;=============================================
+     0000                    ; MUL16
+     0000                    ; purpose       multiply two unsigned 16 bit
+     0000                    ; processor     Z80
+     0000                    ; use           MOVE    source1,BC
+     0000                    ;               MOVE    source2,HL
+     0000                    ;               CALL    MUL16
+     0000                    ;               JUMP,CS MUL_ERROR
+     0000                    ;               MOVE    HL,result
+     0000                    ; in            BC, HL
+     0000                    ; out           HL = HL * BC
+     0000                    ;               CS      overflow
+     0000                    ; mod           BC, HL, F
+     0000                    ;---------------------------------------------
+     0000                    MUL16:
+     0000   D5                       PUSH    DE
+     0001   EB                       EX      HL,DE           ; DE=HL
+     0002   210000                   MOVE    #0,HL
+     0005                    LOOP$:
+     0005   CB3A                     SR      D
+     0007   2006                     JUMP,NE R8^DNZERO$
+     0009   CB1B                     RRC     E
+     000B   280F                     JUMP,EQ R8^EZERO$
+     000D   1802                     JUMP    R8^ENZERO$
+     000F                    DNZERO$:
+     000F   CB1B                     RRC     E
+     0011                    ENZERO$:
+     0011   3003                     JUMP,CC R8^CC$
+     0013   09                       ADD     BC,HL
+     0014   3809                     JUMP,CS R8^END$         ; CS=overflow
+     0016                    CC$:
+     0016   CB21                     SL      C
+     0018   CB10                     RLC     B
+     001A   18E9                     JUMP    LOOP$
+     001C                    EZERO$:
+     001C   3001                     JUMP,CC R8^END$    ; CC = no overflow
+     001E   09                       ADD     BC,HL      ; if CS -> overflow
+     001F                    END$:
+     001F   D1                       POP     DE
+     0020   C9                       RET
+     
+     0000                    ;=============================================
+     0000                    ; MULA16
+     0000                    ; purpose       multiply two signed 16 bit nb
+     0000                    ; processor     Z80
+     0000                    ; use           MOVE    source1,BC
+     0000                    ;               MOVE    source2,HL
+     0000                    ;               CALL    MULA16
+     0000                    ;               JUMP,CS MUL_ERROR
+     0000                    ;               MOVE    HL,result
+     0000                    ; in            BC, HL
+     0000                    ; out           HL = HL * BC
+     0000                    ;               CS      overflow (result)
+     0000                    ; mod           A, BC, HL, F
+     0000                    ;---------------------------------------------
+     0000   CD0000           MULA16: CALL    SIGNHLBC        ; see DIVA16
+                                                         CALM EXAMPLES - 9
+     
+     0003   F5                       PUSH    AF              ; sign: HL/BC
+     0004   CD0000                   CALL    MUL16           ; see example
+     0007   380C                     JUMP,CS R8^OVERFLOW$
+     0009   F1                       POP     AF
+     000A   CB7C                     TEST    H:#7
+     000C   2007                     JUMP,BS R8^OVERFLOW$    ; > 15 bits ?
+     000E   0F                       RR      A               ; sign MUL
+     000F   D0                       RET,CC
+     0010   CD0000                   CALL    NEGHL           ; see DIVA16
+     0013   B7                       OR      A,A             ; CC, okay
+     0014   C9                       RET
+     0015   33               OVERFLOW$:INC   SP              ; see stack
+     0016   33                       INC     SP
+     0017   C9                       RET                     ; return CS
+     0000                    ;=============================================
+     0000                    ; MUL323264:
+     0000                    ; purpose       multiply two unsigned 32 bit
+     0000                    ;               use the MUL instruction
+     0000                    ; processor     IAPX86
+     0000                    ; use           MOVE.32 source1,DSBX ;^numbers
+     0000                    ;               CALL    MUL323264;same segment
+     0000                    ; in            DS:BX   ^ 8 bytes, 2 x 32 bit
+     0000                    ; out           DS:BX   ^ 8 bytes, one 64 bit
+     0000                    ; mod           8 bytes pointed by DS:BX, F
+     0000                    ;---------------------------------------------
+     0000   50               MUL323264:PUSH.16 AX
+     0001   53                       PUSH.16 BX
+     0002   51                       PUSH.16 CX
+     0003   52                       PUSH.16 DX
+     0004   57                       PUSH.16 DI
+     0005   56                       PUSH.16 SI
+     0006   8B37                     MOVE.16 [DS]+{BX},SI    ; low0, +0..+3
+     0008   8B4F02                   MOVE.16 [DS]+{BX}+2,CX  ; high0
+     000B   8B7F04                   MOVE.16 [DS]+{BX}+4,DI  ; low1, +4..+7
+     000E   FF7706                   PUSH.16 [DS]+{BX}+6     ; high1
+     0011   31C0                     XOR.16  AX,AX           ; AX = 0
+     0013   894704                   MOVE.16 AX,[DS]+{BX}+4  ; clear high
+     0016   894706                   MOVE.16 AX,[DS]+{BX}+6
+     0019   89F0                     MOVE.16 SI,AX
+     001B   F7E7                     MUL.16  DI,AX,DXAX      ; low1 * low0
+     001D   8907                     MOVE.16 AX,[DS]+{BX}
+     001F   895702                   MOVE.16 DX,[DS]+{BX}+2
+     0022   89C8                     MOVE.16 CX,AX
+     0024   F7E7                     MUL.16  DI,AX,DXAX      ; low1 * high0
+     0026   014702                   ADD.16  AX,[DS]+{BX}+2
+     0029   115704                   ADDC.16 DX,[DS]+{BX}+4
+     002C   89F0                     MOVE.16 SI,AX
+     002E   5F                       POP.16  DI
+     002F   F7E7                     MUL.16  DI,AX,DXAX      ; high1 * low0
+     0031   014702                   ADD.16  AX,[DS]+{BX}+2
+     0034   115704                   ADDC.16 DX,[DS]+{BX}+4
+     0037   83570600                 ADDC.16 #0,[DS]+{BX}+6
+     003B   89C8                     MOVE.16 CX,AX
+     003D   F7E7                     MUL.16  DI,AX,DXAX      ; high1*high0
+     003F   014704                   ADD.16  AX,[DS]+{BX}+4
+     0042   115706                   ADDC.16 DX,[DS]+{BX}+6
+     0045   5E                       POP.16  SI
+     0046   5F                       POP.16  DI
+     0047   5A                       POP.16  DX
+     0048   59                       POP.16  CX
+     0049   5B                       POP.16  BX
+     004A   58                       POP.16  AX
+     004B   C3                       RET.16
+                                                        CALM EXAMPLES - 10
+     
+     000000                  ;=============================================
+     000000                  ; MUL323264:
+     000000                  ; purpose       multiply two unsigned 32 bit
+     000000                  ;               use the MUL instruction
+     000000                  ; processor     68000
+     000000                  ; use           MOVE.32 source1,D0
+     000000                  ;               MOVE.32 source2,D1
+     000000                  ;               CALL    MUL323264
+     000000                  ;               MOVE.32 D0,result_low_32
+     000000                  ;               MOVE.32 D1,result_high_32
+     000000                  ; in            D0.32, D1.32
+     000000                  ; out           D1D0.64 = D0.32 * D1.32
+     000000                  ; mod           D0.32, D1.32, F
+     000000                  ;---------------------------------------------
+     000000                  MUL323264:
+     000000 598F                     SUB.32  #4,SP           ; get 64 bit
+     000002 42A7                     CLR.32  {-SP}           ; clear upper
+     000004 2F00                     PUSH.32 D0              ; save D0
+     000006 C0C1                     MUL.16  D1,D0           ; low1 * low0
+     000008 2F400008                 MOVE.32 D0,{SP}+8
+     00000C 3017                     MOVE.16 {SP},D0
+     00000E C0C1                     MUL.16  D1,D0           ; low1 * high0
+     000010 D1AF0006                 ADD.32  D0,{SP}+6
+     000014 4841                     SWAP.32 D1
+     000016 302F0002                 MOVE.16 {SP}+2,D0
+     00001A C0C1                     MUL.16  D1,D0           ; high1 * low0
+     00001C D1AF0006                 ADD.32  D0,{SP}+6
+     000020 6404                     JUMP,CC R8^CC$
+     000022 526F0004                 INC.16  {SP}+4          ; get carry
+     000026                  CC$:
+     000026 201F                     POP.32  D0
+     000028 4840                     SWAP.32 D0
+     00002A C2C0                     MUL.16  D0,D1           ; high0*high1
+     00002C D29F                     ADD.32  {SP+},D1
+     00002E 201F                     POP.32  D0
+     000030 4E75                     RET
+     
+     000000                  ;=============================================
+     000000                  ; TEXTIM
+     000000                  ; purpose      show text following CALL TEXTIM
+     000000                  ; processor     68000
+     000000                  ; use           CALL    TEXTIM
+     000000                  ;               .ASCIZ  "<CR><LF>Hello!"
+     000000                  ;               .EVEN
+     000000                  ; in            -
+     000000                  ; out           -
+     000000                  ; mod           F
+     000000                  ;---------------------------------------------
+     000000                  TEXTIM:
+     000000 48E78090                 PUSHM.32 D0|A0|A3
+     000004 206F000C                 MOVE.32 {SP}+3*4,A0     ; A0 = return
+     000008 1018             LOOP$:  MOVE.8  {A0+},D0
+     00000A 6704                     JUMP,EQ R8^END$         ; NUL code ?
+     00000C 61F2                     CALL    SCREEND0        ; put D0 out
+     00000E 60F8                     JUMP    LOOP$
+     000010 C188             END$:   EX.32   D0,A0           ; align A0
+     000012 5280                     INC.32  D0              ; to an even
+     000014 020000FE                 AND.8   #16'FE,D0
+     000018 C188                     EX.32   D0,A0
+     00001A 2F48000C                 MOVE.32 A0,{SP}+3*4     ; after .ASCIZ
+     00001E 4CDF0901                 POPM.32 D0|A0|A3        ; = return
+     000022 4E75                     RET
+                                                        CALM EXAMPLES - 11
+     
+     0000                    ;=============================================
+     0000                    ; TEXTIM
+     0000                    ; purpose      show text following CALL TEXTIM
+     0000                    ; processor     Z80
+     0000                    ; use           CALL    TEXTIM
+     0000                    ;               .ASCIZ  "<CR><LF>Hello!"
+     0000                    ; in            -
+     0000                    ; out           -
+     0000                    ; mod           -
+     0000                    ;---------------------------------------------
+     0000                    TEXTIM:
+     0000   E3                       EX      {SP},HL         ; HL = return
+     0001   F5                       PUSH    AF              ;      ^.ASCIZ
+     0002                    LOOP$:
+     0002   7E                       MOVE    {HL},A
+     0003   23                       INC     HL
+     0004   B7                       OR      A,A
+     0005   2805                     JUMP,EQ R8^END$         ; NUL code ?
+     0007   CD0000                   CALL    SCREENA         ; put A out
+     000A   18F6                     JUMP    LOOP$
+     000C                    END$:
+     000C   F1                       POP     AF
+     000D   E3                       EX      {SP},HL         ; save return
+     000E   C9                       RET
+     
+     0000                    ;=============================================
+     0000                    ; TEXTIM
+     0000                    ; purpose      show text following CALL TEXTIM
+     0000                    ;               assume a intersegment CALL
+     0000                    ; processor     IAPX86
+     0000                    ; use           CALL    TEXTIM
+     0000                    ;               .ASCIZ  "<CR><LF>Hello!"
+     0000                    ; in            -
+     0000                    ; out           -
+     0000                    ; mod           -
+     0000                    ;---------------------------------------------
+     0000                    TEXTIM:
+     0000   9C                       PUSH.16 SF
+     0001   55                       PUSH.16 BP
+     0002   89E5                     MOVE.16 SP,BP           ; ^top stack
+     0004   50                       PUSH.16 AX
+     0005   877604                   EX.16   [SS]+{BP}+4,SI  ; SI = return
+     0008   FC                       AUTOINC
+     0009                    LOOP$:
+     0009   AC                       MOVE.8  [DS]+{SI!},AL
+     000A   08C0                     OR.8    AL,AL
+     000C   7405                     JUMP,EQ END$            ; NUL code ?
+     000E   E8EFFF                   CALL    SCREENA         ; put AL out
+     0011   EBF6                     JUMP    LOOP$
+     0013                    END$:
+     0013   877604                   EX.16   SI,[SS]+{BP}+4  ; save return
+     0016   58                       POP.16  AX
+     0017   5D                       POP.16  BP
+     0018   9D                       POP.16  SF
+     0019   C3                       RET.16
+                                                        CALM EXAMPLES - 12
+     
+     0000                    ;=============================================
+     0000                    ; DIVPOS16:
+     0000                    ; purpose       divide two positive 16 bit
+     0000                    ; processor     Z80
+     0000                    ; use           MOVE    divisor,BC
+     0000                    ;               MOVE    dividend,HL
+     0000                    ;               CALL    DIVPOS16
+     0000                    ;               JUMP,CS DIV_ERROR
+     0000                    ;               MOVE    HL,remainder
+     0000                    ;               MOVE    BC,quotient
+     0000                    ; in            BC, HL
+     0000                    ; out           BC = HL div BC
+     0000                    ;               HL = HL mod BC
+     0000                    ;               CS      error  A = 0: /0
+     0000                    ;                              A = 1: -32768
+     0000                    ; mod           A, BC, HL, F
+     0000                    ;---------------------------------------------
+     0000                    DIVPOS16:
+     0000   79                       MOVE    C,A
+     0001   B7                       OR      A,A
+     0002   2007                     JUMP,NE R8^CNZERO$
+     0004   B0                       OR      B,A
+     0005   282B                     JUMP,EQ R8^DIV0$        ; division/0 ?
+     0007   EE80                     XOR     #16'80,A
+     0009   2825                     JUMP,EQ R8^DIV32768$    ; BC = -32768
+     000B                    CNZERO$:                        ;    = +32768
+     000B   D5                       PUSH    DE
+     000C   110000                   MOVE    #0,DE
+     000F   3E01                     MOVE    #1,A            ; get divisor
+     0011                    SIZE$:
+     0011   3C                       INC     A
+     0012   CB21                     SL      C
+     0014   CB10                     RLC     B
+     0016   F21100                   JUMP,PL SIZE$
+     0019                    LOOP$:
+     0019   37                       SETC
+     001A   CB13                     RLC     E
+     001C   CB12                     RLC     D
+     001E   ED42                     SUBC    BC,HL
+     0020   3002                     JUMP,HS R8^HS$
+     0022   09                       ADD     BC,HL         ; readd if lower
+     0023   1B                       DEC     DE
+     0024                    HS$:
+     0024   CB38                     SR      B
+     0026   CB19                     RRC     C
+     0028   3D                       DEC     A
+     0029   20EE                     JUMP,NE LOOP$
+     002B   42                       MOVE    D,B
+     002C   4B                       MOVE    E,C
+     002D   D1                       POP     DE
+     002E   B7                       OR      A,A             ; no errors
+     002F   C9                       RET
+     0030                    DIV32768$:
+     0030   3E01                     MOVE    #1,A
+     0032                    DIV0$:
+     0032   37                       SETC
+     0033   C9                       RET
+                                                        CALM EXAMPLES - 13
+     
+     0000                    ;=============================================
+     0000                    ; DIVA16:
+     0000                    ; purpose       divide two signed 16 bit
+     0000                    ; processor     Z80
+     0000                    ; use           MOVE    divisor,BC
+     0000                    ;               MOVE    dividend,HL
+     0000                    ;               CALL    DIVA16
+     0000                    ;               JUMP,CS DIV_ERROR
+     0000                    ;               MOVE    HL,remainder
+     0000                    ;               MOVE    BC,quotient
+     0000                    ; in            BC, HL
+     0000                    ; out           BC = HL div BC
+     0000                    ;               HL = HL mod BC
+     0000                    ;               CS      error  A = 0: /0
+     0000                    ;                              A = 1: -32768
+     0000                    ; mod           A, BC, HL, F
+     0000                    ;---------------------------------------------
+     0000   CD2F00           DIVA16: CALL    SIGNHLBC
+     0003   F5                       PUSH    AF              ; save A: sign
+     0004   CD0000                   CALL    DIVPOS16        ; see example
+     0007   380F                     JUMP,CS R8^DIVERR$
+     0009   F1                       POP     AF
+     000A   CB47                     TEST    A:#0            ; sign of DIV
+     000C   2803                     JUMP,BC R8^QUOPOS$
+     000E   CD2500                   CALL    NEGBC           ; -quotient
+     0011   07               QUOPOS$:RL      A               ; sign of MOD
+     0012   D0                       RET,CC
+     0013   CD1B00                   CALL    NEGHL           ; -remainder
+     0016   B7                       OR      A,A             ; CC
+     0017   C9                       RET
+     0018   33               DIVERR$:INC     SP              ; check stack
+     0019   33                       INC     SP
+     001A   C9                       RET                     ; return CS
+     001B   F5               NEGHL:  PUSH    AF              ; HL = 0 - HL
+     001C   AF                       XOR     A,A
+     001D   95                       SUB     L,A
+     001E   6F                       MOVE    A,L
+     001F   3E00                     MOVE    #0,A
+     0021   9C                       SUBC    H,A
+     0022   67                       MOVE    A,H
+     0023   F1                       POP     AF
+     0024   C9                       RET
+     0025   F5               NEGBC:  PUSH    AF              ; BC = 0 - BC
+     0026   AF                       XOR     A,A
+     0027   91                       SUB     C,A
+     0028   4F                       MOVE    A,C
+     0029   3E00                     MOVE    #0,A
+     002B   98                       SUBC    B,A
+     002C   47                       MOVE    A,B
+     002D   F1                       POP     AF
+     002E   C9                       RET
+     002F                    SIGNHLBC:
+     002F                    ; out A: bit 7: HL neg, bit 6: BC neg,
+     002F   AF                       XOR     A,A     ;  bit 0: bit 7 xor 6
+     0030   CB7C                     TEST    H:#7
+     0032   2805                     JUMP,EQ R8^HLPOS$
+     0034   3E81                     MOVE    #2'10000001,A
+     0036   CD1B00                   CALL    NEGHL
+     0039   CB78             HLPOS$: TEST    B:#7
+     003B   C8                       RET,EQ
+     003C   EE41                     XOR     #2'01000001,A
+     003E   CD2500                   CALL    NEGBC
+     0041   C9                       RET
+                                                        CALM EXAMPLES - 14
+     
+     0000                    ;=============================================
+     0000                    ; AFA16HL
+     0000                    ; purpose       show a signed 16 bit number
+     0000                    ; processor     Z80
+     0000                    ; use           MOVE    number,HL
+     0000                    ;               CALL    AFA16HL
+     0000                    ; in            HL
+     0000                    ; out           -
+     0000                    ; mod           -
+     0000                    ;---------------------------------------------
+     0000                    AFA16HL:
+     0000   F5                       PUSH    AF
+     0001   C5                       PUSH    BC
+     0002   D5                       PUSH    DE
+     0003   E5                       PUSH    HL
+     0004   FDE5                     PUSH    IY
+     0006   7C                       MOVE    H,A
+     0007   B5                       OR      L,A
+     0008   2007                     JUMP,NE R8^NZERO$
+     000A   3E30                     MOVE    #"0",A          ; HL = 0
+     000C   CD0000                   CALL    SCREENA         ; show A
+     000F   1837                     JUMP    R8^END$
+     0011                    NZERO$:
+     0011   CB7C                     TEST    H:#7
+     0013   2808                     JUMP,BC R8^HLPOS$
+     0015   CD0000                   CALL    NEGHL           ; see DIVA16
+     0018   3E2D                     MOVE    #"-",A
+     001A   CD0000                   CALL    SCREENA
+     001D                    HLPOS$:
+     001D   FD214F00                 MOVE    #PTEN,IY        ; ^table
+     0021   0605                     MOVE    #LPTEN,B
+     0023   0E00                     MOVE    #0,C            ; flag
+     0025                    DIG$:
+     0025   3E30                     MOVE    #"0",A
+     0027   FD5E00                   MOVE    {IY}+0,E        ; LSB
+     002A   FD5601                   MOVE    {IY}+1,D        ; MSB
+     002D                    SUB$:
+     002D   B7                       OR      A,A
+     002E   ED52                     SUBC    DE,HL
+     0030   3804                     JUMP,LO R8^ADD$
+     0032   3C                       INC     A
+     0033   0C                       INC     C               ; no more 0
+     0034   18F7                     JUMP    SUB$
+     0036   19               ADD$:   ADD     DE,HL
+     0037   0C                       INC     C
+     0038   0D                       DEC     C
+     0039   2004                     JUMP,NE R8^SE0$         ; do not test?
+     003B   FE30                     COMP    #"0",A
+     003D   2803                     JUMP,EQ R8^NO0$         ; zero ?
+     003F   CD0000           SE0$:   CALL    SCREENA
+     0042   FD23             NO0$:   INC     IY
+     0044   FD23                     INC     IY
+     0046   10DD                     DJ,NE   B,DIG$
+     0048   FDE1             END$:   POP     IY
+     004A   E1                       POP     HL
+     004B   D1                       POP     DE
+     004C   C1                       POP     BC
+     004D   F1                       POP     AF
+     004E   C9                       RET
+     004F   1027E80364000A000100
+                             PTEN:   .16     10000,1000,100,10,1 ; 10**
+     0059     00000005       LPTEN   =       (APC-PTEN)/2
+     

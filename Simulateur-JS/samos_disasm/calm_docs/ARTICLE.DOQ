@@ -1,0 +1,839 @@
+     CALM - un langage d'assemblage commun pour microprocesseurs       - 1
+     
+     1 Introduction
+        Les microprocesseurs existent dÇjÖ depuis plus de dix ans. Mais
+     chaque microprocesseur possäde son propre langage d'assemblage qui se
+     diffÇrencie souvent considÇrablement des autres. Ce fait est curieux
+     car tous les microprocesseurs se ressemblent - au moins du point de
+     vue fonctionel - träs fortement.
+        Mais il y a quelques annÇes encore, on ne pouvait pas dÇfinir un
+     langage d'assemblage uniforme, puisque chaque nouveau microprocesseur
+     offrait des possibilitÇs entiärement nouvelles (opÇrations, modes
+     d'adressages). Cette Çvolution se ralentissait lors de l'äre des
+     processeurs 16/32 bits car il Çtait de plus en plus clair, ce qu'on
+     attendait d'un microprocesseur moderne comme opÇrations et modes
+     d'adressage. Pour cette raison, les micro-processeurs 16/32 bits ne se
+     distinguent que de träs peu. On constate une symÇtrie croissante des
+     modes d'adressage, des longueurs et des types de donnÇes Ö l'intÇrieur
+     d'une instruction.
+        Nous allons prÇsenter ici un des langages d'assemblage universels.
+     Son nom est CALM (Common Assembly Language for Microprocessors, en
+     franáais: voir titre).
+     
+     1.1 Qu'est-ce qu'est CALM ?
+        CALM n'est pas un nouveau langage de programmation mais une autre
+     notation des instructions. Une longue expÇrience a montrÇ que les
+     instructions et leurs notations dÇfinies par CALM sont suffisantes
+     pour dÇcrire 95% des instructions d'un microprocesseur.
+        Le probläme est en fait assez simple: Il faut trouver (inventer)
+     une notation qui, d'une part, exprime d'une maniäre prÇcise ce que
+     fait le matÇriel, et, d'autre part, ne devient pas trop compliquÇe.
+     CALM satisfait ces exigences dans presque tous les cas. Les exceptions
+     sont dues Ö des opÇrations/modes d'adressage particuliers qui ne
+     justifient pas une propre notation et sont notÇs d'une faáon simpli-
+     fiÇe. Mais on peut expliquer ces cas par une suite d'instructions en
+     notation CALM. Il ne faut donc pas un mÇta-langage supplÇmentaire.
+     
+     1.2 Avantages d'un langage d'assemblage uniforme
+        Actuellement, la programmation en assembleur est relativement
+     embarassante et exige beaucoup de temps. Sans compter les exigences
+     plus ÇlevÇes de la programmation en assembleur en soi, il y a des
+     difficultÇs artificielles: Chaque fabricant utilise d'autres termes et
+     dÇfinit une notation spÇcifique des instructions. Cette diffÇrente
+     terminologie trouble l'utilisateur, ne permet pas des comparaisons de
+     processeurs et rend inutilement difficile les changements de
+     processeur.
+        CALM dÇfinit une syntaxe uniforme pour les instructions et les
+     pseudo-instructions. Ainsi, CALM crÇe une base commune pour la
+     formation et la communication. Par exemple, un programme Çcrit en
+     assembleur devient aussi pour ceux comprÇhensible qui ne connaissent
+     pas le processeur pour lequel les instructions ont ÇtÇ Çcrit.
+        De plus, une notation uniforme permet une comparaison objective de
+     micro-processeurs. Des tests de comparaison sont Çtablis d'une maniäre
+     plus efficace et plus simple puisque il ne faut pas apprendre un
+     langage d'assemblage spÇcifique au processeur. Ceci est surtout
+     intÇressant pour les micro-processeurs avec compatibilitÇ ascendante.
+        Finalement, une syntaxe uniforme simplifie l'assembleur. On peut
+     construire un assembleur qui est constituÇ d'une partie principale
+     indÇpendante du processeur et d'une partie spÇcifique au processeur.
+     Dans la partie principale, les fonctions suivantes sont rÇalisÇes:
+     traitement des symboles et des pseudo-instructions, Çvaluation des
+     expressions, gestion des fichiers et des fonctions gÇnÇrales pour
+     l'analyse de textes. Dans la partie spÇcifique au processeur, la
+     syntaxe et la sÇmantique d'une instruction, ainsi que les rägles pour
+     gÇnÇrer le code objet sont dÇfinies.
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs       - 2
+     
+     1.3 IntÇràt de la programmation en assembleur
+        On peut naturellement se demander si la programmation en assembleur
+     est aujourd'hui encore utile. MatÇriel et logiciel de plus en plus
+     pÇrformants rÇpriment continuellement la programmation en assembleur.
+     Mais la programmation en assembleur reste dans certains cas
+     irremplaáable. Il faut citer les interfaces de matÇriel, les
+     optimisations de tout genre, micro-ordinateur (sur une puce), unitÇs
+     microprogrammÇes, etc. Cependant, des spÇcialistes s'occupent de plus
+     en plus de ces travaux et mettent Ö disposition un appel de
+     sous-programme au niveau de programmation supÇrieur. Mais ne serait-il
+     pas dans ces cas un avantage si l'on pouvait Çcrire ces quelques
+     programmes en assembleur dans un langage d'assemblage uniforme?
+     
+     1.4 DÇveloppement historique de CALM
+        L'existence de CALM est due indirectement au 8080. Quand Intel
+     sortait ce microprocesseur en 1974, le langage d'assemblage associÇ
+     semblait Ö beaucoup de gens trop primitif. De nombreuses propositions
+     poussaient comme des champignons.
+        CALM a ÇtÇ dÇfini Ö l'Çcole polytechnique fÇdÇrale de Lausanne. Il
+     prouvait sa capacitÇ, entre autres, par sa consistence et son utilitÇ
+     fonctionelle Ö l'emploi pratique. Notamment, on pouvait exprimer aussi
+     les autres processeurs 8 bits d'une faáon satisfaisante.
+        Avec l'äre des processeurs 16/32 bits, CALM a ÇtÇ Çtendu et
+     amÇliorÇ. CALM dÇfinissait avant tout une notation explicite pour les
+     modes d'adressage et les indicateurs de donnÇes. En 1983, la version
+     prÇsente a ÇtÇ rÇdigÇ en collaboration avec DIN [1].
+        Parmi les efforts mondiaux de dÇfinir un langage d'assemblage
+     commun, il faut mentionner le groupe de travail IEEE P694. Ce groupe
+     commenáait son travail en 1977 et publiait en 1984 la dix-huitiäme
+     version. Pendant un certain temps, il y a eu un Çchange d'expÇrience
+     intense avec CALM. Mais P694 restait trop fixÇ sur les architectures
+     des microprocesseurs 4 et 8 bits et a surtout mÇconnu les problämes
+     d'une notation explicite des modes d'adressage. De plus, on est
+     toujours d'avis qu'un langage d'assemblage doit àtre composÇ de noms
+     les plus courts possibles et qu'avec chaque instruction il ne faut
+     indiquer que le strict minimum.
+     
+     2 Instructions
+        Une instruction exÇcute une action rÇvolue, dÇfinie par le
+     fabricant du microprocesseur. Le texte suivant illustre, comment une
+     instruction est dÇcomposÇe et comment ces parties sÇparÇes sont
+     nommÇes et quelle notation est utilisÇe.
+     
+     2.1 Composition d'une instruction
+        Une instruction est constituÇe d'un code opÇratoire et d'opÇrandes.
+     A cela il faut ajouter selon la complexitÇ des codes conditions, des
+     indicateurs d'adresses et des indicateurs de donnÇes.
+        Cette composition modulaire d'une instruction et l'indÇpendance de
+     la signification des parties sÇparÇes permettent des extensions
+     quelconques. Mais ce concept impose que toutes les indications doivent
+     àtre prÇsentes màme pour les instructions avec possibilitÇs limitÇes.
+        CALM dÇfinit 49 instructions de base (fig. 1). Avec celles, on peut
+     exprimer environ 95% des instructions d'un microprocesseur. Le reste
+     est dñ Ö des instructions spÇciales oó on rÇutilise le code opÇratoire
+     du fabricant, mais on utilise la notation CALM pour les opÇrandes, le
+     code condition, et les indicateurs d'adresses et de donnÇes.
+        L'instruction MOVE dÇtermine l'ordre source -> destination (de
+     gauche Ö droite). Il faut aussi garder cet ordre pour les autres
+     instructions, par exemple pour l'instruction SUB.
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs       - 3
+        Instructions de transfert
+        MOVE source,destination transfäre de la source vers la destination.
+        PUSH source             empiler (Çquivalent Ö  MOVE source,{-SP}).
+        POP  destination        dÇpiler (Çquivalent Ö  MOVE {SP+},dest.).
+        CONV source,destination effectue une conversion de type de donnÇes.
+        CLR  destination        met Ö zÇro l'op. de dest.(= MOVE #0,dest.).
+        SET  destination        init. l'op. de dest.:1s (= MOVE #-1,dest.).
+        EX   opÇrande1,opÇrande2  echange les deux opÇrandes.
+        SWAP sourcedestination  echange les deux moitiÇs de l'opÇrande.
+        Instructions arithmÇtiques
+        ADD  source,sourcedestination  additionne deux opÇrandes.
+             source1,source2,destination
+        ADDC voir ADD           additionne deux opÇrandes et l'indicateur C
+        SUB  voir ADD           soustrait le premier opÇrande du second op.
+        SUBC voir ADD           2nd op. - 1er op. - l'indicateur C.
+        ACOC voir ADD           add. le compl. Ö un du 1er op., 1 et l'ind.
+                                de report C au 2nd op. L'opÇration eff. est
+                                Çq. Ö SUBC mais les ind. sont modif. autre.
+        NEG  sourcedestination  calcule le complÇment vrai (compl. Ö 2 ou
+             source,destination  soustr. de 0) de l'opÇrande de source.
+        NEGC voir NEG           calc. le compl. vrai avec l'ind. de report
+                                C, c.Ö.d. soustrait l'op. et C de zÇro.
+        MUL  source,sourcedestination  multiplie les deux op. de source.
+             source1,source2,destination Si l'opÇrande de dest. n'est pas
+                                explicitement prÇcisÇ par sa taille de
+                                donnÇes il n'est pas clair si la taille de
+                                l'op. de destination est simple ou double.
+        DIV  diviseur,dividendequotient divise le 2nd op. par le premier.
+             diviseur,dividende,quotient
+             diviseur,dividende,quotient,reste
+        INC  sourcedestination  incrÇmente l'opÇrande de un.
+        DEC  sourcedestination  dÇcrÇmente l'opÇrande de un.
+        COMP source1,source2    compare le second opÇrande au premier.
+                                C'est la màme opÇration que SUB, mais
+                                il n'y a pas de rÇsultat gÇnÇrÇ (uniquement
+                                les indicateurs sont mis Ö jour).
+        CHECK limite_inf,limite_sup,source contrìle une val. contre 2 lim.
+        Instructions logiques
+        AND  source,sourcedestination effectue un ET logique bit Ö bit des
+             source1,source2,destination  deux opÇrandes de source.
+        OR   voir AND           effectue un OU inclusif bit Ö bit des 2 op.
+        XOR  voir AND           effectue un OU exlusif bit Ö bit des 2 op.
+        NOT  sourcedestination  inverse chaque bit de l'opÇrande de source
+             source,destination   (complÇment Ö un).
+        Instructions de dÇcalage
+        SR   sourcedestination  eff. un dÇc. de l'op. de source Ö droite.
+             amplitude,sourcedestination  Le MSB est remplacÇ par un 0 et
+             amplitude,source,destination  l'ind. de report C par le LSB.
+        ASR  voir SR            effectue un dÇc. de l'op. de source avec
+                                bit de signe Ö droite. Le MSB est conservÇ
+                                et l'ind. de report C est rempl. par LSB.
+        SL   voir SR            eff. un dÇc. de l'op. de source Ö gauche.
+                                Le LSB est rempl. par 0 et C par le MSB.
+        ASL  voir SR            effectue un dÇcalage de l'op. de source
+                                Ö gauche. Id. Ö SL mais V mod. autrement.
+        RR   voir SR            effectue une rot. de l'op. de source Ö
+                                droite. MSB et C sont rempl. par le LSB.
+        RRC  voir SR            effectue une rot. de l'op. de source
+                                avec C Ö droite. Le MSB est rempl. par C
+                                et celui-ci par le LSB.
+        RL   voir SR            màme effet que RR mais Ö gauche.
+        RLC  voir SR            màme effet que RRC mais Ö gauche.
+                      Fig. 1. Instructions CALM (1äre partie)
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs       - 4
+        Instructions de test
+        TEST source             teste le signe et la valeur (si zÇro) de
+             source:adresse_de_bit  l'op. de source. Lors d'un adr. de bit,
+                                uniquement l'ind. de nullitÇ Z est modifiÇ.
+        TCLR sourcedestination  teste et met Ö zÇro le(s) bit(s) d'op.
+             sourcedestination:adresse_de_bit
+        TSET voir TCLR          teste et met Ö un le(s) bit(s) d'opÇrande.
+        TNOT voir TCLR          teste et invertit le(s) bit(s) d'opÇrande.
+        Instructions de commande du flux d'instructions
+        JUMP adresse_de_saut    saute Ö l'adresse indiquÇe.
+        JUMP,cadresse_de_saut   saute Ö l'adr. si la cond. est satisfaite.
+        DJ,c sourcedestination,adresse_de_saut  dÇc. le 1er op. de 1 et
+                                saute Ö l'adr. donnÇe par le 2nd op. si c.
+        SKIP,c                  saute l'instr. suiv. si la cond. est vraie.
+        CALL adresse_de_saut    appel de sous-prog. (sauve l'adr. de retour
+        CALL,cadresse_de_saut   sur la pile et saute Ö l'adresse indiquÇe).
+        RET                     retour de sous-programme (saute Ö l'adresse
+        RET,c                   rÇcupÇrÇe de la pile).
+        TRAP expression         appel de sous-programme spÇcial.
+        TRAP,c
+        WAIT                    attend sur une interruption.
+        HALT                    arràte le processeur jusqu'Ö ce qu'il soit
+                                rÇinitialisÇ par un signal externe.
+        RESET                   rÇinitialise les pÇriphÇriques.
+        NOP                     instruction vide.
+        ION                     permet des interruptions.
+        IOFF                    interdit des interruptions.
+        Instructions spÇciales
+        Toutes les instructions spÇciales (p.ex.: DAA, LINK, FFS).
+                      Fig. 1. Instructions CALM (2äme partie)
+     
+     2.2 Code opÇratoire
+        Le code opÇratoire exprime l'opÇration effectuÇe. Le code
+     opÇratoire est un nom dÇrivÇ d'un verbe anglais. Dans certains cas, on
+     utilise aussi les abrÇviations et leurs combinaisons.
+        En gÇnÇral, on retrouve les codes opÇratoires dÇfinis par CALM
+     aussi dans les langages d'assemblage des microprocesseurs individuels.
+     Les seules diffÇrences concernent les codes opÇratoires dans lesquels
+     le fabricant anticipe un mode d'adressage (p.ex. BRANCH, LEA, XLAT,
+     ADDI). Par contre, on rencontre träs souvent des diffÇrences
+     orthographiques mineures: COMP au lieu CMP, MOVE au lieu MOV, etc.
+     
+     2.3 OpÇrandes
+        Un opÇrande indique qui (registre, location mÇmoire, etc.)
+     participe Ö une opÇration et comment on accäde Ö l'information.
+     L'opÇrande adresse cette information par l'intermÇdiaire d'une
+     notation dÇfinie. Cette notation doit suffir Ö exprimer tous les modes
+     d'adressage possibles (et utiles). Voir le chapitre 3.
+        Cette notation indÇpendante du processeur est jusqu'Ö prÇsent
+     unique. Il suffit pour s'en convaincre de comparer les notations du
+     fabricant des modes d'adressage de quelques microprocesseurs. Un
+     microprocesseur a gÇnÇralement un nombre limitÇ de modes d'adressage.
+     Ceci conduit Ö une courte notation qui simplifie le travail de
+     l'assembleur, mais un concept d'adressage n'est pas prÇsentÇ.
+        Une notation pÇcise est aussi nÇcessaire parce qu'on ne peut plus
+     intÇgrer le mode d'adressage dans le code opÇratoire. En plus,
+     l'accumulateur n'est plus le centre unique d'un microprocesseur comme
+     autrefois. Et des modes d'adressage de plus en plus pÇrformants ont
+     besoin d'une indication prÇcise.
+     
+     2.4 Code condition
+        Un code condition exprime l'Çtat d'un indicateur ou la combinaison
+     d'Çtats d'indicateurs. Les indicateurs sont modifiÇs par des
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs       - 5
+     instructions. Si les instructions elles-màmes dÇpendent des
+     indicateurs, on ajoute un code condition sÇparÇ par une virgule au
+     code opÇratoire. Les codes conditions sont des noms composÇs
+     usuellement de 2 lettres (fig. 2).
+        gÇnÇral:
+          EQ  Çgal                NE non Çgal
+          BS  bit Ö un            BC bit Ö zÇro
+          CS  report Ö un         CC report Ö zÇro
+          VS  dÇpassement Ö un    VC dÇpassement Ö zÇro
+          MI  moins, nÇgatif      PL plus, positif
+        apräs comparaison non signÇe:
+          LO  infÇrieur           LS infÇrieur ou Çgal
+          HI  supÇrieur           HS supÇrieur ou Çgal
+        apräs comparaison arithmÇtique:
+          LT  plus petit que      LE plus petit que ou Çgal
+          GT  plus grand que      GE plus grand que ou Çgal
+        divers:
+          PE  paritÇ paire        PO paritÇ impaire
+          NV  jamais              AL toujours             NMO non Çgal Ö -1
+        Quelques codes conditions Çquivalents: EQ=BC, NE=BS, CS=LO, CC=HS.
+                          Fig. 2. Codes conditions
+     
+     Les indicateurs sont usuellement mÇmorisÇs dans le registre
+     d'indicateurs F (fig. 3). D'autres indicateurs (I, S, T) peuvent
+     exister et sont souvent mÇmorisÇs dans un registre d'Çtat spÇcial S.
+        lettre/fonction       utilisation
+        C  report             additionneur binaire et dÇcalage
+        H  report auxiliaire  report 4 bits (unique. pour les proc. 8 bits)
+        L  lien               unique.si jamais utilisÇ comme ind. de report
+        N  signe              Ö un: MSB Ö un (rÇsultat nÇgatif)
+        V  dÇpassement        Ö un: dÇp. de capacitÇ pour des nombr. arith.
+        Z  zÇro               Ö un: rÇsultat nul
+        I  interruption       Ö un: interruption active (permise)
+        S  superviseur        Ö un: mode superviseur actif
+        T  traáage            Ö un: mode de traáage actif
+                           Fig. 3. Indicateurs
+     
+        Les noms des codes conditions sont souvent identiques avec ceux des
+     fabricants. Seulement la maniäre avec laquelle ils sont ajoutÇs au
+     code opÇratoire est diffÇrente. Chez les fabricants, le code condition
+     est directement concatÇnÇ avec le nom du code opÇratoire (une lettre).
+     La notation de CALM est plus favorable, car un code opÇratoire
+     quelconque peut àtre combinÇ avec un code condition quelconque et on
+     peut distinguer les deux informations clairement (fig. 4).
+                JUMP,NE adresse_de_saut
+                RET,LO
+                CALL,CS adresse_de_saut
+                DJ.16,NE CX,adresse_de_saut
+        SKIP,LO DJ.16,NMO D0,adresse_de_saut
+             Fig. 4. Exemples avec des codes conditions
+     
+     2.5 Indicateurs de donnÇes
+        Les indicateurs de donnÇes ne sont devenus nÇcessaire qu'avec les
+     microprocesseurs 16/32 bits. Il faut indiquer la taille et le type des
+     donnÇes transfÇrÇes avec ces microprocesseurs (fig. 5).
+        U ou rien    non signÇ ou pas spÇcifiÇ
+        A            arithmÇtique (reprÇsentation complÇment Ö deux)
+        D            dÇcimal (non signÇ, 2 chiffres par octet, BCD)
+        F            point flottant (format IEEE 754)
+        O            dÇplacement (2n-1 biais)
+        S            avec signe (signe et valeur absolue)
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs       - 6
+           ---                                             ----------
+        ->( . )------------------------------------------->[ nombre ]->
+           ---    V     V     V     V     V     V     ^    ----------
+                ( U ) ( A ) ( D ) ( F ) ( O ) ( S )   |
+                  `-----------------------------------'
+                      Fig. 5. Indicateurs de donnÇes
+        La taille de donnÇes indique le nombre de bits participant Ö une
+     opÇration. L'indicateur est spÇcifiÇ soit avec le code opÇratoire
+     (taille de donnÇes valable pour tous les opÇrandes suivants) soit avec
+     chaque opÇrande individuellement. La taille de donnÇes est directement
+     exprimÇe en bits. Un point est utilisÇ comme sÇparateur.
+        Le type de donnÇes donne des informations sur les donnÇes
+     utilisÇes. Cet indicateur est une lettre placÇe entre le point et la
+     taille de donnÇes. Si le type de donnÇes n'est pas indiquÇ
+     explicitement, on suppose qu'il s'agit de donnÇes non spÇcialement
+     traitables. Sinon, un indicateur de type de donnÇes est nÇcessaire
+     pour dÇsigner une unitÇ spÇcifique (p.ex. additionneur BCD ou FPU):
+                MOVE.32 R6,R1
+                ADD.D32 R5,R0
+                CONV    R1.A16,R2.F64
+        Fig. 6. Exemples avec des indicateurs de donnÇes
+        Les indicateurs de donnÇes sont aussi connus dans la notation de
+     fabricant des instructions. Mais seulement la taille de donnÇes est
+     notÇe sÇparÇment.
+        La taille de donnÇes est indiquÇe par une lettre ajoutÇe
+     directement ou sÇparÇe par un point au code opÇratoire. Mais
+     l'utilisation de lettres reste limitÇe: d'une part, il n'y a pas que
+     les tailles de donnÇes de 8, 16 et 32 bits, et, d'autre part, tout le
+     monde ne sera jamais d'accord sur leur assignation.
+        Aux types de donnÇes correspondent chez les fabricants diffÇrents
+     codes opÇratoires, par exemple IMUL pour MUL.A16, ABCD pour ADDX.D8,
+     NEGL pour NEG.F64.
+     
+     2.6 Indicateurs d'adresses
+        Les indicateurs d'adresses sont devenus de plus en plus
+     indispensables avec les possibilitÇs d'adressage croissantes. Une
+     adresse est composÇe plus souvent de sous-adresses qui n'ont pas la
+     taille d'adresse entiäre. Il faut donc indiquer la taille de ces
+     sous-adresses et prÇciser comment il faut les Çtendre Ö la taille
+     d'adresse entiäre.
+        Tous ces informations sont fournies par les indicateurs d'adresses.
+     Le programmeur peut bien comprendre sur papier ce qui se passe dans le
+     microprocesseur, c.Ö.d. comment une adresse est construite. Il peut
+     ainsi indiquer Ö l'assembleur le mode d'adressage Ö choisir.
+        U ou rien    non signÇ, extension de zÇro
+        A            arithmÇtique, extension de signe
+        R            rel., valeur codÇe ajoutÇe avec ext. de signe au PC
+                           ----------         ---
+        -------->--------->[ nombre ]------->( ^ )--->
+           |          ^    ----------   ^     ---
+           |   ---    |                 |
+           |->( A )---------------------'
+           |   ---  |
+           |->( R )-|
+           |   ---  |
+           `->( U )-'
+               ---
+                 Fig. 7. Indicateurs d'adresses
+        Un indicateur d'adresses contient une taille d'adresses et un type
+     d'adresses (fig. 7). La taille d'adresses indique le nombre de bits
+     fourni par une sous-adresse. La taille d'adresses est aussi indiquÇe
+     en bits. Un accent circonflexe est utilisÇ comme sÇparateur. Un
+     indicateur d'adresses est placÇ devant une sous-adresse (fig. 8).
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs       - 7
+                JUMP    32^adresse_de_saut
+                CALL    A16^adresse_de_saut
+                JUMP,NE R8^adresse_de_saut
+                MOVE.32 32^{A0}+A16^{D0}+A8^dÇplacement,D1
+                MOVE.16 32^{A5}+R8^Çtiquette,D4
+               Fig. 8. Exemples avec des indicateurs d'adresses
+     
+        Le type d'adresses indique comment l'adresse est interprÇtÇe. Il
+     distingue l'adressage relatif ou absolu. Si en plus, une adresse ne
+     fournit pas la taille d'adresses entiäre, il faut indiquer le type
+     d'extension Ö la taille d'adresses entiäre. Pour l'adressage absolu,
+     une extension peut se faire avec ou sans signe. Pour l'adressage
+     relatif, le compteur d'adresse est ajoutÇ au dÇplacement Çtendu de
+     signe.
+        Les indicateurs d'adresses existent aussi chez les langages
+     d'assemblage des fabricant. Cependant, ils sont difficilement
+     reconnaissables Ö cause de leur syntaxe non uniforme. Les diffÇrentes
+     tailles d'adresses sont souvent indiquÇes par des prÇfixes ou des
+     suffixes (p.ex.: LBRA, BRA.S, dÇpl(A0,D3.L), BNE ETIQUETTE:W). Les
+     types d'adresses sont indiquÇs par des codes opÇratoires ou des
+     caractäres spÇciaux (p.ex.: BSR, ETIQUETTE(PC), @ETIQUETTE). On peut
+     d'ailleurs constater avec satisfaction, que seulement les instructions
+     de saut diffÇrencient les modes d'adressage relatif et absolu par deux
+     codes opÇratoires diffÇrents (BRANCH et JUMP). Mais cette distribution
+     du sens d'une instruction sur diffÇrentes parties d'une instruction
+     complique et empàche en fin de compte des extensions.
+     
+     3 Notation des modes d'adressage
+        Selon le texte prÇcÇdent, il est primordial de formuler des rägles
+     claires pour indiquer explicitement un mode d'adressage. Pour cela, le
+     programmeur a Ö l'esprit un modäle simplifiÇ du processeur qui
+     contient principalement la structure des registres et l'architecture
+     gÇnÇrale des locations mÇmoire.
+     
+     3.1 Registres et locations mÇmoire
+        Les registres et les locations mÇmoire sont constituÇs d'un certain
+     nombre de bits. Les multiples de 8 bits (= 1 octet) sont usuels chez
+     les microprocesseurs. Ainsi, on obtient des tailles de registre de 8,
+     16 et 32 bits. Les locations mÇmoire successives sont numÇrotÇes et on
+     appelle leur numÇro adresse. Si un mot de 16 bits est placÇ dans deux
+     locations mÇmoire successives, deux ordres d'octets diffÇrents
+     existent selon le microprocesseur (fig. 9).
+     
+                       7      0                             7      0
+                      ----------                           ----------
+                      [ octet  ]  0                        [ octet  ]  0
+                      ----------                           ----------
+                      [        ]                           [        ]
+                         ....                                 ....
+        ordre d'octet:[        ]          ordre d'octet:   [        ]
+                      ----------                           ----------
+        poids faible  [  mot   ]  n       poids fort       [  mot   ]  n
+                      -   16   -                           -   16   -
+        poids fort    [  bits  ]  n+1     poids faible     [  bits  ]  n+1
+                      ----------                           ----------
+                      [        ]                           [        ]
+                         ....                                 .... 
+                             Fig. 9. DiffÇrents ordres d'octet
+     
+        Si l'on adresse une suite d'octet par bit, l'ordre d'octet avec
+     l'octet du poids fort en premier s'aväre dÇfavorable car les bits sont
+     numÇrotÇs diffÇremment. En plus, la numÇrotation des bits dans un
+     registre est diffÇrente de celle dans une suite de locations mÇmoire.
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs       - 8
+     3.2 Espaces d'adressage
+        On peut voir les registres et les locations mÇmoire faisant partie
+     d'un espace d'adressage de registres ou d'espace mÇmoire. L'espace
+     d'adressage de registres contient souvent un petit nombre de locations
+     mÇmoire, mais est directement intÇgrÇ sur la puce du microprocesseur.
+     Ainsi, le temps d'accäs est court. Mais on ne parle pas de locations
+     mÇmoire mais plutìt de registres, parce que leur nombre est faible et
+     ils bÇnÇficient d'une situation technique particuliäre. En plus,
+     chaque registre reáoit un nom rÇservÇ. Si possible, les noms de
+     registre du fabricant sont repris. Sinon, seulement les symboles citÇs
+     Ö la fig. 10 sont rÇservÇs en CALM.
+        PC    compt. d'adr. au moment de l'exÇc. du prog. (Program Counter)
+        SP    pointeur de pile (Stack Pointer)
+        F     registre d'indicateurs arithmÇtique (Flags)
+        S     registre d'Çtat (System, Status)
+        APC   valeur du compteur d'adresse de l'assembleur au dÇbut de
+              l'instruction dans laquelle se trouve APC
+        TRUE  -1   (tous les bits Ö 1)
+        FALSE 0    (tous les bits Ö 0)
+              Fig. 10. Symboles rÇservÇs et prÇdÇfinis
+     
+        L'espace mÇmoire par contre est träs grand et est construit Ö
+     l'extÇrieur. Les locations mÇmoire sont numÇrotÇes et peuvent obtenir
+     des symbols dÇfinis par l'utilisateur.
+        Quelques microprocesseurs peuvent adresser d'autres espaces
+     d'adressage: entrÇe/sortie et donnÇes. Afin de pouvoir dinstinguer ces
+     espaces d'adressage de l'espace mÇmoire, on place un signe dollar pour
+     l'espace d'adressage d'E/S et un pourcent pour l'espace d'adressage de
+     donnÇes devant l'expression d'adresse (fig. 11).
+        MOVE B,A          registre -> registre
+        MOVE ADMEMOIRE,A  espace mÇmoire -> registre
+        MOVE $ADENTREE,A  espace d'adressage d'E/S -> registre
+        MOVE %ADDONNEES,A espace d'adressage de donnÇes -> registre
+                   Fig. 11. Exemples: espaces d'adressage 3.3 Adressage
+     direct
+        Comme nous avons vu auparavant, les registres et les locations
+     mÇmoire sont constituÇs d'un certain nombre de bits. Les Çtats de ces
+     bits reprÇsente un mot binaire qu'on appelle contenu de ce registre ou
+     de cette location mÇmoire. Cependant, dans les langages d'assemblage
+     on indique souvent uniquement le nom d'un contenu, alors qu'on se
+     rÇfäre au contenu de celui-ci. On dit: "incrÇmente D" au lieu:
+     "incrÇmente le contenu du registre D".
+        Cette rÇfÇrence implicite est toujours valable en CALM et pour tous
+     les quatre espaces d'adressage mentionnÇs. On indique directement le
+     nom rÇservÇ du registre ou de l'adresse. Ceci est appelÇ adressage
+     direct (fig. 12).
+        ADD  B,A          contenu(B) + contenu(A) -> contenu(A)
+        ADD  ADMEMOIRE,A  contenu(ADMEMOIRE) + contenu(A) -> contenu(A)
+        ADD  16'1234,A    contenu(16'1234) + contenu(A) -> contenu(A)
+        Le second exemple est identique au troisiäme si ADMEMOIRE =
+     16'1234.
+                     Fig. 12. Exemples: adressage direct 3.4 Adressage
+     immÇdiat
+        Le signe diäze devant une constante, un symbole, ou une expression
+     complexe, supprime la rÇfÇrence implicite et indique l'adresse
+     construite immÇdiatement (et pas son contenu). Ceci est appelÇ
+     addressage immÇdiat (fig. 13). Le diäze correspond au signe de
+     pointeur (^, @) dans les langages de haut niveau.
+        ADD  #16'1234,A      16'1234 + contenu(A) -> contenu(A)
+        ADD  #ADMEMOIRE+1,A  ADMEMOIRE + 1 + contenu(A) -> contenu(A)
+        JUMP ADMEMOIRE       ADMEMOIRE -> contenu(PC)
+        MOVE #ADMEMOIRE,PC   ADMEMOIRE -> contenu(PC)
+                 Fig. 13. Exemples: adressage immÇdiat
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs       - 9
+     
+     3.5 Adressage indirect
+        Si l'on veut utiliser le contenu d'une adresse quelconque de
+     nouveau comme adresse, il faut placer des accolades autour de
+     l'expression d'adresse en question. Ceci est appelÇ adressage indirect
+     (fig. 14).
+        ADD  {HL},A         contenu(contenu(HL)) + contenu(A) -> contenu(A)
+        MOVE #16'1234,{HL}  16'1234 -> contenu(contenu(HL))
+        MOVE #16'1234,{ADMEMOIRE}  16'1234 -> contenu(contenu(ADMEMOIRE))
+                    Fig. 14. Exemples: adressage indirect
+     
+        En fait, il n'y a pas de diffÇrence fonctionnelle si l'on utilise
+     un registre ou une location mÇmoire pour l'adressage indirect. Mais
+     beaucoup de processeurs ne permettent qu'avec de registres un
+     adressage indirect.
+     
+     3.6 Adressages combinÇs
+        Avec l'adressage direct, immÇdiat et indirect, nous avons dÇjÖ
+     dÇfini les ÇlÇments de base pour construire des adressages complexes
+     quelconques. Les opÇrations possibles entre les diffÇrents termes
+     d'adresse sont l'addition, la soustraction et la multiplication (fig.
+     15).
+        MOVE #16'FE,{A0}+8    254 -> contenu(contenu(A0)+8)
+        MOVE #10'98,{A0}-8    98 -> contenu(contenu(A0)-8)
+        MOVE #8'177,{A0}*8    127 -> contenu(contenu(A0)*8)
+        MOVE #2'1011,{A0}*    11 -> contenu(contenu(A0)*taille_de_donnÇes)
+        MOVE R0,{{SB}+5}+3    cont.(R0) -> cont.(contenu(contenu(SB)+5)+3)
+        MOVE {A0}+{D0}+10,A1  cont.(cont.(A0)+cont.(D0)+10) -> cont.(A1)
+        MOVE #{A0}+{D0}+10,A1 contenu(A0)+contenu(D0)+10 -> contenu(A1)
+                     Fig. 15. Exemples: adressages combinÇs
+     
+        Notez que l'adressage indirect est simplement une notation
+     explicite de l'adressage direct, mais peut àtre appliquer sans
+     limites. La rÇfÇrence implicite (c.Ö.d. le contenu de l'adresse
+     calculÇe) est appliquÇe Ö l'expression d'adresse entiäre. Si un signe
+     diäze se trouve devant l'expression d'adresse entiäre, cette rÇfÇrence
+     implicite est annulÇe.
+     
+     3.7 Adressages spÇciaux
+        L'adressage relatif est en fait une notation plus courte d'un
+     adressage combinÇ comme c'est illustrÇ Ö la fig. 16.
+        Quelques modes d'adressage supplÇmentaires ont pris une certaine
+     importance et ont obtenu pour cela leur propre notation.
+        Dans un adressage de bit, la premiäre expression spÇcifie l'adresse
+     d'octet. L'expression apräs les deux-points est l'adresse de bit.
+     L'adresse de bit zÇro correspond au bit 0 dans l'octet adressÇ. Si
+     l'adresse d'octet pointe dans l'espace mÇmoire, l'adresse de bit peut
+     dÇpasser l'octet adressÇ (apräs ou avant l'octet).
+     
+        notation             description                 dÇsignation
+        MOVE R^ADRESSE,D0    MOVE {PC}+DEPLACEMENT,D0    adressage relatif
+        MOVE {A0+},D0        MOVE {A0},D0                modif. automatique
+                             ADD  #taille_de_donnÇes,A0  (incrÇmentation)
+        MOVE D0,{-A0}        SUB  #taille_de_donnÇes,A0  modif. automatique
+                             MOVE D0,{A0}                (dÇcrÇmentation)
+        CLR  D0:#1           met bit 1 Ö zÇro dans D0    adressage de bit
+        PUSH R1..R3|R5       PUSH R1                     liste de registre
+                             PUSH R2
+                             PUSH R3
+                             PUSH R5
+        MOVE R0,R1:#1..#4    transfäre bits 0 Ö 3 de     liste de bit
+                             R0 Ö R1 (bits 1 Ö 4)
+                    Fig. 16. Exemples: adressages spÇciaux
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs      - 10
+     
+     4 Pseudo-instructions
+        Les pseudo-instructions sont des commandes Ö l'assembleur. Elles
+     dirigent la gÇnÇration de code, l'assemblage et le listage
+     conditionnel, les macros, etc.. Chaque pseudo-instruction commence
+     avec un point (fig. 17).
+        Une Çtiquette peut àtre placÇe uniquement devant les
+     pseudo-instructions .ASCII, .ASCIZ, .BLK, .FILL, .n et .STRING.
+     L'ordre des octets dans les pseudo-instructions .16, .32, etc., dÇpend
+     du processeur chargÇ (.PROC).
+        Listage
+        .TITLE chaåne de caractäres  commence une nouv. page avec le titre.
+        .CHAP chaåne de caractäres  ins. le texte ind. dans le sous-titre.
+        .END                    termine un programme source.
+        .TEXT                   ignore jusqu'Ö .ENDTEXT les lignes suivant.
+                                qui sont copiÇes dans le fichier listage.
+        .ENDTEXT                termine .TEXT.
+        .LIST expression        permet le list. des lignes suiv. si l'exp.
+                                est vraie. On peut imbriq. les .LIST.
+        .ENDLIST                termine une section de listage condition.
+        .LAYOUT                 dÇfinit les param. pour l'asp.gÇn. du list.
+        Assemblage
+        .BASE expression        dÇf. la nouv. base par dÇfaut pour les nb.
+        .START expression       dÇfinit l'adresse de dÇbut.
+        .EXPORT symbole1, symbole2, ...dÇfinit les symboles exportÇs.
+        .IMPORT symbole1, symbole2, ...dÇfinit les symboles importÇs.
+        Compteur d'adresse
+        .APC expression         choisit un des compt. d'adr. de l'ass.(APC)
+        .LOC expression         ass. une nouv.val. au compt. de l'ass.(APC)
+        .ALIGN expression       aj. la val. de l'APC Ö la proch. adr. mult.
+        .EVEN                   ajuste la val. de l'APC Ö une val. paire.
+        .ODD                    ajuste la val. de l'APC Ö une val. impaire.
+        .BLK.8 expression (nombre) additionne Ö l'APC le produit de la
+        .BLK.8.16.32 expression  taille des donnÇes par le nombre.
+        Insertion de fichiers
+        .INS fichier            insäre le fichier de source indiquÇ.
+        .REF fichier            insäre la table des symboles mentionnÇe.
+        .PROC fichier           insäre la description du proc. indiquÇ.
+        GÇnÇration de code
+        .n   expression, expression, ...insäre la valeur donnÇe dans le
+        .8.32 expression8, expression32, expression8, ... programme objet.
+        .FILL.n expression (nombre), expression  gÇn. nb. fois la val.ind.
+        .ASCII "texte ascii"    insäre les codes ASCII des caractäres
+                                imprimables dans l'objet.
+        .ASCIZ "texte ascii"    = .ASCII, aj. le code ASCII nul Ö la fin.
+        .STRING "texte ascii"   = .ASCII, insäre la long.(8 bits) au dÇbut.
+        Assemblage conditionnel et macros
+        .IF  expression         les lignes d'instr. suiv. jusqu'au .ELSE
+                                ou .ENDIF corres. sont ass. si l'exp. est
+                                vraie (TRUE). Peuvent àtre imbriquÇes.
+        .ELSE                   les lignes d'instr. suiv. jusqu'au .ENDIF
+                                sont ass. si l'exp. du .IF Çtait faux.
+        .ENDIF                  termine une section d'un .IF ou .ELSE.
+        .MACRO nom,paramätre1,...commence la dÇfinition d'une macro avec le
+                                nom de la macro et une liste fac. de param.
+        .ENDMACRO               termine la dÇfinition d'une macro.
+        .LOCALMACRO symbole1,... dÇclare les symb. locaux dans une macro.
+                       Fig. 17. Pseudo-instructions CALM
+     
+     5 Utilisation de CALM - pas si facile
+        Chaque nouveau langage de programmation a besoin de temps pour àtre
+     acceptÇ. Mais contrairement aux langages de programmation de haut
+     niveau, un langage d'assemblage commun dÇpend du processeur.
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs      - 11
+     
+     5.1 Documentation
+        La notation CALM des instructions d'un processeur est actuellement
+     documentÇe dans des dites cartes de rÇfÇrence. Dans ces cartes de
+     rÇfÇrence se trouvent toutes les instructions d'un processeur sous une
+     forme condensÇe.
+        Mais des informations supplÇmentaires comme codes machines, temps
+     d'exÇcution, particularitÇs, etc., d'un microprocesseur se trouvent
+     uniquement dans la documentation du fabricant. Ainsi, l'utilisateur
+     est obligÇ de connaåtre les deux notations. Comme aide, les
+     dÇsignations des codes opÇratoires du fabricant sont aussi indiquÇes
+     dans les cartes de rÇfÇrence CALM.
+     
+     5.2 Une notation CALM - plusieurs codes machines
+        Les microprocesseurs modernes 16/32 bits ont plusieurs instructions
+     qui sont 100% identiques. La notation CALM montre ceci d'une maniäre
+     exemplaire. Alors la question se pose: Quel code machine doit
+     l'assembleur gÇnÇrer?
+        Normalement, on laisse l'assembleur chosir le code le plus compact
+     et ainsi le plus rapide. Sinon, les caractÇristiques sont dÇterminÇes
+     par les opÇrandes. Le code machine rÇsultant dÇpend de la taille et du
+     type de l'opÇrande, ainsi que des indicateurs d'adresses et de donnÇes
+     additionnelles.
+     
+     5.3 Assembleur
+        Il est Çvident qu'une programmation en CALM ne sert Ö rien si les
+     outils correspondants (c.Ö.d. assembleur, Çditeur de liens) manquent.
+     Actuellement, des assembleur CALM gÇnÇrant un code machine non
+     translatable sont disponible aupräs de l'auteur pour pratiquement tous
+     les microprocesseurs.
+     
+     5.4 Format d'objet
+        La gÇnÇration du code machine reste extràmement complexe, car pour
+     chaque processeur n'existe pas seulement un propre format de code
+     machine, mais aussi un format d'objet spÇcifique. Cette diversitÇ
+     empàche pratiquement une gÇnÇralisation de l'assembleur. Toujours
+     est-il qu'un format d'objet uniforme a ÇtÇ dÇfini [2].
+     
+     6 Exemples
+        Dans les exemples suivants, quelques instructions en notation CALM
+     sont comparÇes Ö ceux du fabricant. Ce ne sont pas des programmes
+     compläts, mais plutìt un choix de vingt instructions des processeurs
+     iAPX86, M68000 et NS32000.
+        La notation d'assemblage dÇpend fortement des subtilitÇs de
+     l'assembleur utilisÇ. Nous avons utilisÇs ici les assembleurs des
+     fabricants.
+     
+     6.1 iAPX86
+        L'iAPX86 d'Intel est Ö cause de sa segmentation un des
+     microprocesseurs les plus complexes. L'assembleur ASM-86 nÇcessite de
+     nombreuses indications concernant ces segments (ASSUME, NEAR,
+     dÇclaration des variables, etc.). Pour cette raison, les exemples
+     suivants sont incomplÇts, car ces indications manquent ici.
+        A cause de cette architecture, un langage d'assemblage ne peut pas
+     àtre simple pour ce processeur (fig. 18). CALM indique avec chaque
+     instruction le registre de segment utilisÇ. De plus, on fixe avec un
+     indicateur de donnÇes la portÇe des instructions de saut (Ö
+     l'intÇrieur ou Ö l'extÇrieur du segment courant). Une notation
+     simplifiÇe est introduite pour le dÇcalage automatique des registres
+     de segments ([CS] pour {CS}*16).
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs      - 12
+        CALM                                Intel
+        MOVE.16 #16'1000,BX                 MOV     BX,1000H
+        MOVE.16 AX,${DX}                    OUT     DX,AX
+        MOVE.16 #[ES]+NEXT,DX               LEA     DX,ES:NEXT
+        MOVE.8  DL,BH                       MOV     BH,DL
+        MOVE.8  [DS]+DATA,AL                MOV     AL,DATA
+        MOVE.16 [CS]+{SI},AX                MOV     AX,CS:[SI]
+        MOVE.8  AH,F                        SAHF
+        PUSH.16 SF                          PUSHF
+        MOVE.8  [DS]+{BX}+{AL},AL           XLAT    CONV_TAB
+        MOVE.32 [DS]+TARGET,DSBX            LDS     BX,TARGET
+        CONV.A8.16 AX                       CBW
+        INC.8   AL                          INC     AL
+        DIV.A16 CX,DXAX,AX,DX               IDIV    CX
+        OR.16   #ERROR,[DS]+STATUS          OR      STATUS,ERROR
+        RL.8    AL                          ROL     AL,1
+        TEST.16 #MASK,AX                    TEST    AX,MASK
+        JUMP,LO R^LOW                       JB      LOW
+        CALL.32 20^ROUTINE                  JSR     FAR ROUTINE
+        DJ.16,NE CX,ADDRESS                 LOOP    ADDRESS
+        TRAP.32,VS                          INTO
+                       Fig. 18. Exemples: iAPX86
+     
+     6.2 M68000
+        La notation des instructions du M68000 de Motorola ne diffäre que
+     de träs peu de CALM (fig. 19). Mais on voit particuliärement bien avec
+     ce processeur que la compatibilitÇ ascendante est bien valable pour le
+     code machine (malheuresement seulement partiellement), mais pas pour
+     le langage d'assemblage: Les possibilitÇs d'adressage supplÇmentaires
+     du M68020 ont obligÇs Motorola de changer la notation de quelques
+     modes d'adressage.
+     
+        CALM                                Motorola
+        MOVE.32 #16'1000,D1                 MOVE.L  #$1000,D1
+        MOVE.32 #A8^WERT,D0                 MOVEQ   #WERT,D0
+        MOVE.32 #{A6}+100,A3                LEA     100(A6),A3
+        MOVE.8  D4,D6                       MOVE.B  D4,D6
+        MOVE.8  {A4}+4,D2                   MOVE.B  4(A4),D2
+        MOVE.16 {A0}+A16^{D4}+2,{A2}+32^{A3}+4   MOVE 2(A0,D4),4(A2,A3.L)
+        MOVE.16 D0,F                        MOVE     D0,CCR
+        PUSH.16 SF                          MOVE     SR,-(A7)
+        PUSH.32 #TABLE                      PEA      TABLE
+        PUSH.32 D0..D3|D5                   MOVEM.L  D0-D3/D5,-(A7)
+        CONV.A8.16 D4                       EXT.W    D4
+        INC.8   D1                          ADDQ.B   #1,D1
+        DIV.A16 #10,D6                      DIVS     #10,D6
+        OR.16   #MASK,{A4}+A16^{D4}-4       OR       #MASK,-4(A4,D4.W)
+        RL.32   #8,D4                       ROL.L    #8,D4
+        TCLR.8  {A0+}:D4                    BCLR     D4,(A0)+
+        JUMP,LO R^LOW                       BLO      LOW
+        CALL    U^ROUTINE                   JSR      ROUTINE
+        DJ.16,NMO D0,ADDRESS                DBRA     D0,ADDRESS
+        TRAP,VS                             TRAPV
+                       Fig. 19. Exemples: M68000
+     
+     6.3 NS32000
+        En rÇalitÇ il s'agit ici d'une famille compläte, appelÇe par
+     National Semiconductors "NS32000 series". Elle consiste de trois
+     membres (NS32032, NS32016 et NS32008) 100% compatibles qui se
+     diffÇrencient que par la largeur du bus externe.
+        Il faut surtout mentionner la symÇtrie parfaite des modes
+     d'adressages (fig. 20). L'adressage relatif est permis partout et est
+     codÇ automatiquement.
+     
+     CALM - un langage d'assemblage commun pour microprocesseurs      - 13
+        CALM                                NS
+        MOVE.32  #16'1000,R1                MOVD    H'1000,R1
+        MOVE.32  #A4^WERT,R0                MOVQD   WERT,R0
+        MOVE.32  #{R6}+100,{SB}-20          ADDR    100(R6),-20(SB)
+        MOVE.8   R4,R6                      MOVB    R4,R6
+        MOVE.8   {SB}+4,R2                  MOVB    4(SB),R2
+        MOVE.16  {{FP}+2}+4,{SB}+{R0}*1+2   MOVW    4(2(FP)),2(SB)[R0:B]
+        MOVE.8   R0,F                       LPRB    R0,UPSR
+        PUSH.16  SF                         SPRW    PSR,TOS
+        PUSH.32  #R^TABLE                   ADDR    TABLE,TOS
+        PUSH.32  R0..R3|R5                  SAVE    [R0,R1,R2,R3,R5]
+        CONV     R4.8,R2.32                 MOVZBD  R4,R2
+        INC.8    R1                         ADDQB   1,R1
+        DIV.A32  #10,R6                     QUOD    10,R6
+        OR.16    #MASK,{{SB}-2}+{R5}*8+4    ORW     MASK,4(-2(SB))[R5:Q]
+        RL.32    #-10,R4                    ROTD    -10,R4
+        TCLR     {R0}+20:{{SB}+10}+4.A32    CBITD   4(10(SB)),20(R0)
+        JUMP,LO  R^LOW                      BLO     LOW
+        CALL     U^ROUTINE                  JSR     @ROUTINE
+        AJ.32,NE #2,{R0}+4,ADDRESS          ACBD    2,4(R0),ADDRESS
+        TRAP,VS                             FLAG
+                       Fig. 20. Exemples: NS32000
+     
+     7 Conclusions
+        CALM est un langage d'assemblage commun qui se pràte Ö tous les
+     microprocesseurs, mais aussi pour les miniprocesseurs et les
+     calculateurs. La notation CALM est orientÇe vers le futur puisqu'on
+     peut l'Çtendre d'une faáon ponctuelle et fonctionelle.
+        La sÇparation nette des diffÇrentes parties d'une instruction
+     permet une adaptation individuelle Ö des processeurs les plus
+     diverses. Des extensions spÇcifiques au processeur sont toujours
+     possibles. En plus, on comprend une instruction dans la notation CALM
+     souvent mieux qu'apräs de longues pages d'explications.
+        On a testÇ la notation CALM avec 24 processeurs pour voir si l'on
+     peut exprimer tous les processeurs d'une maniäre satisfaisante. Comme
+     rÇsultat, des cartes de rÇfÇrence CALM ont ÇtÇ Çtabli pour les
+     processeurs suivants: Z80, 65x02, 680x, 6805, 6809, 8048, 8051, 808x,
+     iAPXx86, NS32000, 680xx, etc.
+        Nous avons essayÇ de montrer sur quelques pages les ÇlÇments
+     principaux de CALM. La programmation en assembleur en soi ne deviendra
+     pas plus facile dans la notation CALM, mais elle sera plus
+     comprÇhensible pour l'utilisateur, car elle est construite d'apräs de
+     rägles logiques.
+     
+     8 Bibliographie
+        [1] DIN 66283, Allgem. Assemblierer-Sprache fÅr Mikroproz. CALM
+            Norme nat. all., Beuth Verlag GmbH, CP 1145, D-1000 Berlin 30
+        [2] "The Microprocessor Universal Format for Object Modules", Prop.
+            Stand.: IEEE P695 Working Group. IEEE Micro, 8.1983, p. 48-66.
+        [3] Nicoud, J.D. and FÑh, P. Common Assembly Language for Micro-
+            processors CALM, Document interne. LAMI-EPFL, INF-Ecublens,
+            CH-1015 Lausanne, Dec. 1986. English version of DIN 66283.
+        [4] Nicoud, J.D. and FÑh, P. Explanations and Comments, Related to
+            the Common Assembly Language for Microprocessors. LAMI-EPFL.
+        [5] Zeltwanger, H. "Genormte Assemblersprache fÅr Ps",
+            ELEKTRONIK, 35äme annÇe (1986), no. 8, p. 66-71.
+        [6] Nicoud, J.D. Calculatrices, Volume XIV du TraitÇ d'ElectricitÇ,
+            Lausanne: Presses polytechniques romandes, 1983.
+        [7] Nicoud, J.D. and Wagner, F. Major Microprocessors, A unified
+            approach using CALM. North Holland, 1987.
+        [8] Strohmeier, A. Le matÇriel informatique, concepts et principes
+            Lausanne: Presses polytechniques romandes, 1986.
+        [9] FÑh, P. "Die (Un-)Logik von Assemblersprachen",
+            Elektroniker, 26äme annÇe (1987), no. 5, p. 97-100.
+     
+     

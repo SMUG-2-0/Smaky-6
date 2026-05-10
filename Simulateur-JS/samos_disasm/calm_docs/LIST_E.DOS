@@ -1,0 +1,52 @@
+     LIST_F.DOC   LIST for the CALM assembler/modules
+     
+        You need the assembler program (ASCALM) and a corresponding
+     processor module (*.PRO) to assemble a source file.
+        The assembler generates object files without a linker in the
+     so-called MUFOM format. A conversion program (MUFOM -> binary format/
+     Intel hex format/Motorola S format/.EXE [PC/MS-DOS]/.TOS [Atari ST])
+     is delivered with the assembler.
+        Additional delivered programs: utilities for reformating and
+     testing assembler source programs, examples, and an editor.
+        Following configurations, assemblers and modules are available:
+     
+     Assembler (works with the processor modules below)
+        with macro assembler, utilities, CALM description and operating
+        instructions (on diskette). Supported systems (minimum of free
+        memory: 256 Kbyte).
+        - PC/MS-DOS, 2.x or greater, ASCALM 4.4
+        - Atari ST compatible, ASCALM 4.4
+        - Smaky 100, 324, etc. FOS 4 or greater, ASCALM 4.4
+     
+     Processor modules (with CALM reference card, test file, etc.):
+     4-bit microprocessors:
+        - TLCS42.PRO rev 1 Toshiba
+        - uPD7508.PRO rev 1 (ÊCOM-75 family) NEC
+        - uCOM75X.PRO rev 1 (ÊCOM-75X family) NEC
+     8-bit microprocessors:
+        - I8048.PRO rev 3 (I8049, I8050, and I8041, I8042) Intel
+        - I8051.PRO rev 9 (and I8044, and all 8051 types) Intel/Siemens
+        - I8080.PRO rev 4 (and I8085) Intel
+        - M6800.PRO rev 4 (and M6801, HD6303) Motorola/Hitachi
+        - M6805.PRO rev 5 (and M146805, M68HC05) Motorola
+        - M6809.PRO rev 2 Motorola
+        - M6811.PRO rev 3 Motorola
+        - PIC16C5X.PRO rev 3 (C54, C55, C56, C57) Microchip
+        - PIC16C84.PRO rev 1 (C71, C84) Microchip
+        - R6502.PRO rev 3 (and R65C02/SC02, MELPS740) Rockwell/GTE/Mitsub.
+        - Z8.PRO rev 1 Zilog/ST (SGS-Thomson)
+        - Z80.PRO rev 4 (NSC800, and HD64180) Zilog/NS/Hitachi
+     16/32-bit microprocessors:
+        - CPU16.PRO rev 1 (M68HC16) Motorola
+        - H8_500.PRO rev 1 (H8/500 Series) Hitachi
+        - IAPX86.PRO rev 8 (IAPX88, and IAPX186/188/286, 80x87/IIT, V20/25)
+        - M68000.PRO rev 13 (M68008, and M68010; with MC68881) Motorola
+        - M68020.PRO rev 15 (& M68030/40, CPU32, with MC68881 instr.) Mot.
+        - NS32000.PRO rev 1 (without FPU and MMU instructions) NS
+     signal processors:
+        - TMS320.PRO rev 1 (TMS32010, TMS32020, TMS32025) Texas Instruments
+     RISC processors:
+        - ARM.PRO rev 1 (Acorn Risc Machine) Acorn
+     
+        This software is freeware.
+     (c) Copyright 1986-1994 Patrick Faeh, Au Village 101, CH-1784 Wallenried

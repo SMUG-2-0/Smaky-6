@@ -1,0 +1,504 @@
+     CALMPSEU.DOQ                                  CALM pseudo-instructions
+     
+     LES PSEUDO-INSTRUCTIONS
+        Les pseudo-instructions sont des commandes … l'assembleur. Toutes
+     les pseudo-op‚rations commencent par un point. Les
+     pseudo-instructions sont compos‚es soit d'une pseudo-op‚ration
+     seulement, ou alors d'une pseudo-op‚ration suivie par une ou plusieurs
+     expressions (s‚par‚s par des virgules). Il existe deux types de
+     pseudo-instructions:
+        Les pseudo-instructions avec une ‚tiquette ‚ventuelle pr‚c‚dante:
+     .ASCII, .ASCIZ, .ASCIZE, .BLK.n, .DATA.n, .FILL.n, .n (.8, .16, .32,
+     etc.), .STRING, .SYSCALL.n . Ces pseudo-instructions g‚nŠrent du code
+     ou r‚servent de la place m‚moire. Pour les mots g‚n‚r‚s d'une longueur
+     de 16 et de 32 bits l'ordre des octets d‚pend du processeur.
+        Les pseudo-instructions sans ‚tiquette pr‚c‚dante: .ALIGN, .APC,
+     .BASE, .CHAP, .ELSE, .END, .ENDIF, .ENDLIST, .ENDMACRO, .ENDTEXT,
+     .ERROR, .EVEN, .EXPORT, .IF, .IMPORT, .INS, .LAYOUT, .LIST, .LISTIF,
+     .LOC, .LOCALMACRO, .MACRO, .MESSAGE, .ODD, .PAGE, .PROC, .PROCSET,
+     .PROCVAL, .RANGE, .REF, .START, .TEXT, .TITLE . Ces pseudo-instruc-
+     tions ne g‚nŠrent pas de code et ne d‚pendent pas du processeur.
+     L'‚tiquette pr‚c‚dante n'est pas admis … cause des raisons suivantes:
+        a) ambiguit‚: une ‚tiquette p. ex. devant .LOC laisse un doute sur
+     cette valeur.
+        b) ‚tiquette cach‚e: une ‚tiquette par exemple devant la
+     pseudo-instruction .IF n'apparait pas dans le listing, car les
+     pseudo-instructions pour l'assemblage conditionnel ne sont pas copi‚es
+     dans le fichier listing.
+        c) impossibilit‚: une ‚tiquette par exemple devant .MACRO n'a pas
+     de sens.
+        d) les pseudo-instructions sont en premier lieu des commandes …
+     l'assembleur et n'ont rien … faire avec les ‚tiquettes, qui sont
+     utilis‚es dans le programme de l'utilisateur.
+     
+     .ALIGN
+        Descript.: Ajuste la valeur de l'APC … la prochaine adresse
+                   multiple de la valeur indiqu‚e.
+        Comment.:  Le contenu des locations m‚moire saut‚es n'est pas
+                   d‚fini.
+        Exemple:           .LOC    16'234          ; APC a la valeur 16'234
+                           .ALIGN  16'200          ; APC a la valeur 16'400
+                           .ALIGN  16'100          ; APC a la valeur 16'400
+     
+     .APC
+        Descript.: Choisit un des compteurs d'adresse de l'assembler (APC).
+        Comment.:  Normalement, on utilise seulement qu'un compteur
+                   d'adresse de l'assembleur. Avec la pseudo-instruction
+                   .APC le programmeur peut choisir entre plusieurs
+                   compteurs d'adresse (p.ex. parties ROM et RAM). Jusqu'…
+                   huit valeurs diff‚rentes d'APC sont usuelles. Toutes les
+                   valeurs d'APC sont mis … z‚ro au d‚but du programme.
+        Exemple:   ROM     =       0
+                   RAM     =       1
+                           .APC    ROM           ; ROM: … partir de 16'0
+                           .LOC    16'0
+                           .APC    RAM           ; RAM: … partir de 16'2000
+                           .LOC    16'2000
+                                   ...
+                           .APC    ROM           ; programme
+                           JUMP    DEBUT
+                   TESTRAM:
+                           MOVE.8  ALPHA,D0
+                           .APC    RAM           ; donn‚es
+                   ALPHA:  .8      0
+                                   ...
+     
+     CALM pseudo-instructions                                      page: 2
+     
+     .ASCII
+        Descript.: insŠre les codes ASCII de la chaine de caractŠres
+                   imprimables. Le diagramme de syntaxe pour une chaine de
+                   caractŠres ASCII est donn‚ … la fig. 1. Les caractŠres
+                   imprimables inf‚rieur … (<) et guillemets sont aussi
+                   obtenables en les r‚p‚tant deux fois. Une valeur
+                   quelconque 8 bit peut ˆtre ins‚r‚e en la mettant entre
+                   des parenthŠses pointues.
+        Comment.:  La pseudo-instruction .ASCII serait rempla‡able par des
+                   pseudo-instructions .8 <caractŠre>, mais ce serait
+                   nettement plus lourd. Pour les caractŠres non-
+                   imprimables il faut utiliser les parenthŠses pointues.
+        Exemple:           .ASCII  "Ceci est un exemple<CR><LF>"
+                   On obtient la chaine "A<B" par:
+                           .ASCII  """A<<B"""
+     
+                 /----------------------<----------------------,
+                 |                                             |
+           ---   V       -------------------------------       |     ---
+        ->( " )-------->( caractŠre imprimable sauf " < )---------->( " )->
+           --- |   |     -------------------------------     ^   ^   ---
+               |   |                                         |   |
+               |   |   ---     ----------------------   ---  |   |
+               |   |->( < )--->[ expression simple  ]->( > )-|   |
+               |   |   ---  |  ----------------------   ---  |   |
+               |   |        |                                |   |
+               |   |        |                           ---  |   |
+               |   |        `------------------------->( < )-|   |
+               |   |                                    ---  |   |
+               |   |               ---      ---              |   |
+               |   `------------->( " )--->( " )-------------'   |
+               |                   ---      ---                  |
+               |                                                 |
+               `------------------------>------------------------'
+     
+                                     Fig. 1
+     
+     .ASCIZ .ASCIZE
+        Descript.: Mˆme effet que .ASCII. Un z‚ro (<NULL>) est ajout‚ … la
+                   fin.
+        Comment.:  Le z‚ro signale souvent la fin d'une chaŒne de
+                   caractŠres:
+                           .ASCIZ  "ABC"
+                   ou:
+                           .ASCII  "ABC<0>"
+                           .ASCIZE "ABC"    ; = .ASCIZ + .EVEN (g‚nŠre 0)
+     
+     
+     .BASE
+        Descript.: D‚finit la nouvelle base par d‚faut pour les nombres.
+        Comment.:  L'assembleur CALM d‚marre avec une base d‚cimale
+                   (systŠme d‚cimale). Les bases courantes sont: binaire,
+                   octale, d‚cimale et sexad‚cimale (hexad‚cimale). La
+                   nouvelle base doit ˆtre exprim‚e dans l'ancienne base
+                   sauf quand la base est explicitement plac‚e en tˆte
+                   (p.ex. 16'10).
+        Exemple:           .BASE   10'16
+     
+     CALM pseudo-instructions                                      page: 3
+     
+     .BLK
+        Descript.: Ajoute … la valeur de l'APC le produit de la taille des
+                   donn‚es et du nombre.
+        Comment.:  Cette instruction r‚serve des locations m‚moire sans
+                   modifier leur contenu. On peut m‚langer diff‚rentes
+                   tailles de donn‚es. Ainsi on exprime mieux la structure
+                   des donn‚es … r‚server.
+        Exemples:          .BLK.8  100     ; ajoute … l'APC 100
+                           .BLK.16 100     ; ajoute … l'APC 200
+                           .BLK.32 100     ; ajoute … l'APC 400
+                           .BLK.8.16.32 12 ; ajoute … l'APC 84 (1+2+4)*12
+     
+     
+     .CHAP
+        Descript.: InsŠre le texte indiqu‚ dans le soustitre de l'entˆte.
+        Comment.:  Cette pseudo-instruction commence une partie importante
+                   du programme ou un sous-programme. Le texte indiqu‚
+                   d‚crit en quelques mots les fonctions r‚alis‚es. Le
+                   texte apparait dans le champ du soustitre de l'entˆte.
+                   Normalement provoque cette pseudo-instruction un saut de
+                   page.
+        Exemple:           .CHAP   traitement des symboles
+     
+     
+     .DATA
+        Descript.: InsŠre la valeur donn‚e dans le programme objet. Chaque
+                   valeur a la taille des donn‚es mentionn‚e.
+        Comment.:  Pour les tailles des donn‚es de 16 et 32 bits, l'ordre
+                   des octets d‚pend du microprocesseur (d‚fini par .PROC).
+                   Le compteur d'adresse de l'assembleur est incr‚ment‚
+                   selon la taille indiqu‚e.
+        Exemples:          .DATA.8 255             ; gamme (.8): -256..+255
+                           .DATA.16 16'FFFF
+                           .DATA.32 -1              ; = 16'FFFFFFFF
+                           .DATA.8.8.16 "A", "Z", AD_A_Z
+     
+                   Pseudo-instructions ‚quivalentes: .8, .16, .32, ...
+     
+     
+     .ELSE
+        Descript.: Les lignes d'instructions suivantes jusqu'au .ENDIF
+                   correspondant sont assembl‚es, si l'expression du .IF
+                   correspondant ‚tait fausse (FALSE). Un texte quelconque
+                   suivant .ELSE est ignor‚ par l'assembleur.
+        Comment.:  Le texte qui suit la pseudo-instruction .ELSE est
+                   seulement une aide suppl‚mentaire pour le programmeur.
+                   C'est surtout le cas, quand les pseudo-instructions .IF,
+                   .ELSE et .ENDIF sont trŠs ‚loign‚es et imbriqu‚es.
+        Exemple:   voir .IF.
+     
+     
+     .END
+        Descript.: Termine les instructions du programme. Des commentaires
+                   suppl‚mentaires peuvent se trouver aprŠs cette pseudo-
+                   instruction.
+        Comment.:  L'assembleur ignore toutes les lignes d'instructions
+                   ‚ventuelles aprŠs cette pseudo-instruction. La pseudo-
+                   instruction .END peut aussi terminer un fichier ins‚r‚
+                   (avec la pseudo-instruction .INS).
+        Exemple:   .END
+     
+     CALM pseudo-instructions                                      page: 4
+     
+     .ENDIF
+        Descript.: Termine une section d'un .IF ou .ELSE. Un texte
+                   quelconque suivant .ENDIF est ignor‚ par l'assembleur.
+        Comment.:  Le texte qui suit la pseudo-instruction .ENDIF est
+                   seulement une aide suppl‚mentaire pour le programmeur.
+                   C'est surtout le cas, quand les pseudo-instructions .IF,
+                   .ELSE et .ENDIF sont trŠs ‚loign‚es et imbriqu‚es.
+        Exemple:   voir .IF.
+     
+     
+     .ENDLIST
+        Descript.: Termine une section de listage conditionnel.
+        Comment.:  On peut ajouter un texte aprŠs la pseudo-instruction
+                   .ENDLIST. Ce texte est ignor‚ par l'assembleur, mais
+                   augmente la lisibilit‚, si l'on r‚pŠte l'expression de
+                   la pseudo-instruction .LIST correspondante. Ceci est
+                   surtout conseill‚, si le programme est long et/ou les
+                   pseudo-instructions .LIST sont imbriqu‚es.
+        Exemple:   voir .LIST.
+     
+     .ENDMACRO
+        Descript.: Termine la d‚finition d'une macro.
+        Exemple:   voir .MACRO.
+     
+     .ENDTEXT
+        Descript.: Retour … des lignes d'instructions.
+        Exemple:   voir .TEXT.
+     
+     .ERROR
+        Descript.: G‚nŠre un message d'erreur.
+        Exemple:           .ERROR  Erreur: programme trop long
+     
+     .EVEN
+        Descript.: Ajuste la valeur de l'APC … une valeur paire (la valeur
+                   n'est pas chang‚e si la valeur est d‚j… paire).
+        Comment.:  Le contenu de la cellule m‚moire saut‚e n'est pas
+                   d‚fini.
+        Exemple:           .LOC    16'233          ; APC a la valeur 16'233
+                           .EVEN                   ; APC a la valeur 16'234
+                           .EVEN                   ; APC a la valeur 16'234
+     
+                   On peut remplacer la pseudo-instruction .EVEN par:
+                           .ALIGN  2
+     
+     .EXPORT
+        Descript.: D‚finit les symboles export‚s.
+        Comment.:  Normalement on peut seulement exporter des adresses. Le
+                   fichier objet g‚n‚r‚ contient ces informations.
+                   L'‚diteur de liens (linker) contr“le ensuite, si tous
+                   les symboles ont ‚t‚ d‚finis.
+        Exemple:           .EXPORT MUL64, DIV64
+     
+     
+     .FILL
+        Descript.: Remplit la longueur indiqu‚e avec la valeur indiqu‚e.
+        Comment.:  L'exemple suivant remplit 2048 locations m‚moire avec la
+                   valeur 16'FF (p.ex. pour une EPROM):
+                           .FILL.8 2048, 16'FF
+     
+                   Autres exemples:
+                           .FILL.16 10, 16'A5A5
+                           .FILL.32 16, AD_ROUT
+     
+     CALM pseudo-instructions                                      page: 5
+     
+     .IF
+        Descript.: Les lignes d'instructions suivantes jusqu'au .ELSE ou
+                   .ENDIF correspondant sont assembl‚es, si l'expression
+                   est vraie (TRUE). Les .IF peuvent ˆtre imbriqu‚es.
+        Comment.:  Cette pseudo-instruction permet l'assemblage condition.
+        Exemple:           .IF     M6801
+                           ...           ; est assembl‚ si M6801 = TRUE
+                            .IF    DEBUG
+                            ...          ; est assembl‚ si M6801 = TRUE
+                                         ; et DEBUG = TRUE
+                            .ENDIF DEBUG
+                           ...
+                           .ELSE   M6801
+                           ...           ; est assembl‚ si M6801 = FALSE
+                           .ENDIF  M6801
+     
+     .IMPORT
+        Descript.: D‚finit les symboles import‚s.
+        Comment.:  Les symboles import‚s doivent ˆtre export‚s d'un autre
+                   module (.EXPORT). Les symboles import‚s sont des adr.
+        Exemple:           .IMPORT MUL64, DIV64
+     
+     .INS
+        Descript.: InsŠre le fichier mentionn‚. Le nom du fichier obtient
+                   la mˆme extension comme le fichier source.
+        Comment.:  Pour un programme complexe et de grande taille il est
+                   souvent plus commode, de diviser le programme en
+                   plusieurs fichiers. Le programme principal insŠre
+                   ensuite ces sousprogrammes s‚par‚s. De plus, on pourrait
+                   r‚unir des constantes souvent utilis‚es dans un fichier.
+        Exemple:           .INS    CONSTANTES
+     
+     .LAYOUT
+        Descript.: D‚finit les paramŠtres pour l'aspect g‚n‚ral du listage.
+                   Ces paramŠtres sont indiqu‚s ou bien par un fichier
+                   ("FILE fichier") ou alors par une liste de noms r‚serv‚s
+                   (OCT, HEX, TAB n, LENGTH n, WIDTH n, etc.).
+        Comment.:  Cette pseudo-instruction a ‚t‚ d‚finie d'une maniŠre
+                   assez g‚n‚rale et permet toutes les extensions
+                   possibles. Avec qu'une pseudo-instruction on veut
+                   d‚finir aussi flexiblement que possible l'aspect du
+                   listage. Les autres assembleurs d‚finissent souvent un
+                   bon nombre de pseudo-instructions diff‚rentes, qui sont
+                   r‚unies ici dans une seule pseudo-instruction.
+                   Les noms suivants ont ‚t‚ r‚serv‚s jusqu'… pr‚sent:
+                     HEX, OCT  (donn‚es sous forme sexad‚cimale ou octale)
+                     LENGTH n  (d‚finit n lignes par page; n=0: infini)
+                     WIDTH n   (d‚finit n caractŠres par ligne)
+                     TAB n     (un tabulateur correspond … n espaces)
+                     LEADING0 TRUE/FALSE (avant adr./val. [.LST]: '0'/' ')
+                     DEFFIRST, LSBFIRST, MSBFIRST (ordre [.16, .32, ...])
+         Exemple:          .LAYOUT HEX, LENGTH 66
+     
+     .LIST
+        Descript.: Les lignes d'instructions suivantes sont copi‚es dans le
+                   listage, si l'expression est vraie (TRUE). Les pseudo-
+                   instructions .LIST peuvent ˆtre imbriqu‚es.
+        Comment.:  Cette pseudo-instruction permet le listage conditionnel.
+        Exemple:           .LIST   DEBUG
+                   ; cette partie du programme apparait si DEBUG = TRUE.
+                           .ENDLIST DEBUG
+     
+     CALM pseudo-instructions                                      page: 6
+     
+     .LISTIF
+        Descript.: Affiche toutes les pseudo-instructions .IF/.ELSE/.ENDIF
+                   dans le listage (.LST).
+        Comment.:  Si l'il n'y a pas d'expression ou si l'expression est
+                   non nulle, alors l'affichage est fait.
+        Exemple:           .LISTIF DEBUG_IF
+     
+     .LOC
+        Descript.: Assigne une nouvelle valeur au compteur d'adresse de
+                   l'assembleur courant (APC). Les valeurs de l'APC sont
+                   mis … z‚ro au d‚but du programme.
+        Exemple:           .LOC    16'2000
+     
+     .LOCALMACRO
+        Descript.: D‚clare les symboles locaux dans une macro.
+        Comment.:  Cette pseudo-instruction est seulement valable dans une
+                   d‚finition d'une macro. L'assembleur remplace les
+                   symboles correspondants par des symboles locaux (p.ex.
+                   M_10$) au moment de l'appel … cette macro.
+        Exemple:   voir .MACRO.
+     
+     .MACRO
+        Descript.: Commence une d‚finition d'une macro avec le nom de la
+                   macro et une liste facultative de paramŠtres. La syntaxe
+                   pour le nom de la macro est la mˆme que pour les symb.
+        Comment.:  La liste de paramŠtres d‚finit les paramŠtres par
+                   d‚faut. Ils sont utilis‚s, s'il n'y pas de paramŠtres au
+                   moment de l'appel … cette macro. Un paramŠtre est
+                   utilis‚ … l'int‚rieur d'une macro par le signe pourcent,
+                   suivi d'un chiffre.
+        Exemple (68000): D‚finition de la macro:
+                           .MACRO  DELAI, D0, 1
+                           .LOCALMACRO BOUCLE
+                           MOVE.16 #%2-1,%1
+                   BOUCLE: DJ.16,NMO %1,BOUCLE
+                           .ENDMACRO
+                   Premier appel:
+                           DELAI   D1,UNE_MSEC
+                   produit:
+                           MOVE.16 #UNE_MSEC-1,D1
+                   M_0$:   DJ.16,NMO D1,M_0$
+                   DeuxiŠme appel:
+                           DELAI   ,DEUX_MSEC      ; sans premier paramŠtre
+                   produit:
+                           MOVE.16 #DEUX_MSEC-1,D0
+                   M_1$:   DJ.16,NMO D0,M_1$
+     
+     .MESSAGE
+        Descript.: Affiche le texte pendant l'assemblage.
+        Exemple:           .MESSAGE assemblage dure environ 10 minutes
+     
+     .n (.8, .16, .32, ...)
+        Descript.: InsŠre la valeur donn‚e dans le programme objet. Chaque
+                   valeur a la taille des donn‚es mentionn‚e.
+        Comment.:  Pour les tailles des donn‚es de 16 et 32 bits, l'ordre
+                   des octets d‚pend du microprocesseur (qui a ‚t‚ d‚fini
+                   par .PROC). Le compteur d'adresse de l'assembleur est
+                   incr‚ment‚ selon la taille.
+        Exemples:          .8      255             ; gamme (.8): -256..+255
+                           .16     16'FFFF
+                           .32     -1              ; = 16'FFFFFFFF
+                           .8.8.16 "A", "Z", AD_A_Z
+     
+     CALM pseudo-instructions                                      page: 7
+     
+     .ODD
+        Descript.: Ajuste la valeur de l'APC … une valeur impaire (la
+                   valeur n'est pas chang‚e si la valeur est d‚j… impaire).
+        Comment.:  Le contenu de la cellule m‚moire saut‚e n'est pas
+                   d‚fini.
+        Exemple:           .LOC    16'234          ; APC a la valeur 16'234
+                           .ODD                    ; APC a la valeur 16'235
+                           .ODD                    ; APC a la valeur 16'235
+                   On peut remplacer la pseudo-instruction .ODD par:
+                           .ALIGN  APC+1-(APC.AND.1)
+     
+     
+     .PAGE
+        Descript.: Commence une nouvelle page dans le listage (.LST).
+        Comment.:  Si l'on sp‚cifie un paramŠtre N, ASCALM teste s'il y a
+                   encore N lignes libres aprŠs .PAGE. S'il n'y a pas N
+                   lignes, un saut de page est g‚n‚r‚.
+        Exemple:           .PAGE
+     
+     
+     .PROC
+        Descript.: InsŠre la description du processeur mentionn‚e et g‚nŠre
+                   du code machine pour ce processeur.
+        Comment.:  On peut construire un assembleur CALM de telle maniŠre,
+                   qu'il se compose d'une partie principale et d'une partie
+                   sp‚cifique pour chaque processeur. Ainsi il existe qu'un
+                   programme d'assembleur, mais plusieurs descriptions de
+                   processeurs. Leurs fichiers correspondants sont charg‚s
+                   avec la pseudo-instruction .PROC.
+        Exemple:           .PROC   M68000
+     
+     
+     .PROCSET .PROCVAL
+        Descript.: Permet des ajustages locales dans un module de
+                   processeur .PRO.
+        Comment.:  .PROCSET permet des noms. .PROCVAL permet des noms et
+                   des valeurs. Les noms et les valeurs sont sp‚cifiques
+                   au module.
+        Exemples:          .PROCSET FPU ; permet des instructions FPU
+        (M68020.PRO)       .PROCVAL FPU_ID 2 ; le num‚ro du FPU est 2
+     
+     
+     .RANGE
+        Descript.: D‚finit la gamme des valeurs permises pour .DATA,
+                   .FILL et .n.
+        Comment.:  Gammes pr‚d‚finies:
+                   - .RANGE.8  -256,+255
+                   - .RANGE.16 -65536,+65535
+                   - .RANGE.32 16'80000000,16'7FFFFFFF ; cas sp‚cial, car
+                                                     ; arithm‚tique 32 bits
+         Exemple:          .RANGE.16 -32768,+32767
+                           .16     valeur      ; -32767 <= valeur <= +32767
+                           .RANGE.16 -65536,+65535   ; valeurs par d‚faut
+     
+     CALM pseudo-instructions                                      page: 8
+     
+     .REF
+        Descript.: InsŠre la table des symboles mentionn‚e. Ainsi les noms
+                   et les valeurs des symboles sont d‚finis.
+        Comment.:  Avec la pseudo-instruction .REF on peut charger des
+                   symboles avec des valeurs fixes directement dans la
+                   table des symboles de l'assembleur. Ces symboles sont:
+                   - des adresses m‚moire fixes (p.ex. en ROM)
+                   - des d‚finitions d'entr‚e/sortie
+                   - des caractŠres ASCII non-imprimables (p.ex. CR, LF)
+                   Le format de ce fichier d‚pend de la structure interne
+                   de la table des symboles de l'assembleur. Cette m‚thode
+                   a deux avantages. PremiŠrement, le chargement de ce
+                   fichier est trŠs rapide (l'analyse tombe) et
+                   deuxiŠmement, ce fichier utilise moins de place
+                   m‚moire par rapport … la m‚thode ‚quivalente avec .INS.
+        Exemple:           .REF    SYMBOLES
+     
+     .START
+        Descript.: D‚finit l'adresse de d‚but.
+        Comment.:  L'adresse de d‚but est l'adresse, o— doit commencer le
+                   processeur son ex‚cution. S'il n'y a pas d'adresse de
+                   d‚but, l'assembleur prend la valeur z‚ro par d‚faut.
+        Exemple:           .START  16'100
+     
+     .STRING
+        Descript.: Mˆme effet que .ASCII. InsŠre au d‚but la longueur
+                   (8 bits) de la chaine de caractŠres.
+        Exemple:           .STRING "Salut!"
+                   ou:
+                           .ASCII  "<6>Salut!"
+     
+     .SYSCALL
+        Descript.: D‚finit une instruction sp‚ciale (appel systŠme).
+        Comment.:  .SYSCALL.8, .SYSCALL.16 et .SYSCALL.32 sont possibles.
+                   G‚nŠre .8, .16 ou .32 avec le nom de SYSCALL et le nom
+                   d'appel.
+        Exemple:           .SYSCALL.16 INT ; d‚finition, de plus, il faut
+                                           ; INTDOS=16'CD21
+                           INT     DOS     ; appel, g‚nŠre: .16 INTDOS
+     
+     .TEXT
+        Descript.: Toutes les lignes suivantes jusqu'… .ENDTEXT sont
+                   ignor‚es.
+        Comment.:  Avec cette pseudo-instruction il est possible d'ins‚rer
+                   des informations suppl‚mentaires (p.ex. texte, tableaux,
+                   graphiques) dans un programme d'assembleur. L'assembleur
+                   n'interprŠte plus ces informations comme des lignes
+                   d'instructions, mais les copie dans le listage. Aucune
+                   limite est impos‚e concernant ces informations, mais il
+                   faut respecter la syntaxe suivante:
+                           .TEXT<CR>
+                   tout est possible ici<CR>
+                           .ENDTEXT<CR>
+     
+     .TITLE
+        Descript.: D‚but d'une nouvelle page avec le titre indiqu‚ dans
+                   l'entˆte. Ce titre est r‚p‚t‚ dans les pages suivantes.
+        Comment.:  Cette pseudo-instruction se trouve normalement au d‚but
+                   d'un programme. On devrait indiquer le nom du programme.
+                   Aussi la date et l'heure sont indiqu‚s dans l'entˆte du
+                   listage.
+        Exemple:           .TITLE  ASSEMBLEUR
+     
+     

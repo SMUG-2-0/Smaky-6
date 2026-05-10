@@ -1,0 +1,505 @@
+     CALM Assembleur                                                   CALM
+     
+     Qu'est-ce qu'est CALM ?
+        CALM est l'abr‚viation pour Common Assembly Language for
+     Microprocessors (langage d'assemblage commun pour microprocesseurs).
+        CALM n'est pas un nouveau langage de programmation mais plut“t une
+     autre notation des instructions qui est plus uniforme et ind‚pendante
+     du fabricant. Actuellement, chaque fabricant d‚finit pour son
+     microprocesseur un propre langage d'assemblage. La terminologie
+     utilis‚e d‚pend fortement du microprocesseur. Mais il manque toujours
+     une notation uniforme pour des instructions qui sont fonctionnellement
+     100% identiques.
+        CALM profite du fait que beaucoup d'instructions ex‚cutent
+     exactement la mˆme op‚ration sur les microprocesseurs les plus
+     diff‚rents. N'est-il donc pas dans ces cas ‚vident de d‚finir la mˆme
+     notation - ind‚pendant du processeur - pour ces instructions?
+     
+     Que d‚finit CALM ?
+        CALM d‚finit une syntaxe uniforme et ind‚pendante du processeur
+     pour les instructions et les pseudo-instructions. Suite … une longue
+     exp‚rience et des essais pratiques, on a pu exprimer presque toutes
+     les instructions d'un microprocesseur avec les instructions d‚finies
+     par CALM et leurs notations.
+        CALM d‚finit une terminologie d'assembleur coh‚rente. Et un concept
+     est pr‚sent‚ qui montre, comment une instruction est compos‚e.
+     L'utilisateur comprend, pourquoi une instruction est ‚crite en CALM
+     d'une certaine maniŠre et pas d'une autre. En plus, une notation
+     uniforme est d‚finie pour les codes op‚ratoires, les modes
+     d'adressage, les indicateurs d'adresses et de donn‚es, etc.
+        CALM propose une notation unique des instructions pour tous les
+     (micro)processeurs. CALM atteint cet objectif dans environ 95% des
+     instructions d'un microprocesseur. Le reste est d– … des
+     particularit‚s sp‚cifiques du processeur qui ne sont pas exprimables
+     par un langage d'assemblage commun. Mais il est souvent dans ces cas
+     pr‚f‚rable que ces particularit‚s se distinguent aussi par une
+     notation diff‚rente.
+     
+     Quelles sont les avantages pour l'utilisateur ?
+        Une notation uniforme des instructions et particuliŠrement des
+     modes d'adressages donne une image objective de la performance d'un
+     microprocesseur. On peut donc comparer des microprocesseurs.
+        Pour la premiŠre fois, les programmeurs de diff‚rents
+     microprocesseur peuvent communiquer ensemble. Jusqu'… pr‚sent, les
+     notations diff‚rentes empˆchaient ce premier pas.
+        Les changements de processeurs sont consid‚rablement simplifi‚s,
+     car la notation des instructions ne change pas. Il faut apprendre la
+     structure g‚n‚rale et quelques particularit‚s du nouveau processeur.
+        CALM n'est pas seulement utilisable pour les microprocesseurs mais
+     aussi pour les miniprocesseurs, les processeurs des ordinateurs de
+     grande taille et les unit‚s microprogramm‚es. CALM est extensible et
+     n'est pas limit‚ qu'aux processeurs 8, 16 et 32 bits.
+     
+     Et quelles sont les d‚savantages ?
+        CALM d‚finit uniquement la partie logiciel d'un processeur. Si par
+     contre quelqu'un a besoin de savoir des d‚tails sur le mat‚riel (temps
+     d'ex‚cution, code machine, brochage, charge ‚lectrique, indications
+     concernant les fonctions int‚gr‚es comme compteur, unit‚ d'accŠ … la
+     m‚moire [DMA], etc.), la documentation du fabricant est indispensable.
+     L'utilisateur doit donc connaŒtre temporairement les deux notations
+     des instructions: celle de CALM et celle du fabricant.
+     
+     Exemples
+        La page suivante illustre la notation des instructions en CALM et
+     celle du fabricant pour les microprocesseurs 8080, iAPX86 et 68000.
+     
+     CALM Assembleur                                                  CALM
+     
+        ; i8080: multiplication: RESULTAT.16 = MUL1.8 * MUL2.8
+        ; modifie: A, B, D, E, H, L, F
+        MULT:                          MULT:
+             MOVE   MUL1,A                 LDA  MUL1
+             MOVE   A,E                    MOV  E,A
+             MOVE   #0,D                   MVI  D,0
+             MOVE   MUL2,A                 LDA  MUL2
+             MOVE   #0,HL                  LXI  H,0
+             MOVE   #8,B                   MVI  B,8
+        BOUCLE$:                       BOUCLE:
+             ADD    HL,HL                  DAD  H
+             RLC    A                      RAL
+             JUMP,CC SUITE$                JNC  SUITE
+             ADD    DE,HL                  DAD  D
+        SUITE$:                        SUITE:
+             DEC    B                      DCR  B
+             JUMP,NE BOUCLE$               JNZ  BOUCLE
+             MOVE   HL,RESULTAT            SHLD RESULTAT
+             RET                           RET
+       
+        ; iAPX86: traduit une chaŒne de caractŠres EBCDIC en codes ASCII
+        ; (<CR> termine); supposition: ES = DS, [DS] est ‚quivalent …
+        ; {DS}*16; modifie: AL, BX, CX, DI, SI, F
+        EBCDIC_ASCII:                  EBCDIC_ASCII:   PROC    NEAR
+             MOVE.16 #CONV_TAB,BX          MOV  BX,OFFSET CONV_TAB
+             MOVE.16 #EBCDIC_CARACT,SI     MOV  SI,OFFSET EBCDIC_CARACT
+             MOVE.16 #ASCII_CARACT,DI      MOV  DI,OFFSET ASCII_CARACT
+             MOVE.16 [DS]+ASCII_LONGUEUR,CX MOV  CX,SIZE ASCII_LONGUEUR
+             AUTOINC                       CLD
+        BOUCLE$:                       BOUCLE:
+             MOVE.8 [DS]+{SI!},AL          LODS EBCDIC_CARACT
+             MOVE.8 [DS]+{BX}+{AL},AL      XLAT CONV_TAB
+             MOVE.8 AL,[ES]+{DI!}          STOS ASCII_CARACT
+             COMP.8 #16'D,AL               CMP  AL,0DH
+             LOOP,NE BOUCLE$               LOOPNE BOUCLE
+             RET.16                        RET          ; EQ: CR trouv‚
+       
+        ; 68000: division: D4 = D5D4 / D3, reste dans D5, CS si erreur
+        DIV64:                         DIV64      ; modifie: D3, D4, D5, F
+             TEST.32 D3                    TST.L  D3
+             JUMP,ZS R8^DIV_ZERO$          BEQ.S  ZERO
+             PUSH.32 D0                    MOVE.L D0,-(A7)
+             MOVE.32 #32-1,D0              MOVEQ  #32-1,D0
+        DIV_BOUCLE$:                   BOUCLE
+             SETX                          ORI    #$10,CCR
+             RLX.32  D4                    ROLX.L D4
+             RLX.32  D5                    ROLX.L D5
+             JUMP,CS R8^DIV_DEPASSEMENT$   BCS.S  DEPASSEMENT
+             SUB.32  D3,D5                 SUB.L  D3,D5
+             JUMP,HS R8^DIV_OK$            BCC.S  OK
+             ADD.32  D3,D5                 ADD.L  D3,D5
+             TCLR.32 D4:#0                 BCLR   #0,D4
+        DIV_OK$:                       OK
+             DJ.16,NMO D0,DIV_BOUCLE$      DBRA   D0,BOUCLE
+             POP.32  D0                    MOVE.L (A7)+,D0
+             CLRC                          ANDI   #$FE,CCR
+             RET                           RTS
+        DIV_DEPASSEMENT$:              DEPASSEMENT
+             POP.32  D0                    MOVE.L (A7)+,D0
+        DIV_ZERO$:                     ZERO
+             SETC                          ORI    #$1,CCR
+             RET                           RTS
+     
+     CALM Assembleur - description du produit (PC/MS-DOS, Atari ST, Smaky)
+     
+     L'assembleur CALM est constitu‚ de plusieurs programmes et fichiers:
+     
+     Les programmes d'assembleur
+        ASCALM: Le v‚ritable assembleur. Il fonctionne comme tous les
+     autres assembleurs. Seule diff‚rence: Il faut ‚crire les programmes
+     dans le langage d'assemblage CALM. Avantage: Ce langage d'assemblage
+     ne se distingue pas de processeur … processeur. Avec le module
+     correspondant, on peut g‚n‚rer un code machine (sans ‚diteur de liens)
+     pour presque tous les microprocesseurs (voir liste des prix).
+     Caract‚ristiques de l'assembleur: ‚tiquettes (32 caractŠres
+     significatifs), ‚tiquettes locales, expressions avec une r‚solution de
+     32 bits, assemblage conditionnel (.IF/.ELSE/.ENDIF), listage
+     conditionnel (.LIST/.ENDLIST), insertion de fichiers d'une taille
+     quelconque (.INS), heure et date actuelle du systŠme accessible par
+     des constantes, insertion des messages d'erreurs directement dans le
+     fichier source, g‚n‚rateur des r‚f‚rences crois‚es, macros, etc.
+     Caract‚ristiques (macro): on peut sp‚cifier jusqu'… huit paramŠtres et
+     un indicateur de donn‚es lors d'un appel de macro. La longueur d'un
+     paramŠtre n'est limit‚e que par la longueur de ligne. On peut
+     pr‚d‚finir des paramŠtres. On peut distinguer au moment de l'appel …
+     une macro entre les paramŠtres pr‚d‚finis et transmis. Des macros
+     peuvent appeler d'autres macros (jusqu'… 10 niveaux imbriqu‚s). En
+     plus, on peut analyser les paramŠtres transmis avec des fonctions
+     sp‚ciales (comparer, copier, tester, etc.). Ainsi on peut construire
+     des macros puissantes qui p.ex. traduisent les instructions de la
+     notation du fabricant en notation CALM. Format de sortie pour le code
+     machine: MUFOM (voir sous MUFBIN).
+     
+        MUFBIN: Convertit les fichiers objets (format MUFOM) g‚n‚r‚s par
+     l'assembleur vers les formats: binaire (.BIN/.COM), hex, Intel hex
+     (.HEX), Motorola format S (.FRS), PC/MS-DOS (.EXE) et Atari ST
+     (.TOS/.TTP/.PRG).
+     
+        Debogueur: Debogueur pour 8086 (DBGCALM, PC/MS-DOS) ou 68000
+     (DEBUG68, Atari ST/Smaky 100). Avec d‚sassembleur utilisant la
+     notation CALM.
+     
+     Les programmes auxiliaires
+        CALMMENU  pr‚sente un menu simple.
+        FORMCALM  formate un fichier source (en notation CALM).
+        LSTTOASM  transforme un listage en source.
+        PFED      un ‚diteur de programme (avec macros!).
+        PROCSET   change la valeur par d‚faut dans les modules *.PRO.
+        SPACETAB  remplace les espaces par les tabulateurs.
+        TABSPACE  remplace les tabulateurs par les espaces.
+        TESTLIST  contr“le un fichier de listage.
+     
+     Les fichiers pour un processeur
+        *.DOK    carte de r‚f. CALM pour le processeur *, p.ex. Z80.DOK.
+        *.PRO    le module pour le processeur *, par exemple Z80.PRO.
+        B*.TXT   description du module de processeur, p.ex. BZ80.TXT.
+        C*.TXT   comparaison des instr. (notation du fabricant -> CALM).
+        D*.EXE   disassembleur CALM pour le processeur *, p.ex. DZ80.EXE.
+        I*.TXT   liste des codes machines avec notation CALM
+                 (d‚sassemblage).
+        ST*.ASM  liste tri‚e des instructions en notation CALM.
+        S_*.ASM  exemples (ou E*.ASM ou *.ASM).
+        T*.ASM   fichier de test (liste des instructions).
+        xxx_CALM traducteur (notation du fabricant -> CALM)
+        CALM_xxx traducteur (CALM -> notation du fabricant)
+        Note:    selon le processeur, quelques fichiers ci-dessus manquent.
+     
+     Remarques concernant l'assembleur CALM
+     
+     Code objet sans ‚diteur de liens
+        L'assembleur CALM g‚nŠre sans ‚diteur de liens (linker) un code
+     objet dans le format dit MUFOM. Ainsi, l'utilisateur obtient aprŠs
+     transformation du format MUFOM en format binaire un ex‚cutable.
+        Dans la plupart des cas, ceci est suffisant. De plus, la
+     combinaison assembleur-‚diteur de liens qui g‚nŠre des parties de
+     programmes translatables, est souvent plus lente qu'un assembleur qui
+     reassemble chaque fois le programme entier et qui g‚nŠre directement
+     le code machine. Mais pour cela, il faut qu'un mat‚riel performant
+     soit … disposition (p.ex. disques durs, RAM-disk).
+        La maniŠre de programmation d‚pend des exigences. Pour les
+     microprocesseurs (6502, 6800, 8080, Z80) et microordinateurs (sur une
+     puce) simples 8 bits, les programmes sont relativement petits. Et ces
+     processeurs sont souvent bas‚s sur des systŠmes d'exploitation qui
+     chargent et ex‚cutent les programmes toujours … la mˆme adresse.
+        Les exigences sont plus s‚vŠres pour les microprocesseurs (6809,
+     iAPX86, 68000, NS32000) et les systŠmes d'exploitations plus
+     performants. Les programmes doivent s'ex‚cuter … n'importe quelle
+     adresse m‚moire et il faut diviser le programme en segments de
+     programme, de donn‚es et de pile. Les deux exigences sont r‚alisables
+     sans problŠme grƒce aux modes d'adressage performants (adressage
+     relatif, adressage indirect avec d‚placement quelconque, etc.).
+        Avec l'assembleur CALM, le programmeur peut librement choisir le
+     mode d'adressage. S'il veut g‚n‚rer des programmes ind‚pendants de
+     l'adresse m‚moire (c.….d. qui sont ex‚cutables … n'importe quelle
+     adresse sans relogement), il a seulement le droit d'utiliser
+     l'adressage relatif. Il peut acc‚der les segments de donn‚es et de
+     pile uniquement par l'adressage indirect. R‚compense de ces
+     limitations: le programme g‚n‚r‚ est directement ex‚cutable …
+     n'importe quelle adresse m‚moire sans relogement.
+        Il faut aussi tenir en compte que l'environnement de programmation
+     a chang‚. Personne n'accŠde aujourd'hui les programmes et les donn‚es
+     par l'adressage absolu dans une m‚moire centrale d'un Moctets et plus.
+        Ce concept demande donc une certaine discipline de la part du
+     programmeur car il ne peut plus utiliser tous les modes d'adressage.
+     Sinon, un assembleur avec ‚diteur de liens est n‚cessaire.
+     
+     Code objet en format MUFOM
+        L'assembleur CALM g‚nŠre un objet dans le format MUFOM. Ce format a
+     quelques avantages par rapport aux formats .HEX (Intel) et format S
+     (Motorola). En plus des caract‚ristiques des deux formats "standards"
+     comme somme de contr“le, adresses de donn‚es, adresse de d‚but,
+     caractŠres ASCII, possibilit‚ d'‚dition, etc., les informations
+     suivantes s'y trouvent: version de l'assembleur et du module
+     (description du processeur), nom du fichier, datation, type de
+     processeur utilis‚ (.PROC), indications sur l'architecture du
+     processeur, ainsi toutes les chaŒnes de caractŠres .TITLE et .CHAP
+     apparaissent dans ce format. Toutes ces informations sont non-cod‚es
+     (caractŠres ASCII) et par cons‚quent lisibles par la commande TYPE.
+        En outre, le format MUFOM est aussi utilisable pour la g‚n‚ration
+     d'objets translatables. Le format MUFOM est ind‚pendant du processeur.
+     Actuellement, l'assembleur CALM utilise uniquement les instructions
+     MUFOM qui sont n‚cessaire pour des objets non-translatables.
+     
+     Documentation du processeur
+        La documentation CALM livr‚e avec un processeur ne suffit pas pour
+     comprendre un processeur dans tous les d‚tails. Ceci est surtout vrai
+     pour les microprocesseurs et microordinateurs (sur une puce) avec des
+     fonctions int‚gr‚es (m‚moire, accŠs direct … la m‚moire [DMA], E/S).
+     Il est donc presque toujours n‚cessaire de disposer de la
+     documentation correspondante du fabricant. C'est pourquoi, la
+     documentation CALM contient aussi des listes de comparaison.
+     
+     Cartes de r‚f‚rence CALM
+     
+     Carte de r‚f‚rence CALM
+        Dans une carte de r‚f‚rence CALM (en anglais CALM reference card),
+     toutes les instructions d'un microprocesseur sont ‚num‚r‚es d'une
+     maniŠre bien dispos‚e en utilisant le langage d'assemblage CALM qui
+     est ind‚pendant du fabricant. Sur quelques pages vous obtenez une vue
+     d'ensemble ‚tendue.
+     
+     Int‚rˆt d'une carte de r‚f‚rence CALM
+        Les cartes de r‚f‚rence CALM sont en premier lieu pr‚vues comme
+     aide … la programmation quotidienne: Quels modes d'adressage sont
+     permis avec AND? Quels indicateurs sont modifi‚s avec COMP? etc.
+        Mais mˆme si vous ne vous int‚ressez pas … l'assembleur CALM, une
+     carte de r‚f‚rence peut ˆtre fort utile pour vous. Par exemple, si
+     vous:
+     
+        - voulez faire une meilleure connaissance de votre microprocesseur
+          grƒce … une pr‚sentation diff‚rente
+        - voulez obtenir une description ind‚pendante du fabricant de
+          toutes les instructions d'un microprocesseur
+        - voulez comparer des microprocesseurs et ne pas d‚pendre
+          des indications du fabricant uniquement
+        - cherchez un nouveau, meilleur microprocesseur
+        - devez porter un jugement sur les performances d'un
+          microprocesseur
+        - devez indiquer si un microprocesseur possŠde un(e) instruction/
+          code op‚ratoire/mode d'adressage/type de donn‚es particulier
+        - voulez d'abord faire la connaissance de CALM
+     
+     Organisation d'une carte de r‚f‚rence CALM
+        Toutes les cartes de r‚f‚rence CALM sont constitu‚es de la mˆme
+     fa‡on. Ceci donne d'une part un aspect homogŠne, et d'autre part, des
+     comparaisons directes sont possibles.
+        De plus, les codes op‚ratoires du fabricant sont indiqu‚s en
+     dessous des codes op‚ratoires CALM.
+        Les cartes de r‚f‚rence CALM sont r‚dig‚es en anglais.
+     
+     Livraison d'une documentation de carte de r‚f‚rence CALM
+        Une documentation de carte de r‚f‚rence CALM consiste en:
+     
+        - carte de r‚f‚rence CALM
+        - comparaison des instructions: notation du fabricant -> notation
+          CALM
+        - exemple (en notation CALM et du fabricant)
+        - une liste tri‚e par ordre alphab‚tique de tous les codes
+          op‚ratoires (notation CALM)
+        - une liste tri‚e par ordre alphab‚tique de tous les codes
+          machines avec les instructions correspondantes (notation CALM)
+     
+     Exemple d'une carte de r‚f‚rence CALM
+        La carte de r‚f‚rence CALM du microprocesseur 8080/5 est pr‚sent‚e
+     dans les pages suivantes.
+     
+                                                             8080/8085 - 1
+     
+     8080/8085
+     CALM REFERENCE CARD
+     
+     8080/8085   Description
+     
+     Programming Model
+     
+        15                            8 7                             0
+       -----------------------------------------------------------------
+     A [          accumulator          | N . Z . x . H . 0 . P . v . C ] F
+       -----------------------------------------------------------------
+     B [                               |                               ] C
+       -----------------------------------------------------------------
+     D [                               |                               ] E
+       -----------------------------------------------------------------
+     H [                               |                               ] L
+       -----------------------------------------------------------------
+        15                                                            0
+       -----------------------------------------------------------------
+       [                        stack pointer                          ] SP
+       -----------------------------------------------------------------
+       [                       program counter                         ] PC
+       -----------------------------------------------------------------
+     
+     General
+     Address:       16 bit
+     Data:           8 bit (8085: data multiplexed with addresses A0-A7)
+     
+     Abbreviations used
+     v      16'0, 16'8, 16'10, 16'18, 16'20, 16'28, 16'30, 16'38
+     r8     A  B  C  D  E  H  L
+     s8     B  C  D  E  H  L
+     r16    BC  DE  HL  SP
+     i8     {BC}  {DE}  {HL}
+     VAL8   8-bit value
+     VAL16  16-bit value
+     cc     EQ  NE  CS  CC  MI  PL  PO  PE
+     
+     Modifications versus CALM Standard
+     8 Bit:   All transfers are 8 bits wide, except those determined by
+              register names (1 letter = 8 bit, 2 letters = 16 bits).
+     Flag v   Unspecified 8085 flag: 2's complement overflow (in arithmetic
+              8-bit and 16-bit operations). 8080: flag is always 1. (U8085)
+     Flag x   Unspecified 8085 flag: sign(op1)*sign(op2) + sign(op1)*sign
+              (result)(U8085) + sign(op2)*sign(result). For COMP and SUB,
+              invert sign(op2). 8080: flag is always 0.
+     
+     Remarks
+     - flag equalities: EQ=ZS, NE=ZC, CS=LO, CC=HS, MI=NS, PL=NC.
+     - Reset:       IOFF
+                    JUMP   16'0
+     - Interrupt:   IOFF
+                    CALL   v
+       Additional interrupt addresses for 8085: 16'2C, 16'34, 16'3C. (8085)
+     - NMI:         IOFF                                            (8085)
+                    CALL   16'24
+     - CALM - Intel register names: equal except: F=PSW and 16 bit names.
+     - CALM - Intel flag names: N=S, Z=Z, H=AC, P=P, C=C.
+     
+                                                             8080/8085 - 2
+     
+     Transfer instructions
+     MOVE      #VAL8 |,A    []
+               VAL16 |
+               r8    |
+               i8    |
+               $VAL8 |
+               A,| VAL16
+                 | r8
+                 | i8
+                 | $n
+     (MVI LDA MOV LDAX IN STA MOV STAX OUT)
+     
+     MOVE      #VAL8 |,s8   []
+               s8    |
+               {HL}  |
+               s8,{HL}
+     (MVI MOV MOV)
+     
+     MOVE      #VAL16,r16   []
+               VAL16,HL
+               HL,VAL16
+               HL,SP
+     (LXI LHLD SHLD SPHL)
+     
+     MOVE      HL,{DE}      []       (U8085)
+               {DE},HL
+               #{HL}+VAL8,DE
+               #{SP}+VAL8,DE
+     (SHLX LHLX LDHI LDSI)
+     
+     PUSH |    r16          [], r16 without SP
+     POP  |    AF           [], [all] if POP AF
+     (PUSH POP)
+     
+     SETC                   [C=1]
+     (STC)
+     
+     EX        DE,HL        []
+               {SP},HL
+     (XCHG XTHL)
+     
+     Arithmetic instructions
+     ADD  |    #VAL8 |,A    [N,Z,H,P,C]
+     ADDC |    r8    |      [N,Z,H,P,C]
+     SUB  |    {HL}  |      [N,Z,H,P,C]
+     SUBC |                 [N,Z,H,P,C]
+     COMP |                 [N,Z,H,P,C]
+     (ADI ADD ACI ADC SUI SUB SBI SBB CPI CMP)
+     
+     ADD       r16,HL       [C]
+     (DAD)
+     
+     SUB       BC,HL        [N,Z,x,H,P,v,C] (U8085)
+     (DSUB)
+     
+     INC |     r8           [N,Z,H,P]
+     DEC |     {HL}         [N,Z,H,P]
+     (INR DCR)
+     
+     INC |     r16          []
+     DEC |
+     (INX DCX)
+     
+                                                             8080/8085 - 3
+     
+     Logical instructions
+     AND |     #VAL8 |,A    [N,Z,H,P,C=0]
+     OR  |     r8    |      [N,Z,H,P,C=0]
+     XOR |     {HL}  |      [N,Z,H,P,C=0]
+     (ANA ANI ORA ORI XRA XRI)
+     
+     NOT       A            []
+     NOTC                   [C]
+     (CMA CMC)
+     
+     Shift instructions
+     RR  |     A            [C = A:#0]
+     RRC |                  [C = A:#0]
+     RL  |                  [C = A:#7]
+     RLC |                  [C = A:#7]
+     (RRC RAR RLC RAL)
+     
+     ASR       HL           [C = L:#0] (U8085)
+     RLC       DE           [v,C = D:#7] (U8085)
+     (ARHL RDEL)
+     
+     Program flow instructions
+     JUMP,cc | VAL16        []
+     JUMP    |
+     CALL,cc |
+     CALL    |
+     JUMP      {HL}         []
+     JUMP,XC | VAL16        []       (U8085)
+     JUMP,XS |
+     (J- JMP C- CALL PCHL JNX5 JX5)
+     
+     RST       v            []
+     RST,VS    16'40        []       (U8085)
+     (RST RSTV)             one byte call (restart)
+     
+     RET,cc                 []
+     RET                    []
+     WAIT                   []
+     NOP                    []
+     ION                    []
+     IOFF                   []
+     (R- RET HLT NOP EI DI)
+     
+     Special instructions
+     DAA       A            [N,Z,H,P,C]
+     (DAA)                  Decimal Adjust A, only valid after ADD and ADDC
+     
+     RIM |     A            []       (8085)
+     SIM |                  RIM: read interrupt mask
+     (RIM SIM)              SIM: set interrupt mask
+     
+     RETEM                  [all]   return from emulation mode (V20)
+     (RETEM)                POP.16 IP; POP.16 CS; POP.16 SF;
+                            MD bit write disable
+     
+     TRAPNATIVE #VAL8       [MD=1]   trap to native mode (8086)(V20)
+     (CALLN)                PUSH.16 SF; PUSH.16 CS; PUSH.16 IP; SET MD;
+                            return with RETI.32
+     Notes
+     (8085)    only available in 8085.
+     (U8085)   unspecified 8085 flag or operation code.
+     (V20)     only available in V20, V30, V40, and V50 (8080 emulation
+               mode).                          (c) Patrick Faeh, June 1985.
+     

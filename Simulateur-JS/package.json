@@ -1,6 +1,6 @@
 {
   "name": "smaky6-simulator",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Simulateur Smaky 6 — Epsitec SA",
   "main": "main.js",
   "scripts": {
@@ -15,7 +15,7 @@
     "productName": "Smaky 6 Simulator",
     "files": [
       "index.html", "main.js", "preload.js",
-      "rom18.js", "z80.js", "disasm.js", "smaky.js"
+      "rom18.js", "z80.js", "disasm.js", "smaky.js", "audio.js"
     ],
     "win": {
       "target": "nsis",

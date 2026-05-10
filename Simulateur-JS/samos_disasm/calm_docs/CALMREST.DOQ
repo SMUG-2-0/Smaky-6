@@ -1,0 +1,182 @@
+     CALMREST.DOQ
+     
+     
+     
+     
+     
+     
+     Traduction de la notation du fabricant en notation CALM
+        Le programme xxx_CALM (p.ex. Z80_CALM pour le module de processeur
+     Z80) est joint Ö quelques modules de processeur. On peut traduire avec
+     ce programme xxx_CALM un fichier source d'assembleur de la notation du
+     fabricant en notation CALM (p.ex.: Z80_CALM anc.asm nou.asm). Si vous
+     ne voulez pas programmer en notation CALM, vous pouvez utiliser ce
+     traducteur ensemble avec l'assembleur CALM pour assembler un programme
+     en notation du fabricant. Par exemple, si vous voulez assembler un
+     programme pour le Z80, vous pourriez Çcrire un fichier batch (p.ex.
+     ASZ80.BAT) comme suit:
+     
+           Z80_CALM %1 T.ASM              ; traduire
+           ASCALM T                       ; assembler
+           MUFBIN T/I                     ; gÇnÇrer le format Intel-hex
+     
+     et exÇcuter avec:
+     
+           ASZ80 TEST
+     
+        Si vous utilisez le programme xxx_CALM, vous pouvez faire le
+     fichier de sortie (*.OUT) plus "joli" en utilisant FORMCALM, c.Ö.d.
+     fixer les codes opÇratoires, les opÇrandes et les commentaires Ö
+     certaines positions (p.ex.: FORMCALM nou.asm new.asm). Vous pouvez
+     ensuite assembler ce fichier (p.ex.: ASCALM new).
+        Le programme CALM_xxx (p.ex. CALM_Z80 pour le module de processeur
+     Z80) est joint Ö quelques modules de processeur. On peut traduire avec
+     ce programme CALM_xxx un fichier source d'assembleur de la notation
+     CALM en notation du fabricant (p.ex.: CALM_Z80 new.asm ancnou.asm).
+     
+     
+     
+     
+     
+     
+     DERNIERS CHANGEMENTS - 
+        Consultez s.v.p. les fichiers README.*, CALMDES.* et UPDATES.* sur la
+     disquette. UPDATESF.* contient les derniers changemants en Franáais. Les
+     extensions de fichier sont:
+     
+                                   * = ATA (Atari ST)
+                                   * = DOS (PC/MS-DOS)
+                                   * = 100 (SM8/SM100/SM324)
+     
+     
+     
+     
+     
+     
+     
+     
+                                RAPPORT D'ERREURS
+     
+                                 assembleur CALM
+     
+     
+     
+     
+        Si vous avez trouvÇ une erreur dans l'assembleur CALM, veuillez
+     s.v.p. remplir ce formulaire. Joignez toujours une impression du
+     fichier de listage!
+     
+     
+     
+     description de      ..................................................
+     l'erreur:
+                         ..................................................
+     
+                         ..................................................
+     
+                         ..................................................
+     
+                         ..................................................
+     
+                         ..................................................
+     
+                         ..................................................
+     
+     observations:       ..................................................
+     
+                         ..................................................
+     
+                         ..................................................
+     
+     version d'ASCALM    ..................................................
+     (p.ex. version 1 du 31-I-1987)
+     version du module:  ..................................................
+     (p.ex. I8051, version 4)
+     no de sÇrie         ................
+     
+     date d'achat, de qui:.................................................
+     
+     type d'ordinateur:  ..................................................
+     (p.ex. IBM/XT, 512ko, MS-DOS 2.11)
+     format de disquette ..................................................
+     (p.ex. IBM-PC (360ko))
+     
+     
+     votre nom:          ..................................................
+     
+     votre adresse:      ..................................................
+     
+                         ..................................................
+     
+     votre no de tÇl.:   .................................
+     
+     
+     
+     date:               ................
+     
+     
+     
+     
+     
+     
+     
+                          AMêLIORATIONS (PROPOSITIONS)
+     
+                                assembleur CALM
+     
+     
+     
+     
+     
+        Vos propositions d'amÇliorations sont toujours bienvenues.
+     Indiquez aussi briävement et clairement que possible vos idÇes.
+     Merci d'avance.
+     
+     
+     
+     votre proposition:
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     version d'ASCALM    ..................................................
+     (p.ex. version 1 du 31-I-1987)
+     version du module:  ..................................................
+     (p.ex. I8051, version 4)
+     no de sÇrie         ................
+     
+     date d'achat, de qui:.................................................
+     
+     type d'ordinateur:  ..................................................
+     (p.ex. IBM/XT, 512ko, MS-DOS 2.11)
+     format de disquette ..................................................
+     (p.ex. IBM-PC (360ko))
+     
+     
+     votre nom:          ..................................................
+     
+     votre adresse:      ..................................................
+     
+                         ..................................................
+     
+     votre no de tÇl.:   .................................
+     
+     
+     
+     date:               ................
+     
+     

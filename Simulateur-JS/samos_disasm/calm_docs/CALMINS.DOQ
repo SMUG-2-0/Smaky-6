@@ -1,0 +1,744 @@
+     CALMINS.DOQ                                         CALM instructions
+     
+     INSTRUCTIONS
+        Une instruction est compos‚e ou bien d'un code op‚ratoire seulement
+     ou bien d'un code op‚ratoire suivi d'un ou plusieurs op‚randes. Le
+     code op‚ratoire est un nom mn‚motechnique d‚riv‚ d'un verbe anglais
+     qui exprime l'op‚ration … effectuer.
+        Des indicateurs de donn‚es suppl‚mentaires fixent l'instruction
+     dans tous ses d‚tails.
+        Le diagramme de syntaxe g‚n‚ral d'une instruction est illustr‚ … la
+     fig. 25.
+        On peut ajouter des lettres … des codes op‚ratoires CALM exprimant:
+     
+        M   instruction avec des op‚randes multiples
+        P   instruction provoquant une action pour des p‚riph‚riques (E/S)
+        I   instruction indivisible
+     
+        La philosophie g‚n‚rale selon laquelle les indicateurs sont
+     modifi‚s, varie fortement d'un processeur … un autre. Pour cette
+     raison les indicateurs ne sont pas pr‚sent‚s dans les d‚finitions des
+     instructions suivantes.
+        Les instructions qui diffŠrent de la philisophie g‚n‚rale du
+     processeur, ne doivent pas avoir les noms d‚finis par CALM.
+        On utilise dans le texte suivant l'abr‚viation .id pour indicateur
+     de donn‚es.
+     
+        instruction                     -------------------------------
+                                     /->[ op‚r. sans ind. de donn‚es  ]-,
+          ------    --------------   |  ------------------------------- |
+        ->[s.f.]->( code op‚ratoire)-|                                  |->
+          ------    --------------   |  ------------------------------  |
+                                     `->[ op‚r. avec ind. de donn‚es ]--'
+                                        ------------------------------
+     
+        op‚randes sans indicateurs de donn‚es   ------   ---   ------
+                                              /-[s.f.]<-( , )<-[s.f.]<-,
+                                              | ------   ---   ------  |
+                                              |                        |
+          ----                      --------- V      ------------      |
+        ->[D.]---------->---------->[ s‚pa  ]------->[ op‚rande ]-------->
+          ---- |                 ^  ---------        ------------
+               |   ---    -----  |
+               `->( , )->( Bc. )-'
+                   ---    -----
+     
+        op‚randes avec indicateurs          ------   ---   ------
+        de donn‚es                        /-[s.f.]<-( , )<-[s.f.]<-,
+                                          | ------   ---   ------  |
+                                          |                        |
+                                --------- V  ------------    ----  |
+        ---------->------------>[ s‚pa  ]--->[ op‚rande ]--->[D.]------->
+         |                 ^ |  ---------    ------------ |  ---- ^   ^
+         |   ---    -----  | |                            |       |   |
+         `->( , )->( Bc. )-' |                            `--->---'   |
+             ---    -----    |                                        |
+                             `-------------------->-------------------'
+     
+        Bc.: code condition     D.: indicateur de donn‚es
+     
+                                     Fig. 25
+     
+     CALM instructions                                            page: 2
+     
+     ACOC          Add Complement, One and the Carry
+        Descript.: Additionne le compl‚ment … un du premier op‚rande, un et
+                   l'indicateur de report C au second op‚rande. L'op‚ration
+                   effectu‚e est ‚quivalente … SUBC, mais les indicateurs
+                   sont modifi‚s autrement.
+        Syntaxe:   ACOC.id source, sourcedestination
+                   ACOC.id source1, source2, destination
+                   ACOC    source.id, sourcedestination.id
+                   ACOC    source1.id, source2.id, destination.id
+        Comment.:  Cette instruction existe seulement dans les anciens
+                   processeurs 8 bit (p.ex. SC/MP, 1802).
+        Exemple:   ACO     #16'4A,D                ; 1802
+     
+     
+     ADD           ADD
+        Descript.: Additionne deux op‚randes et met … jour les indicateurs.
+        Syntaxe:   ADD.id  source, sourcedestination
+                   ADD.id  source1, source2, destination
+                   ADD     source.id, sourcedestination.id
+                   ADD     source1.id, source2.id, destination.id
+        Exemples:  ADD     {HL},A                  ; 8080, Z80
+                   ADD.16  {A6}-2,D0               ; 68000
+                   ADD.F64 {R0}+10,{R1}+20         ; NS32000
+     
+     
+     ADDC          ADD with Carry
+        Descript.: Additionne deux op‚randes et l'indicateur de report C.
+        Syntaxe:   ADDC.id source, sourcedestination
+                   ADDC.id source1, source2, destination
+                   ADDC    source.id, sourcedestination.id
+                   ADDC    source1.id, source2.id, destination.id
+        Exemples:  ADDC    {IX}+3,A                ; 6800, 6801
+                   ADDC.8  #1,[SS]+{BP}            ; iAPX86
+                   ADDX.D8 {-A0},{-A1}             ; 68000, X est ici C
+     
+     
+     AND           AND
+        Descript.: Effectue un ET logique bit … bit des deux op‚randes de
+                   source.
+        Syntaxe:   AND.id  source, sourcedestination
+                   AND.id  source1, source2, destination
+                   AND     source.id, sourcedestination.id
+                   AND     source1.id, source2.id, destination.id
+        Comment.:  Cette instruction sert … forcer … z‚ro (masquer) des
+                   bits. Une instruction similaire est BIC (bit clear),
+                   mais elle est rarement disponible.
+        Exemples:  AND     #1,A                    ; 8080, Z80, ...
+                   AND.32  #16'FFFF0000,D6         ; 68000
+                   BIC.16  #7,R0            ; NS32000 (AND.16 #16'FFF8,R0)
+     
+     CALM instructions                                            page: 3
+     
+     ASL           Arithmetic Shift Left
+     
+                        -----    --------------------------
+                ASL     [ C ]<---[          <===          ]<---0
+                        -----    --------------------------
+     
+        Descript.: Provoque un d‚calage de l'op‚rande de source de un ou
+                   plusieurs bits … gauche (direction MSB). Les bits des
+                   poids les plus faibles sont remplac‚s par des z‚ros.
+                   L'op‚ration est ‚quivalente … SL, mais l'indicateur de
+                   d‚passement peut ˆtre modifi‚ autrement. Si le signe du
+                   r‚sultat est diff‚rent de celui de l'oper‚rande de
+                   source, l'indicateur de d‚passement doit ˆtre
+                   positionn‚.
+        Syntaxe:   ASL.id  sourcedestination
+                   ASL.id  amplitude, sourcedestination
+                   ASL.id  amplitude, source, destination
+                   ASL     amplitude.id, sourcedestination.id
+                   ASL     amplitude.id, source.id, destination.id
+        Comment.:  Une amplitude n‚gative signifie, que le d‚calage se fait
+                   … droite. Un d‚calage … gauche multiplie par deux.
+                   ASL.16 sourcedestination  est ‚quivalent …  SL.A16
+                   sourcedestination.
+        Exemple:   ASL.16  CL,BX                   ; iAPX86
+     
+     
+     ASR           Arithmetic Shift Right
+     
+                        /------,
+                        |      |
+                        |    --------------------------    -----
+                ASR     `--->[          ===>          ]--->[ C ]
+                             --------------------------    -----
+     
+        Descript.: Provoque un d‚calage de l'op‚rande de source de un ou
+                   plusieurs bits … droite (direction LSB), mais le bit de
+                   poids le plus fort (MSB, signe) est conserv‚ et duplifi‚
+                   vers la droite. L'op‚ration est ‚quivalente … une
+                   division par deux pour des nombres positifs (les nombres
+                   n‚gatifs ne sont pas arrondis dans la mˆme direction).
+        Syntaxe:   ASR.id  sourcedestination
+                   ASR.id  amplitude, sourcedestination
+                   ASR.id  amplitude, source, destination
+                   ASR     amplitude.id, sourcedestination.id
+                   ASR     amplitude.id, source.id, destination.id
+        Comment.:  Une amplitude n‚gative signifie, que le d‚calage se fait
+                   … gauche. ASR.16 sourcedestination est ‚quivalent …
+                   SR.A16 sourcedestination.
+        Exemples:  ASR     B                       ; 6809 (ASR #1,B)
+                   ASR.16  CL,BX                   ; iAPX86
+     
+     
+     CALL          CALL
+        Descript.: Sauve l'adresse de retour sur la pile et saute au
+                   sous-programme … l'adresse donn‚e.
+        Syntaxe:   CALL    adresse_de_saut
+                   CALL,c  adresse_de_saut
+        Comment.:  L'instruction RET termine le sous-programme.
+        Exemple:   CALL    ADRESSE
+     
+     
+     CALM instructions                                            page: 4
+     
+     CHECK         CHECK
+        Descript.: Contr“le une valeur contre deux limites.
+        Syntaxe:   CHECK.id    limite_inf‚rieure, limite_sup‚rieure, source
+        Comment.:  Une double comparaison est effectu‚e. Une valeur limite
+                   est souvent la valeur z‚ro et n'est pas indiqu‚e
+                   explicitement. Si la valeur ne se trouve pas …
+                   l'int‚rieur des limites, les processeurs r‚agissent
+                   assez diff‚remment: ou bien uniquement un indicateur est
+                   positionn‚ ou bien une interruption sp‚ciale est
+                   provoqu‚e (check trap).
+        Exemple:   CHECK.A16 #100,D4               ; 68000 (0 <= D4 <= 100)
+     
+     
+     CLR           CLeaR
+        Descript.: Met … z‚ro l'op‚rande de destination (tous les bits sont
+                   mis … z‚ro). Instruction ‚quival.:  MOVE #0,destination.
+        Syntaxe:   CLR.id  destination
+        Comment.:  Si une instruction est conditionelle, l'op‚rande n'est
+                   pas modifi‚ si la condition est fausse (voir aussi SET).
+        Exemple:   CLR     {IX}+DISTANCE:#BIT_NR   ; Z80
+                   CLR.32  D1                      ; 68000
+                   CLRC
+     
+     
+     COMP          COMPare
+        Descript.: Compare le second op‚rande au premier. C'est la mˆme
+                   op‚ration que SUB, mais il n'y a pas de r‚sultat g‚n‚r‚
+                   (uniquement les indicateurs sont mis … jour).
+        Syntaxe:   COMP.id source1, source2
+                   COMP    source1.id, source2.id
+        Exemples:  COMP      {IX}+10,B             ; 6800, ...
+                   COMP.F32  {SB}+4,F0             ; NS32000
+     
+     
+     CONV          CONVert
+        Descript.: Effectue une conversion de type de donn‚es. Si la source
+                   et la destination sont identiques, les indicateurs de
+                   donn‚es peuvent ˆtre ajout‚s aprŠs le code op‚ratoire.
+        Syntaxe:   CONV.id source, destination
+                   CONV    source.id, destination.id
+        Comment.:  Il faut sp‚cifier un type de donn‚es et une taille de
+                   donn‚es. Il est possible de remplacer quelques
+                   conversions de type de donn‚es par l'instruction MOVE.
+        Exemples:  CONV.A8.16  D0                  ; 68000
+                   CONV        {FP}.A16,{SB}.F64   ; NS32000
+     
+     
+     DEC           DECrement
+        Descript.: D‚cr‚mente l'op‚rande de un. Uniquement un op‚rande est
+                   admis. Il faut utiliser une instruction SUB pour des
+                   d‚cr‚ments de 2, 4, etc.
+        Syntaxe:   DEC.id  sourcedestination
+        Exemples:  DEC     {IX}+DEPLACEMENT        ; Z80
+                   DEC.32  D1                      ; 68000
+     
+     CALM instructions                                            page: 5
+     
+     DIV           DIVide
+        Descript.: Divise le second op‚rande par le premier. La destination
+                   est soit le second ou un troisiŠme op‚rande. Le reste
+                   peut ˆtre un dernier op‚rande additionnel.
+        Syntaxe:   DIV.id  diviseur, dividende, quotient, reste
+                   DIV     diviseur.id,dividende.id,quotient.id,reste.id
+        Comment.:  Selon la taille des op‚randes un d‚passement de capacit‚
+                   peut se produire. Ceci g‚nŠre automatiquement une
+                   interruption (trap) dans quelques processeurs.
+                   L'op‚rande de destination est souvent identique avec un
+                   des op‚randes de source et contient parfois aussi le
+                   reste de la division dans sa partie sup‚rieure.
+        Exemples:  DIV.16  CX,DXAX,AX,DX           ; iAPX86
+                   DIV.A16 D1,D0               ; 68000 (reste: D0:#31..#16)
+                   Il faut que: 5.DIV.2 = 2, -5.DIV.2 = -2, 5.DIV.-2 = -2,
+                   -5.DIV.-2 = 2. Et: A = (A.DIV.B)*B + (A.MOD.B), .MOD. =
+                   reste de la division.
+     
+     
+     DJ            Decrement and Jump
+        Descript.: D‚cr‚mente le premier op‚rande et saute … l'adresse
+                   donn‚e par le second op‚rande.
+        Syntaxe:   DJ.id,c sourcedestination, addresse_de_saut
+        Comment.:  L'instruction de boucle la plus utilis‚e d‚cr‚mente un
+                   compteur de un et saute … l'adresse donn‚e si une
+                   condition est satisfaite.
+        Exemples:  DJ,NE     B,ADRESSE             ; Z80
+                   DJ.16,NMO D0,ADRESSE         ; 68000 (NMO: pas moins un)
+     
+     
+     EX            EXchange
+        Descript.: Echange deux op‚randes. L'ordre des deux op‚randes ne
+                   joue aucun r“le.
+        Syntaxe:   EX.id   op‚rande1, op‚rande2
+        Comment.:  L'instruction EX effectue simultan‚ment une double
+                   instruction MOVE.
+        Exemples:  EX      {SP},HL                 ; 8080, Z80
+                   EX.16   AX,[DS]+SEMA            ; iAPX86
+                   EX.32   A6,D0                   ; 68000
+     
+     
+     HALT          HALT
+        Descript.: Arrˆte le processeur jusqu'… ce qu'il soit r‚initialis‚
+                   par un signal externe.
+        Syntaxe:   HALT
+        Comment.:  Le processeur libŠre aprŠs cette instruction le bus et
+                   ne r‚agit mˆme plus aux requˆtes d'interruption. On peut
+                   r‚activer le processeur seulement par un signal externe
+                   de r‚initialisation. Cette instruction est rare. Par
+                   contre, l'‚tat HALT est courant sur tous les
+                   microprocesseurs modernes (p.ex. double erreur de bus).
+        Exemple:   HALT                            ; PDP-11
+     
+     
+     INC           INCrement
+        Descript.: Incr‚mente l'op‚rande de un. Uniquement un op‚rande est
+                   admis. Il faut utiliser l'instruction ADD pour des
+                   incr‚ments de 2, 4, etc.
+        Syntaxe:   INC.id  sourcedestination
+        Exemples:  INC     {IX}+DISTANCE           ; Z80
+                   INC.32  D1                      ; 68000
+     
+     
+     CALM instructions                                            page: 6
+     
+     IOFF          Interrupt OFF
+        Descript.: Interdit des interruptions.
+        Syntaxe:   IOFF
+        Comment.:  L'instruction IOFF interdit tous les interruptions sauf
+                   l'interruption non masquable (NMI) qui est toujours
+                   possible.
+        Exemples:  IOFF                            ; 8080, Z80, 6800, ...
+                   IOFF                         ; 68000 (OR.16 #16'0700,SF)
+     
+     
+     ION           Interrupt ON
+        Descript.: Permet des interruptions.
+        Syntaxe:   ION
+        Exemples:  ION                             ; 8080, Z80, 6800, ...
+                   ION                         ; 68000 (AND.16 #16'F8FF,SF)
+     
+     
+     JUMP          JUMP
+        Descript.: Saute … l'adresse donn‚e.
+        Syntaxe:   JUMP    adresse_de_saut
+                   JUMP,c  adresse_de_saut
+        Comment.:  L'instruction  JUMP ADRESSE  est ‚quivalente …
+                   MOVE #ADRESSE,PC.
+        Exemples:  JUMP,VS ADRESSE                 ; Z80, 6800, ...
+                   JUMP    R16^ADRESSE             ; 6809, iAPX86, ...
+                   JUMP    {{FP}+DISTANCE1}+DISTANCE2 ; NS32000
+     
+     
+     MOVE          MOVE
+        Descript.: TransfŠre l'op‚rande de source dans l'op‚rande de
+                   destination.
+        Syntaxe:   MOVE.id source, destination
+                   MOVE    source.id, destination.id
+        Exemples:  MOVE    HL,SP                 ; 8080, Z80
+                   MOVE.8  #2,BL                 ; iAPX86
+                   MOVE.32 #{A6}+DISTANCE,A0     ; 68000
+                   MOVE.F64 {SB}+DISTANCE,F2      ; NS32000
+     
+     
+     MUL           MULtiply
+        Descript.: Multiplie les deux op‚randes de source. Si l'op‚rande de
+                   destination n'est pas explicitement pr‚cis‚ par sa
+                   taille de donn‚es, il n'est pas clair, si la taille de
+                   l'op‚rande de destination est simple ou double.
+        Syntaxe:   MUL.id  source, sourcedestination
+                   MUL.id  source1, source2, destination
+                   MUL     source.id, sourcedestination.id
+                   MUL     source1.id, source2.id, destination.id
+        Exemples:  MUL     A,B,AB                  ; 6801
+                   MUL.16  D1,D0            ; 68000 (MUL D1.16,D0.16,D0.32)
+                   MUL.F64 {R0}+10,F2              ; NS32000
+     
+     
+     NEG           NEGate
+        Descript.: Calcule le compl‚ment vrai (compl‚ment … deux ou
+                   soustraction de z‚ro) de l'op‚rande de source.
+        Syntaxe:   NEG.id  sourcedestination
+                   NEG.id  source, destination
+                   NEG     source.id, destination.id
+        Exemples:  NEG     A                       ; Z80, ...
+                   NEG.16  {A6+}                   ; 68000
+                   NEG.F64 {R0}+10,{R1}+20         ; NS32000
+     
+     CALM instructions                                            page: 7
+     
+     NEGC          NEGate with Carry
+        Descript.: Calcule le compl‚ment vrai avec l'indicateur de report
+                   C, c.….d. soustrait l'op‚rande et l'indicateur de report
+                   C de z‚ro.
+        Syntaxe:   NEGC.id sourcedestination
+                   NEGC.id source, destination
+                   NEGC    source.id, destination.id
+        Comment.:  Le r‚sultat d'une op‚ration NEGC est identique avec
+                   celui d'une op‚ration NOT si l'indicateur de report C a
+                   ‚t‚ positionn‚ avant l'op‚ration. L'‚tat final de
+                   l'indicateur de report C peut par contre ˆtre diff‚rent.
+        Exemple:   NEGX.D8 D0                      ; 68000 (X est ici C)
+     
+     
+     NOP           No OPeration
+        Descript.: Cette instruction ne fait rien.
+        Syntaxe:   NOP
+        Comment.:  Le microprocesseur cherche l'instruction de la m‚moire
+                   mais n'effectue pas d'op‚ration.
+        Exemple:   NOP
+     
+     
+     NOT           NOT
+        Descript.: Inverse chaque bit de l'op‚rande source (compl‚ment …
+                   un).
+        Syntaxe:   NOT.id  sourcedestination
+                   NOT.id  source, destination
+                   NOT     source.id, destination.id
+        Exemples:  NOT     A                       ; 8080, Z80, ...
+                   NOT.16  {A6+}                   ; 68000
+                   NOT.32  {R0}+10,{R1}+20         ; NS32000
+     
+     
+     OR            OR
+        Descript.: Effectue un OU inclusif bit … bit des deux op‚randes
+                   de source.
+        Syntaxe:   OR.id   source, sourcedestination
+                   OR.id   source1, source2, destination
+                   OR      source.id, sourcedestination.id
+                   OR      source1.id, source2.id, destination.id
+        Comment.:  Cette instruction sert … forcer … un des bits.
+                   L'instruction OR est quelquefois appel‚e BIS (bit set),
+                   particuliŠrement si l'instruction BIC (bit clear) est
+                   disponible.
+         Exemples: OR      #1,A                    ; 8080, Z80, ...
+                   OR.32   #16'FFFF0000,D6         ; 68000
+                   BIS.8   #3,F                    ; NS32000 (OR.8 #16'3,F)
+     
+     
+     POP           POP
+        Descript.: D‚piler. Pour la plupart des processeurs on a: POP
+                   destination  est ‚quivalent …   MOVE {SP+},destination.
+        Syntaxe:   POP.id  destination
+        Comment.:  Normalement, uniquement une pile re‡oit l'adresse de
+                   retour d'un sous-programme (CALL). L'instruction POP se
+                   r‚fŠre … cette pile.
+        Exemples:  POP     DE                      ; 8080, Z80
+                   POPU    AB                      ; 6809 (de la pile US)
+                   POP.16  F                       ; 68010, 68020
+     
+     CALM instructions                                            page: 8
+     
+     PUSH          PUSH
+        Descript.: Empiler. Pour la plupart des processeurs on a:
+                   PUSH source   est ‚quivalent …   MOVE source,{-SP}
+        Syntaxe:   PUSH.id source
+        Comment.:  Normalement, uniquement une pile re‡oit l'adresse de
+                   retour d'un sous-programme (CALL). L'instruction PUSH
+                   se r‚fŠre … cette pile.
+        Exemples:  PUSH    DE                      ; 8080, Z80
+                   PUSHU   AB                      ; 6809 (de la pile US)
+                   PUSH.16 F                       ; 68010, 68020
+     
+     
+     RESET         RESET
+        Descript.: R‚initialise les p‚riph‚riques.
+        Syntaxe:   RESET
+        Comment.:  L'instruction RESET simule le signal de
+                   r‚initialisation (RESET) par programmation (la ligne
+                   RESET est bidirectionelle). Le processeur lui-mˆme n'est
+                   pas r‚initialis‚.
+        Exemple:   RESET                           ; 68000
+     
+     
+     RET           RETurn
+        Descript.: Saute … l'adresse r‚cup‚r‚e de la pile.
+        Syntaxe:   RET
+                   RET,c
+                   RET     expression
+        Comment.:  L'instruction RET termine un sous-programme appel‚ par
+                   CALL. A la fin des sous-programmes d'interruption ou
+                   d'exception (trap), diff‚rentes instructions RET
+                   signalent qu'il y a d'autres informations … r‚cup‚rer
+                   de la pile (en plus du compteur d'adresses PC).
+        Exemples:  RET,EQ                          ; 8080, Z80
+                   RETI                            ; Z80 (interruption)
+                   RETSF                         ; 68000 (PC + registre SF)
+                   RET     #10                     ; NS32000
+     
+     
+     RL            Rotate Left
+     
+                             --------------------------         -----
+                RL       /---[          <===          ]<------->[ C ]
+                         |   --------------------------    |    -----
+                         |                                 |
+                         `----------------->---------------'
+     
+        Descript.: Effectue un d‚calage de l'op‚rande de source d'un ou
+                   plusieurs bits … gauche. A chaque d‚calage, le LSB est
+                   remplac‚ par le MSB.
+        Syntaxe:   RL.id   sourcedestination
+                   RL.id   amplitude, sourcedestination
+                   RL.id   amplitude, source, destination
+                   RL      amplitude.id, sourcedestination.id
+                   RL      amplitude.id, source.id, destination.id
+        Comment.:  Une amplitude n‚gative signifie, que le d‚calage se fait
+                   … droite.
+        Exemples:  RL      B                       ; 6809 (RL #1,B), ...
+                   RL.16   CL,BX                   ; iAPX86 (RL CL.8,BX.16)
+     
+     CALM instructions                                            page: 9
+     
+     RLC           Rotate Left with Carry
+     
+                             --------------------------    -----
+                RLC      /---[          <===          ]<---[ C ]<---,
+                         |   --------------------------    -----    |
+                         |                                          |
+                         `-------------------->---------------------'
+        Descript.: Effectue un d‚calage de l'op‚rande de source d'un ou
+                   plusieurs bits … gauche. A chaque d‚calage, le LSB est
+                   remplac‚ par l'indicateur de report C et l'indicateur de
+                   report C par le MSB.
+        Syntaxe:   RLC.id  sourcedestination
+                   RLC.id  amplitude, sourcedestination
+                   RLC.id  amplitude, source, destination
+                   RLC     amplitude.id, sourcedestination.id
+                   RLC     amplitude.id, source.id, destination.id
+        Comment.:  Une amplitude n‚gative signifie, que le d‚calage se fait
+                   … droite.
+        Exemples:  RLC     B                       ; 6809 (RLC #1,B), ...
+                   RLC.16  CL,BX                  ; iAPX86 (RLC CL.8,BX.16)
+     
+     RR            Rotate Right
+     
+                             --------------------------        -----
+                RR      /--->[          ===>          ]------->[ C ]
+                        |    --------------------------   |    -----
+                        |                                 |
+                        `-----------------<---------------'
+        Descript.: Effectue un d‚calage de l'op‚rande de source d'un ou
+                   plusieurs bits … droite. A chaque d‚calage, le MSB est
+                   remplac‚ par le LSB.
+        Syntaxe:   RR.id   sourcedestination
+                   RR.id   amplitude, sourcedestination
+                   RR.id   amplitude, source, destination
+                   RR      amplitude.id, sourcedestination.id
+                   RR      amplitude.id, source.id, destination.id
+        Comment.:  Une amplitude n‚gative signifie, que le d‚calage se fait
+                   … gauche.
+        Exemples:  RR      B                       ; 6809 (RR #1,B), ...
+                   RR.16   CL,BX                   ; iAPX86 (RR CL.8,BX.16)
+     
+     RRC           Rotate Right with Carry
+     
+                             --------------------------    -----
+                RRC      /-->[          ===>          ]--->[ C ]----,
+                         |   --------------------------    -----    |
+                         |                                          |
+                         `--------------------<---------------------'
+        Descript.: Effectue un d‚calage de l'op‚rande de source d'un ou
+                   plusieurs bits … droite. A chaque d‚calage, le MSB est
+                   remplac‚ par l'indicateur de report C et l'indicateur de
+                   report C par le LSB.
+        Syntaxe:   RRC.id  sourcedestination
+                   RRC.id  amplitude, sourcedestination
+                   RRC.id  amplitude, source, destination
+                   RRC     amplitude.id, sourcedestination.id
+                   RRC     amplitude.id, source.id, destination.id
+        Comment.:  Une amplitude n‚gative signifie, que le d‚calage se fait
+                   … gauche.
+        Exemples:  RRC     B                       ; 6809 (RRC #1,B), ...
+                   RRC.16  CL,BX                  ; iAPX86 (RRC CL.8,BX.16)
+     
+     CALM instructions                                           page: 10
+     
+     SET           SET
+        Descript.: Initialise l'op‚rande de destination avec des uns (tous
+                   les bits sont mis … un). Instruction ‚quivalente:
+                   MOVE #-1,destination.
+        Syntaxe:   SET.id  destination
+        Comment.:  Si une instruction SET est conditionelle, l'op‚rande est
+                   initialis‚ avec des uns si la condition est vraie, et
+                   initialis‚ avec des z‚ros si la condition est fausse
+                   (voir aussi CLR).
+        Exemples:  SET.8,EQ  {A0}                  ; 68000
+                   SET       {HL}:#4               ; Z80
+                   SETC                            ; 8080, Z80, ...
+     
+     
+     SKIP          SKIP
+        Descript.: Saute par dessus l'instruction suivante.
+        Syntaxe:   SKIP,c
+        Comment.:  L'instruction SKIP est pratiquement toujours combin‚e
+                   avec une condition.
+        Exemple:   SKIP,EQ DJ.16,NMO D0,ADRESSE    ; 68000
+     
+     
+     SL            Shift Left
+     
+                        -----    --------------------------
+                SL      [ C ]<---[          <===          ]<---0
+                        -----    --------------------------
+     
+        Descript.: Effectue un d‚calage de l'op‚rande de source d'un ou
+                   plusieurs bits … gauche. A chaque d‚calage, le LSB est
+                   remplac‚ par un z‚ro.
+        Syntaxe:   SL.id   sourcedestination
+                   SL.id   amplitude, sourcedestination
+                   SL.id   amplitude, source, destination
+                   SL      amplitude.id, sourcedestination.id
+                   SL      amplitude.id, source.id, destination.id
+        Comment.:  Une amplitude n‚gative signifie, que le d‚calage se fait
+                   … droite. Un d‚calage … gauche multiplie par deux.
+        Exemples:  SL      B                       ; 6809 (SL #1,B), ...
+                   SL.16   CL,BX                   ; iAPX86 (SL CL.8,BX.16)
+     
+     
+     SR            Shift Right
+     
+                             --------------------------    -----
+                SR      0--->[          ===>          ]--->[ C ]
+                             --------------------------    -----
+     
+        Descript.: Effectue un d‚calage de l'op‚rande de source d'un ou
+                   plusieurs bits … droite. A chaque d‚calage, le MSB est
+                   remplac‚ par un z‚ro.
+        Syntaxe:   SR.id   sourcedestination
+                   SR.id   amplitude, sourcedestination
+                   SR.id   amplitude, source, destination
+                   SR      amplitude.id, sourcedestination.id
+                   SR      amplitude.id, source.id, destination.id
+        Comment.:  Une amplitude n‚gative signifie, que le d‚calage se fait
+                   … gauche. Un d‚calage … droite divise par deux.
+        Exemples:  SR      B                       ; 6809 (SR #1,B), ...
+                   SR.16   CL,BX                   ; iAPX86 (SR CL.8,BX.16)
+     
+     CALM instructions                                           page: 11
+     
+     SUB           SUBtract
+        Descript.: Soustrait le premier op‚rande du second op‚rande.
+        Syntaxe:   SUB.id  source, sourcedestination
+                   SUB.id  source1, source2, destination
+                   SUB     source.id, sourcedestination.id
+                   SUB     source1.id, source2.id, destination.id
+        Exemples:  SUB     #2'1010,A               ; 8080, Z80, ...
+                   SUB.32  {A6}+400,D6             ; 68000
+                   SUB.F64 F0,{SB}+10              ; NS32000
+     
+     
+     SUBC          SUBtract with Carry
+        Descript.: Soustrait le premier op‚rande et l'indicateur de report
+                   C du second op‚rande.
+        Syntaxe:   SUBC.id source, sourcedestination
+                   SUBC.id source1, source2, destination
+                   SUBC    source.id, sourcedestination.id
+                   SUBC    source1.id, source2.id, destination.id
+        Exemples:  SUBC     #2'1010,A               ; 8080, Z80, ...
+                   SUBX.32  {-A4},{-A3}             ; 68000 (X est ici C)
+                   SUBC.32  R0,{SB}+10              ; NS32000
+     
+     
+     SWAP          SWAP
+        Descript.: Echange les deux moiti‚s de l'op‚rande. La taille
+                   associ‚e se r‚fŠre … la taille entiŠre de l'op‚rande.
+        Syntaxe:   SWAP.id sourcedestination
+        Comment.:  L'instruction SWAP est n‚cessaire, si l'on peut pas
+                   acc‚der ind‚pendamment aux sous-unit‚s d'un op‚rande.
+        Exemple:   SWAP.32 D4                      ; 68000
+     
+     
+     TCLR          Test and CLeaR
+        Descript.: Teste et met … z‚ro le(s) bit(s) d'op‚rande.
+        Syntaxe:   TCLR.id sourcedestination    (:adresse_de_bit(.id))
+                   TCLR    sourcedestination.id (:adresse_de_bit(.id))
+        Comment.:  L'indicateur de nullit‚ Z contient souvent la valeur du
+                   bit avant l'ex‚cution de l'instruction. La lettre
+                   suppl‚mentaire I signale que l'instruction est
+                   indivisible. L'indicateur de donn‚es, ajout‚ au code
+                   op‚ratoire ou … l'op‚rande d'adresse d'octet, indique
+                   que l'adressage de bit est limit‚.
+        Exemples:  TCLR.32   D5:#31                ; 68000 (bit: 0..31)
+                   TCLR.8    {A6}+CONDITION:#2     ; 68000 (bit: 0..7)
+                   TCLRI     {SB}:{FP}.A8       ; NS32000 (bit: -128..+127)
+     
+     
+     TEST          TEST
+        Descript.: Teste le signe et la valeur (si z‚ro) de l'op‚rande.
+        Syntaxe:   TEST.id      source      (:adresse_de_bit(.id))
+                   TEST         source.da   (:adresse_de_bit(.id))
+                   TEST.id      source1, source2
+        Comment.:  TEST op‚rande  est ‚quivalent …  COMP #0,op‚rande.
+                   L'indicateur de nullit‚ Z est positionn‚ si la valeur
+                   de l'op‚rande est z‚ro. Le MSB est copi‚ dans
+                   l'indicateur de signe N. Avec deux op‚randes, une
+                   op‚ration AND est effectu‚e avant le test.
+        Exemples:  TEST      B                     ; 6800, ...
+                   TEST.32   D5:#31                ; 68000 (bit: 0..31)
+                   TEST.8    {A6}+CONDITION:#2     ; 68000 (bit: 0..7)
+                   TEST      {SB}:{FP}.A8       ; NS32000 (bit: -128..+127)
+                   TEST.16   [DS]+{SI},AX          ; iAPX86
+     
+     CALM instructions                                           page: 12
+     
+     TNOT          Test and NOT
+        Descript.: Teste et invertit le(s) bit(s) d'op‚rande.
+        Syntaxe:   TNOT.id sourcedestination    (:adresse_de_bit(.id))
+                   TNOT    sourcedestination.id (:adresse_de_bit(.id))
+        Comment.:  L'indicateur de nullit‚ Z contient souvent la valeur du
+                   bit avant l'ex‚cution de l'instruction. L'indicateur de
+                   donn‚es aprŠs le code op‚ratoire ou l'op‚rande d'adresse
+                   d'octet indique que l'adressage de bit est limit‚.
+        Exemples:  TNOT.32   D5:#31                ; 68000 (bit: 0..31)
+                   TNOT.8    {A6}+CONDITION:#2     ; 68000 (bit: 0..7)
+                   TNOT      {SB}:{FP}.A8       ; NS32000 (bit: -128..+127)
+     
+     
+     TRAP          TRAP
+        Descript.: Appel de sous-programme sp‚cial.
+        Syntaxe:   TRAP    expression
+                   TRAP,c  expression
+        Comment.:  Les instructions TRAP peuvent ˆtre d‚clench‚es par
+                   programmation ou par mat‚riel (p.ex. division par z‚ro).
+        Exemples:  TRAP                            ; 6800, ...
+                   TRAP    #15                     ; 68000
+                   TRAP,VS                         ; 68000
+     
+     
+     TSET          Test and SET
+        Descript.: Teste et met … un le(s) bit(s) d'op‚rande.
+        Syntaxe:   TSET.id sourcedestination    (:adresse_de_bit(.id))
+                   TSET    sourcedestination.id (:adresse_de_bit(.id))
+        Comment.:  L'indicateur de nullit‚ Z contient souvent la valeur du
+                   bit avant l'ex‚cution de l'instruction. La lettre
+                   suppl‚mentaire I signale que l'instruction est
+                   indivisible. L'indicateur de donn‚es, ajout‚ aprŠs le
+                   code op‚ratoire ou l'op‚rande d'adresse d'octet, indique
+                   que l'adressage de bit est limit‚.
+        Exemples:  TSET.32   D5:#31                ; 68000 (bit: 0..31)
+                   TSET.8    {A6}+CONDITION:#2     ; 68000 (bit: 0..7)
+                   TSETI     {SB}:{FP}.A8       ; NS32000 (bit: -128..+127)
+     
+     
+     WAIT          WAIT
+        Descript.: Attend sur une interruption.
+        Syntaxe:   WAIT
+        Comment.:  L'instruction WAIT minimise le temps de r‚ponse … une
+                   requˆte d'interruption. AprŠs une interruption et aprŠs
+                   l'ex‚cution du sous-programme d'interruption, le
+                   processeur ex‚cute l'instruction suivante (aprŠs WAIT).
+                   Il y a quatre variantes du WAIT: WAIT (CPU attend
+                   activement), SLEEP (le courant est coup‚ des E/S), STOP
+                   (l'oscillateur interne est arrˆt‚) et HALT (CPU
+                   s'arrˆte).
+        Exemple:   WAIT
+     
+     XOR           XOR
+        Descript.: Effectue un OU exclusif bit … bit des deux op‚randes de
+                   source.
+        Syntaxe:   XOR.id  source, sourcedestination
+                   XOR.id  source1, source2, destination
+                   XOR     source.id, sourcedestination.id
+                   XOR     source1.id, source2.id, destination.id
+        Comment.:  Cette instruction sert … invertir des bits.
+        Exemples:  XOR     #1,A                    ; 8080, Z80, ...
+                   XOR.32  #16'FFFF0000,D6         ; 68000
+     
+     

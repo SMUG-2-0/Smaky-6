@@ -1,0 +1,195 @@
+     CALMDIS.DOQ                                     D‚sassembleur CALM - 1
+     
+     D‚sassembleur CALM
+     
+        Un d‚sassembleur CALM est joint … quelques modules de processeur
+     CALM. Le nom est compos‚ de la lettre "D" suivi du nom de processeur
+     (p.ex.: DZ80 pour le processeur Z80).
+        Le d‚sassembleur CALM g‚nŠre … partir d'un fichier binaire (*.BIN)
+     un fichier source (*.ASM) ou un fichier de listage (*.LST). La ligne
+     de commande a la forme suivante (p.ex. pour le I8051):
+     
+        DI8051 fichier_binaire [/L]
+     
+        Le /L produit un listage. Le d‚sassembleur CALM demande ensuite:
+     
+        1) l'adresse de d‚marrage (du programme … d‚sassembler)
+        2) le processeur (s'il en a plusieurs, p.ex. I8051, I8052 ou
+           S80515)
+        3) le mode de travail:
+           a) d‚sassembler tout dans une passe (comme un d‚vermineur)
+           b) d‚sassembler tout dans deux passes
+           c) d‚tecter dans deux passes les zones de programmes et de
+              donn‚es.
+     
+        Dans le mode 3a, le d‚sassembleur ne g‚n‚rera pas d'‚tiquettes et
+     d'assignations. Dans les autres modes, le d‚sassembleur lit le fichier
+     d'entr‚e deux fois. Dans la deuxiŠme passe, le fichier source ou le
+     fichier de listage est g‚n‚r‚. Le d‚sassembleur g‚nŠre des ‚tiquettes
+     et des assignations. Les assignations, les ‚tiquettes des variables et
+     quelques adresses se trouvent … la fin du fichier de sortie. Il faut
+     transf‚rer ces ‚tiquettes et assignations de la fin vers le d‚but du
+     programme d‚sassembl‚ afin d'obtenir le mˆme r‚sultat lors d'un
+     r‚assemblage.
+        Quelques remarques concernant le mode 3c: si le d‚sassembleur doit
+     d‚tecter les zones de programmes et de donn‚es, le programme doit
+     commencer par une zone de programme. Le principe est simple: le
+     d‚sassembleur simule le processeur et d‚tecte ainsi les zones de
+     programmes. Mais le d‚sassembleur ne peut pas d‚tecter les zones de
+     programmes qu'on atteint par des tables de sauts. Il faudra combiner
+     tous les modes de travail.
+        Le d‚sassembleur CALM pr‚cise les zones de donn‚es, c.….d. zones de
+     variables (lire/‚crire) ou de tables (lire/zone de programme). De
+     plus, le d‚sassembleur distingue les constantes, c.….d. d‚placement,
+     bit, valeur, etc. Le d‚sassembleur CALM reconnaŒt six types de
+     symboles: adresse (A_xx), bit (B_xx), valeur (I_xx), d‚placement
+     (O_xx), table (T_xx) et variable (V_xx).
+        Selon la complexit‚ du programme … d‚sassembler, il arrive que la
+     mˆme valeur soit d‚finie plusieurs fois (p.ex. I_0D = 16'0D). Ceci
+     signifie, que la valeur n'est pas toujours utilis‚e de la mˆme
+     maniŠre. Il y a mˆme des symboles qui ne sont jamais d‚finis. C'est
+     souvent le cas avec les ‚tiquettes/assignations dont leurs valeurs se
+     trouvent … l'int‚rieur d'une instruction. De mˆme, le message "New
+     symbol in 2nd pass" peut apparaŒtre.
+        Exemple: le programme TERMINAL.ASM pour le I8080, systŠme
+     d'exploitation CP/M-80. Le d‚sassembleur d‚tecte les zones de
+     programmes et de donn‚es:
+     
+                             ; Z80 CALM DISASSEMBLER   1.0   6-II-1994
+     
+                                     .TITLE  TERMINAL.LST
+                                     .PROC   I8080
+                                     .PROCSET I8085
+                                     .BASE   10'10
+                                     .LOC    16'100
+     
+                                                    D‚sassembleur CALM - 2
+     
+     0100    AF                      XOR     A,A
+     0101    328701                  MOVE    A,V_187
+     0104    CD8B01                  CALL    16^A_18B
+     0107    CA1401                  JUMP,EQ 16^A_114
+     010A    23                      INC     HL
+     010B    7E                      MOVE    {HL},A
+     010C    FE45                    COMP    #I_45,A
+     010E    C21401                  JUMP,NE 16^A_114
+     0111    328701                  MOVE    A,V_187
+                             A_114:
+     0114    CDAC01                  CALL    16^A_1AC
+     0117    328801                  MOVE    A,V_188
+     011A    3EFF                    MOVE    #I_FF,A
+     011C    328901                  MOVE    A,V_189
+                             A_11F:
+     011F    CDAC01                  CALL    16^A_1AC
+     0122    E6FC                    AND     #I_FC,A
+     0124    F601                    OR      #I_1,A
+     0126    CDB101                  CALL    16^A_1B1
+     0129    CDB701                  CALL    16^A_1B7
+     012C    328901                  MOVE    A,V_189
+     012F    B7                      OR      A,A
+     0130    CA5601                  JUMP,EQ 16^A_156
+     0133    3A8901                  MOVE    V_189,A
+     0136    FE01                    COMP    #I_1,A
+     0138    CA5601                  JUMP,EQ 16^A_156
+     013B    3A8701                  MOVE    V_187,A
+     013E    B7                      OR      A,A
+     013F    CA4801                  JUMP,EQ 16^A_148
+     0142    3A8901                  MOVE    V_189,A
+     0145    CDBE01                  CALL    16^A_1BE
+                             A_148:
+     0148    CDAC01                  CALL    16^A_1AC
+     014B    E6FC                    AND     #I_FC,A
+     014D    CDB101                  CALL    16^A_1B1
+     0150    3A8901                  MOVE    V_189,A
+     0153    CDBE01                  CALL    16^A_1BE
+                             A_156:
+     0156    CDAC01                  CALL    16^A_1AC
+     0159    E6FC                    AND     #I_FC,A
+     015B    CDB101                  CALL    16^A_1B1
+     015E    CDB701                  CALL    16^A_1B7
+     0161    328A01                  MOVE    A,V_18A
+     0164    B7                      OR      A,A
+     0165    CA7801                  JUMP,EQ 16^A_178
+     0168    CDAC01                  CALL    16^A_1AC
+     016B    E6FC                    AND     #I_FC,A
+     016D    F601                    OR      #I_1,A
+     016F    CDB101                  CALL    16^A_1B1
+     0172    3A8A01                  MOVE    V_18A,A
+     0175    CDBE01                  CALL    16^A_1BE
+                             A_178:
+     0178    3A8901                  MOVE    V_189,A
+     017B    FE01                    COMP    #I_1,A
+     017D    C21F01                  JUMP,NE 16^A_11F
+     0180    3A8801                  MOVE    V_188,A
+     0183    CDB101                  CALL    16^A_1B1
+     0186    C9                      RET
+     0187    00000000                .FILL.8 16'4,16'0
+                             A_18B:
+     018B    218000                  MOVE    #I_80,HL
+     018E    7E                      MOVE    {HL},A
+                                                    D‚sassembleur CALM - 3
+     
+     018F    B7                      OR      A,A
+     0190    C8                      RET,EQ
+     0191    47                      MOVE    A,B
+     0192    3E5B                    MOVE    #I_5B,A
+     0194    23                      INC     HL
+                             A_195:
+     0195    BE                      COMP    {HL},A
+     0196    C29B01                  JUMP,NE 16^A_19B
+     0199    0601                    MOVE    #I_1,B
+                             A_19B:
+     019B    23                      INC     HL
+     019C    05                      DEC     B
+     019D    C29501                  JUMP,NE 16^A_195
+     01A0    2B                      DEC     HL
+     01A1    06FF                    MOVE    #I_FF,B
+     01A3    BE                      COMP    {HL},A
+     01A4    CAA901                  JUMP,EQ 16^A_1A9
+     01A7    0600                    MOVE    #I_0,B
+                             A_1A9:
+     01A9    78                      MOVE    B,A
+     01AA    B7                      OR      A,A
+     01AB    C9                      RET
+                             A_1AC:
+     01AC    0E07                    MOVE    #I_7,C
+     01AE    C30500                  JUMP    16^A_5
+                             A_1B1:
+     01B1    0E08                    MOVE    #I_8,C
+     01B3    5F                      MOVE    A,E
+     01B4    C30500                  JUMP    16^A_5
+                             A_1B7:
+     01B7    1EFF                    MOVE    #I_FF,E
+     01B9    0E06                    MOVE    #I_6,C
+     01BB    C30500                  JUMP    16^A_5
+                             A_1BE:
+     01BE    0E06                    MOVE    #I_6,C
+     01C0    E67F                    AND     #I_7F,A
+     01C2    5F                      MOVE    A,E
+     01C3    C30500                  JUMP    16^A_5
+     
+                             I_0     =       16'0
+                             I_1     =       16'1
+                             I_6     =       16'6
+                             I_7     =       16'7
+                             I_8     =       16'8
+                             I_45    =       16'45
+                             I_5B    =       16'5B
+                             I_7F    =       16'7F
+                             I_FC    =       16'FC
+                             I_FF    =       16'FF
+     
+                             I_80    =       16'80
+     
+                                     .LOC    16'187
+                             V_187:  .BLK.8  1
+                             V_188:  .BLK.8  1
+                             V_189:  .BLK.8  1
+                             V_18A:  .BLK.8  1
+     
+                                     .LOC    16'5
+                             A_5:
+                                     .END
+                             Lines/Symbols: 87/51
+     
+     

@@ -1,0 +1,1010 @@
+     CALMDEF.DOQ                                          CALM D‚finitions
+     
+     BUT ET DOMAINE D'APPLICATION
+        CALM fixe les notations pour des programmes en langage
+     d'assemblage, qui sont utilisables pour des processeurs d'une taille
+     des mots de donn‚es et d'adresses quelconque et qui sont bas‚s sur une
+     architecture de "von-Neumann". Ces notations d‚crivent … l'aide de
+     verbes anglais l'op‚ration … effectuer. Mais aussi des architectures
+     plus complexes et futures sont pr‚vues.
+        CALM fixe les noms mn‚motechniques et la syntaxe des op‚rations,
+     conditions de test, registres sp‚ciaux, types de donn‚es, modes
+     d'adressage et pseudo-instructions les plus utilis‚s.
+        La notation CALM d‚crit pr‚cis‚ment tous les instructions d'un
+     processeur. S'il y a pour une op‚ration plusieurs (mais
+     fonctionellement identiques) instructions au choix (p.ex. adressage
+     absolu et relatif), CALM offre d'une part une notation explicite et
+     pr‚cise pour chacune de ces instructions et d'autre part une notation
+     simplifi‚e, qui laisse … l'assembleur le choix de l'instruction.
+        CALM laisse une trŠs grande libert‚ de mise en page, mais permet et
+     encourage une pr‚sentation claire et modulaire des programmes. CALM
+     tient aussi en compte des affichages et imprimantes futurs. Des
+     modules et les pseudo-instructions associ‚es sont aussi pr‚vues et
+     permettent ainsi le lien avec des langages de programmation ‚volu‚s.
+        CALM ne d‚finit pas de format binaire pour le programme objet, mais
+     recommande la norme P695. CALM a ‚t‚ normalis‚ dans DIN 66283.
+     
+     TERMES
+        Les termes utilis‚s correspondent aux significations comme elles
+     sont utilis‚es par les fabricants de microprocesseurs.
+        Les diagrammes de syntaxe font foi et correspondent aux rŠgles
+     usuelles comme ils sont utilis‚s par exemple dans le langage Pascal.
+     Des cercles et des rectangles avec des demi-cercles se r‚fŠrent … des
+     ‚l‚ments de base (caractŠre ou mots-cl‚s). Des rectangles se r‚fŠrent
+     … des ‚l‚ments d‚finis ailleurs. Un symbole entre parenthŠses pointues
+     (<>) indique la valeur de ce symbole, p.ex. <CR>.
+        Les nombres d‚cimaux sont appel‚s ici simplement nombres. Ces
+     nombres restent aussi comme indicateurs suppl‚mentaires d‚cimaux, mˆme
+     si la base par d‚faut a ‚t‚ chang‚e.
+     
+     JEU DE CARACTERES
+        Le jeu de caractŠres est bas‚ sur le jeu de caractŠres ASCII
+     compl‚t. Il se compose de caractŠres imprimables et non imprimables.
+     
+     CARACTERES IMPRIMABLES
+        * Lettres
+        - obligatoire: A..Z
+        - facultatif:  a..z
+          Les lettres minuscules et majuscules dans les symboles et les
+          noms des registres r‚serv‚s sont trait‚es identiques.
+        * Chiffres
+        - obligatoire: 0..9
+        * Signes:
+        - obligatoire:
+          +        signe plus               -       signe moins
+          *        ast‚risque               /       barre oblique
+          .        point                    ,       virgule
+          :        deux-points              =       signe ‚gal
+          ;        point-virgule            _       soulign‚
+          $        signe dollar             #       diŠze
+          '        apostrophe               "       guillemets
+          ^        accent circonflexe       |       barre verticale
+          %        signe pourcent           ()      parenthŠses
+          {}       accolades                <>      parenthŠses pointues
+          <ESPACE> espace                   <TAB>   tabulateur horizontale
+     
+     CALM D‚finitions                                             page: 2
+     
+        - utilisable facultativement dans des commentaires:
+          &    signe "et"               !    point d'exclamation
+          ?    point d'interrogation    @    signe "at"
+          `    accent grave             ~    tilde
+          []   crochets                 \   barre oblique en arriŠre
+          Remarque: La barre oblique en arriŠre ou caractŠre
+          d'‚chappement typographique permet l'extension du jeu de
+          caractŠres par des caractŠres sp‚ciaux, graphiques et
+          typographiques. La compatibilit‚ entre un ‚cran ou une
+          imprimante … chasse fixe et d'une unit‚ avec chasse variable et
+          des tabulateurs librement positionnables peut ˆtre atteinte par
+          des pseudo-tabulateurs (\<TAB>).
+        * CaractŠres non ASCII
+        Des caractŠres avec accents ou d'autres signes sp‚ciaux sont
+        utilisables dans des commentaires s'il n'y a pas de contradiction
+        avec les caractŠres d‚finis ci-dessus.
+     
+     CARACTERES NON IMPRIMABLES
+        * caractŠres de commande
+          <CR>     fin de ligne
+          <NULL>   vide
+        Tous les autres caractŠres de commande sont ignor‚s.
+     
+     PROGRAMME EN ASSEMBLEUR ET ORDRES
+        Un programme en langage d'assemblage est une suite finie d'ordres.
+     Chaque ordre peut avoir jusqu'… 255 caractŠres et est termin‚ par un
+     caractŠre de retour de chariot <CR>. L'ordre END termine un programme
+     en langage d'assemblage. Le diagramme de syntaxe d'un programme en
+     langage d'assemblage est donn‚ … la fig. 1.
+        Le diagramme de syntaxe d'un ordre est illustr‚ … la fig. 2.
+     
+     programme en langage d'assemblage
+                            /---------------<---------------,
+                            |                               |
+                            |   -------------     ------    |
+        ------------------------[  ordre    ]--->( <CR> )---'
+                              | -------------     ------
+                              |
+                              |  -----------------
+                              `->[  ordre END    ]
+                                 ----------------- ordre END
+            --------     ------     --------    ---------------     ------
+        --->[ s.f. ]--->( .END )--->[ s.f. ]--->[ commentaire ]--->( <CR> )
+            --------     ------     -------- |  --------------- |   ------
+                                             |                  |
+                                             `--------->--------'
+        s.f.: s‚parateur facultatif
+     
+                                     Fig. 1
+     
+     CALM D‚finitions                                             page: 3
+     
+     ordre
+                               ---------------
+        /--------------------->[ assignation ]-,
+        |                      --------------- |
+        | /------<------,                      |
+        | |             |      --------------- |
+        | |             |   /->[ pseudoinstr.]-|
+        | |   ---------*|   |  --------------- |  ------    -----------
+        ----->[ ‚tiqu.]-----|                  |->[s.f.]--->[comment. ]--->
+           |  ---------   | |  --------------- |  ------ |  ----------- |
+           |              | `->[ instruction ]-|         |              |
+           |--------->----'    --------------- |         `------->------'
+           |                                   |
+           `------------------>----------------'
+     
+     ‚tiquette
+                             ---------------------
+                          /->[ ‚tiquette globale ]-,
+               --------   |  --------------------- |
+        ------>[ s.f. ]---|                        |--->
+               --------   |  --------------------- |
+                          `->[ ‚tiquette locale  ]-'
+                             ---------------------
+     
+     commentaire
+                       /-------------<---------------,
+                       |                             |
+                  ---  |      --------------------   |
+        -------->( ; )----->( caractŠre imprimable )-'
+                  ---    |    --------------------
+                         |
+                         `----------------------------->
+     
+        * pour quelques pseudo-instructions des ‚tiquettes ne sont pas
+          admises.
+     
+                                     Fig. 2
+     
+     SEPARATEURS
+        Un s‚parateur est une suite non vide d'espaces ou/et de
+     tabulateurs. Dans la pratique, on utilise qu'un espace ou qu'un
+     tabulateur. Le diagramme de syntaxe est pr‚sent‚ … la fig. 3a.
+        Le diagramme de syntaxe d'un s‚parateur facultatif (s.f.) est donn‚
+     … la fig. 3b.
+     
+     s‚pa
+           /------------------<-------------------,
+           |                                      |
+           |      --------                        |
+        ------->( <ESPACE> )------------->----------------->
+             |    --------                        |
+             |                                    |
+             |   -------                          |
+             `->( <TAB> )------------->-----------|
+                 -------  |                       |
+                          V /---------<---------, ^
+                          | |                   | |
+                          | |   ---    -------  | |
+                          `--->( \ )->( <TAB> )---'
+                                ---    -------
+     
+                                     Fig. 3a
+     
+     CALM D‚finitions                                             page: 4
+     
+        s.f.
+                  ---------
+        --------->[ s‚pa  ]----->
+               |  --------- |
+               |            |
+               `------>-----'
+     
+                   Fig. 3b
+     
+     CONSTANTES NON SIGNEES
+        Des constantes non sign‚es sont des p-nombres ou des codes
+     caractŠres. Elles sont m‚moris‚es … l'int‚rieur de l'assembleur avec
+     une r‚solution de 128 bits. La fig. 4 montre le diagramme de syntaxe.
+     
+     constante non sign‚e
+                                             ------------
+                              /------------->[ p-nombre ]-------------,
+                              |              ------------             |
+                              |                                       |
+                              |  ---------------   ---   ------------ V
+        ------------------------>[ nombre (=p) ]->( ' )->[ p-nombre ]----->
+                              |  ---------------   ---   ------------ ^
+                              |                                       |
+                              |         ---------------------         |
+                              `-------->[ code de caractŠre ]---------'
+                                        ---------------------
+     
+                                     Fig. 4
+     
+     P-NOMBRES
+        Un p-nombre est un nombre entier positif de la base p avec 2 <= p
+     <= 16. Les p-chiffres correspondants sont pris de la liste ordonn‚e
+     0..9, A..F. Le diagramme de syntaxe est donn‚ … la fig. 5.
+        Si la base par d‚faut n'est pas p, on peut pr‚c‚der le nombre
+     explicitement par la base:
+     
+             p=2     (binaire)       2'          p.ex.:   2'11110001
+             p=8     (octal)         8'          p.ex.:   8'361
+             p=10    (d‚cimal)      10'          p.ex.:  10'241
+             p=16    (sexad‚cimal)  16'          p.ex.:  16'F1
+     
+        La base par d‚faut est initialis‚e comme ‚tant la base 10 dans
+     l'assembleur CALM. Si la base est sup‚rieure … 10 et aucun pr‚fixe est
+     utilis‚, alors le premier chiffre d'un nombre doit ˆtre un chiffre
+     d‚cimal. Ainsi un z‚ro non significatif doit ˆtre plac‚ devant le
+     p-nombre, si le premier p-chiffre est une lettre (p.ex. 0FF).
+     
+     p-nombre              /-----<-----,
+                           |           |
+            p<=10          V   ------  |
+              /-------------->( 0..  )-----------,
+              |                ------            |
+              |                                  |
+        ------|             /-------<--------,   |--->
+              |             |                |   |
+              |   ------    V   -----------  |   |
+              `->( 0..9 )----->( 0..9,A..  )-----'
+            p>10  ------  |     -----------    ^
+                          |                    |
+                          `--------->----------'
+     
+                                     Fig. 5
+     
+     CALM D‚finitions                                             page: 5
+     
+     CODE CARACTERE
+        Un caractŠre imprimable entre guillemets fournit le code ASCII de
+     ce caractŠre. Le diagramme de syntaxe est donn‚ … la fig. 6.
+        Exemple: "A" fournit 16'41 et avec """" on obtient le code ASCII
+     16'22 des guillemets.
+     
+     code caractŠre
+                    ---       ------------------------------       ---
+        ---------->( " )--->(  caractŠre imprimable, sauf "  )--->( " )--->
+                    ---  |    ------------------------------   ^   ---
+                         |        ---              ---         |
+                         `------>( " )----------->( " )--------'
+                                  ---              ---
+     
+                                     Fig. 6
+     
+     NOMBRE POINT FLOTTANT
+        Le diagramme de syntaxe de nombres point flottant est donn‚ … la
+     figure 7. On suppose le format IEEE P754.
+        L'assembleur utilise internement le format P754 80 bits. La valeur
+     d'un nombre point flottant sera convertie dans le format de 64 ou 32
+     bits quand la valeur est utilis‚e dans une instruction.
+        Les nombres point flottant sont seulement utilisables comme valeurs
+     imm‚diates. Le traitement de nombres point flottant dans des
+     expressions n'est pas demand‚ en CALM.
+        Exemple: -300.0 ou -3E+2.
+        Remarque: Nous utilisons ici le terme nombre point flottant (au
+     lieu nombre virgule flottant), car il faut bien utiliser un point.
+     
+     nombre point flottant
+                                        /--------------->----------------,
+                                        |                                |
+             -                          |                   -            |
+         /->(+)-,                       |               /->(+)-,         |
+         |   -  |                       |               |   -  |         |
+         |      |  ------    -   ------ |       -       |      |  ------ V
+        ----->---->[c.n.]-->(.)->[c.n.]------->(E)---------->---->[c.n.]-->
+         |      |  ------ |  -   ------  ^|     -     ^ |      |  ------
+         |   -  |         |              ||   -    -  | |   -  |
+         `->(-)-'         `------>-------'`->(\)->(E)-' `->(-)-'
+             -                                -    -        -
+        c.n.: constante non-sign‚e
+     
+                                     Fig. 7
+     
+     SYMBOLES
+        Symboles ont un nom et une valeur. Le nom du symbole peut contenir
+     jusqu'… 32 caractŠres. L'assembleur m‚morise la valeur du symbole avec
+     une longueur de mot de 256 bits. Les lettres minuscules sont
+     ‚quivalentes aux lettres majuscules correspondantes.
+        Le diagramme de syntaxe d'un nom de symbole est donn‚ … la fig. 8.
+        Il y a trois types de symboles:
+     
+             - symboles r‚serv‚s
+             - symboles pr‚d‚finis
+             - symboles d‚finis par l'utilisateur
+     
+     CALM D‚finitions                                             page: 6
+     
+     nom du symbole
+                                   /----------<---------,
+                                   |                    |
+                       ---------   V      ---------     |
+        ------------>(   lettre  )----->(   lettre  )---|
+                       ---------     |    ---------     |
+                                     |                  |
+                                     |      -------     |
+                                     |--->( chiffre )---|
+                                     |      -------     |
+                                     |                  |
+                                     |        ---       |
+                                     |------>( _ )------'
+                                     |        ---
+                                     |
+                                     `---------------------->
+     
+                                     Fig. 8
+     
+     SYMBOLES RESERVES
+        Les symboles r‚serv‚s d‚signent des registres sp‚ciaux. S'il ne
+     faut pas respecter une architecture particuliŠre, les noms suivants
+     sont r‚serv‚s:
+     
+        PC   le compteur d'adresses au moment de l'ex‚cution du programme
+             (Program Counter)
+        SP   le pointeur de pile (Stack Pointer)
+        F    le registre d'indicateurs arithm‚tique (Flags)
+        S    le registre d'‚tat (System, Status)
+     
+     Les noms des registres doivent correspondre … ceux du fabricant.
+     Tableau 1 montre les noms des registres choisis en CALM pour quelques
+     processeurs.
+     
+        Z80:
+        Zilog:          F      A     BC     DE     HL     IX     IY     SP
+        CALM:           F      A     BC     DE     HL     IX     IY     SP
+        6809:
+        Motorola:      CC      D      X      Y      S      U     DP
+        CALM:           F     AB     IX     IY     SS     US      P
+        68000:
+        Motorola:     CCR     SR     D0..D7         A0..A7         A7
+        CALM:           F     SF     D0..D7         A0..A7         A7 = SP
+     
+                                     Tab. 1
+     
+     SYMBOLES PREDEFINIS
+        Il y a trois types de symboles pr‚d‚finis:
+     
+        * obligatoire:
+         APC        =   la valeur du compteur d'adresses de l'asembleur au
+                        d‚but de l'instruction dans laquelle APC apparaŒt
+         TRUE       =   -1      (tous les bits … 1)
+         FALSE      =   0       (tous les bits … 0) * facultatif:
+         SYSTIME    =   0 h m s         (32 bits BCD)
+         SYSDATE    =   0 a m j         (32 bits BCD)
+         FLOATPI    =   nombre pi
+         FLOATE     =   nombre e
+        * d‚fini dans l'assembleur: … ‚viter
+     
+     CALM D‚finitions                                             page: 7
+     
+     SYMBOLES DEFINIS PAR L'UTILISATEUR
+        Un symbole d‚fini par l'utilisateur est introduit explicitement par
+     le programmeur. Ce symbole d‚signe une constante ou une adresse
+     m‚moire et possŠde des attributs suppl‚mentaires cach‚s, qui aident …
+     l'assemblage et permettent la d‚tection d'erreurs. On ne peut pas
+     utiliser des symboles r‚serv‚s ou pr‚d‚finis.
+        Il y a quatre types de symboles d‚finis par l'utilisateur:
+     
+             - ‚tiquette globale
+             - ‚tiquette locale
+             - assignation
+             - pseudo-instruction IMPORT
+     
+     ETIQUETTE GLOBALE
+        Une ‚tiquette globale est un symbole qui est d‚fini dans le champ
+     d'‚tiquette d'un ordre d'assembleur. La valeur de l'‚tiquette est
+     donn‚e par la valeur du compteur d'adresses de l'assembleur. Une
+     ‚tiquette globale est valable dans le programme entier.
+        Le diagramme de syntaxe est illustr‚ … la figure 9.
+     
+     ‚tiquette globale
+                           ------------------     ---
+        ------------------>[ nom du symbole ]--->( : )--->
+                           ------------------     ---
+     
+                                     Fig. 9
+     
+     ETIQUETTE LOCALE
+        Une ‚tiquette locale existe seulement entre deux ‚tiquettes
+     globales. La longueur du nom du symbole est limit‚e … 8 caractŠres. Le
+     diagramme de syntaxe est donn‚ … la figure 10.
+     
+     ‚tiquette locale
+                           ------------------     ---      ---
+        ------------------>[ nom du symbole ]--->( $ )--->( : )--->
+                           ------------------     ---      ---
+     
+                                     Fig. 10
+     
+     ASSIGNATION
+        Un symbole est d‚fini par le signe ‚gal (=). La partie droite de
+     l'assignation est une expression ou un nombre point flottant. Le
+     diagramme de syntaxe est donn‚ … la figure 11.
+     
+        assignation
+                                                      ------------
+                                                /---->[expression]-----,
+            ------  ------  ------   -   ------ |     ------------     |
+        --->[s.f.]->[n.s.]->[s.f.]->(=)->[s.f.]-|                      |-->
+            ------  ------  ------   -   ------ |  ------------------- |
+                                                `->[nombre point flot]-'
+                                                   -------------------
+     
+        n.s.: nom du symbole
+                                     Fig. 11
+     
+     CALM D‚finitions                                             page: 8
+     
+     LA PSEUDO-INSTRUCTION IMPORT
+        Une pseudo-instruction IMPORT d‚clare les symboles d‚finis dans
+     d'autres modules de programme. Le nom r‚serv‚ .IMPORT est suivi par
+     une liste de symboles. Le diagramme de syntaxe est donn‚ … la fig. 12.
+     Les valeurs des symboles sont inconnues au moment de l'assemblage.
+     
+     pseudo-instruction IMPORT                     ------   ---   ------
+                                                 /-[s.f.]<-( , )<-[s.f.]-,
+                                                 | ------   ---   ------ |
+                                                 |                       |
+            --------     ---------     --------- V   ------------------  |
+        --->[ s.f. ]--->( .IMPORT )--->[ s‚pa  ]---->[ nom du symbole ]--->
+            --------     ---------     ---------     ------------------
+     
+                                     Fig. 12
+     
+     EXPRESSIONS
+        Les expressions avec les op‚rateurs de plus haute priorit‚ sont
+     ‚valu‚es en premier. L'‚valuation se fait de gauche … droite pour des
+     op‚rateurs de priorit‚ ‚gale. On peut changer la priorit‚ avec des
+     parenthŠses.
+        Le diagramme de syntaxe est donn‚ … la fig. 13. Les op‚rateurs sous
+     facteur ont la plus haute priorit‚, les op‚rateurs de comparaison la
+     plus faible.
+        Op‚rateurs avec un op‚rande (op‚rateurs monadiques):
+        +          positif
+        -          negatif (compl‚ment … deux)
+        .BIT.      ‚quivalent … 1.sl.facteur ou 2**facteur
+        .DEFINED.  retourne TRUE si symbole est d‚fini sinon FALSE
+        .EQ0.      n‚gation logique (0 -> TRUE, <>0 -> FALSE)
+        .HIGH8.    ‚quivalent … (facteur.sr.8).and.16'FF
+        .HIGH16.   ‚quivalent … (facteur.sr.16).and.16'FFFF
+        .LOG2.     retourne 0..31 si facteur = 1..16'FFFFFFFF (0 = erreur)
+        .LOW8.     ‚quivalent … facteur.and.16'FF
+        .LOW16.    ‚quivalent … facteur.and.16'FFFF
+        .NOT.      compl‚ment (compl‚ment … un)
+        .SQR.      ‚quivalent … facteur*facteur
+        .SQRT.     retourne la racine carr‚e (facteur = 0..16'7FFFFFFF)
+        Op‚rateurs avec deux op‚randes (op‚rateurs diadiques):
+        +          addition
+        -          soustraction
+        *          multiplication
+        **         ‚lever … une puissance
+        /          division (ou .DIV.)
+        .MOD.      reste de la division entier
+        .OR.       ou logique, ou inclusif
+        .AND.      et logique
+        .XOR.      ou exclusif
+        .ASR.      d‚calage arithm‚tique (2e op‚rande: amplitude)
+        .SR./.RR.  d‚calage/rotation … droite
+        .SL./.RL.  d‚calage/rotation … gauche (.ASL. = .SL.)
+        Op‚rateurs de comparaison (2 op‚randes, r‚sultat est TRUE ou FALSE)
+        .EQ.       ‚gal
+        .NE.       diff‚rent
+        .LO.       inf‚rieur                   * non-sign‚,
+        .LS.       inf‚rieur ou ‚gal           * logique
+        .HS.       sup‚rieur ou ‚gal           *
+        .HI.       sup‚rieur                   *
+        .LT.       plus petit que              + arithm‚tique,
+        .LE.       plus petit que ou ‚gal      + compl‚ment … deux
+        .GE.       plus grand que ou ‚gal      +
+        .GT.       plus grand que              +
+     
+     CALM D‚finitions                                             page: 9
+     
+     expression----------------------
+           --->[ expression simple  ]------------------------------------->
+               ----------------------  |                                 ^
+                                       V                                 |
+            /-----------------------------------------------------,      |
+            V     V     V     V     V     V     V     V     V     V      |
+           ----  ----  ----  ----  ----  ----  ----  ----  ----  ----    |
+          (.EQ.)(.NE.)(.LO.)(.LS.)(.HS.)(.HI.)(.LT.)(.LE.)(.GE.)(.GT.)   |
+           ----  ----  ----  ----  ----  ----  ----  ----  ----  ----    |
+            |     |     |     |     |     |     |     |     |     |      |
+            `-----------------------------------------------------'      |
+                                       |    ----------------------       |
+                                       `--->[ expression simple  ]-------'
+                                            ----------------------
+     
+     simple expression  ---
+                    /->( + )-,
+                    |   ---  |
+                    |        |    ---------
+            ------------->------->[ terme ]------------------------>
+                    |        | ^  ---------   V    V    V      V
+                    |   ---  | |             ---  ---  ----  -----
+                    `->( - )-' |            ( + )( - )(.OR.)(.XOR.)
+                        ---    |             ---  ---  ----  -----
+                               |              |    |    |      |
+                               `------<------------------------'
+     
+     terme--------
+        ->[fact. ]-------------------------------------------------------->
+        ^ --------V   V    V     V      V      V     V     V     V     V
+        |         -  ---  ---  -----  -----  -----  ----  ----  ----  ----
+        |        (*)( **)( / )(.MOD.)(.AND.)(.ASR.)(.SR.)(.SL.)(.RR.)(.RL.)
+        |         -  ---  ---  -----  -----  -----  ----  ----  ----  ----
+        |         |   |    |     |      |      |     |     |     |     |
+        `----<---------------------------------------------------------'
+     
+     facteur                ----------------------------
+                    /------>[  constante non-sign‚e    ]--------,
+                    |       ----------------------------        |
+                    |                                           |
+                    |                      ------------------   |
+                    |--------------------->[ nom du symbole ]---|
+                    |                  ^   ------------------   |
+                    |    -----------   |                        |
+                    |-->( .DEFINED. )--'                        |
+                    |    -----------                            |
+                    |                                           |
+           ------   |    ---    ----------------------    ---   V  ------
+        -->[s.f.]------>( ( )-->[ simple expression  ]-->( ) )---->[s.f.]->
+           ------   |    ---    ----------------------    ---   ^  ------
+                    |                                           |
+                    |                  -------                  |
+                    |----------------->[ APC ]------------------|
+                    |                  -------                  |
+                    |                                           |
+                    |            -------     -----------        |
+                    `---------->( .fop. )--->[ facteur ]--------'
+                                 -------     -----------
+     
+     fop = BIT, EQ0, HIGH8, HIGH16, LOG2, LOW8, LOW16, NOT, SQR, SQRT.
+     
+                                     Fig. 13
+     
+     CALM D‚finitions                                             page: 10
+     
+     INDICATEUR DE DONNEES
+        Un indicateur de donn‚es est ajout‚ directement soit au code
+     op‚ratoire soit aux op‚randes. Un point est utilis‚ comme caractŠre de
+     s‚paration. Un indicateur de donn‚es se compose d'un type de donn‚es
+     et d'une taille. Cette taille est toujours exprim‚e en bits mˆme pour
+     des chiffres BCD et des caractŠres. S'il n'y a pas de type de donn‚es
+     indiqu‚, il s'agit de donn‚es non sign‚es.
+     
+     Les types de donn‚es et leurs lettres r‚serv‚es associ‚es sont:
+        U ou rien   non sign‚, logique
+        A           arithm‚tique (compl‚ment … deux)
+        S           avec signe (signe et valeur absolue)
+        O           d‚placement (2n-1 biais)
+        D           d‚cimal (non sign‚, 2 chiffres par octet)
+        F           point flottant (format IEEE 754)
+     
+        On peut d‚finir d'autres types de donn‚es par des lettres
+     suppl‚mentaires pour des processeurs sp‚ciaux. Le diagramme de syntaxe
+     pour l'indicateur de donn‚es est donn‚ … la fig. 14.
+        Dans une instruction, il faut indiquer explicitement les donn‚es
+     trait‚es par des indicateurs de donn‚es. Pour des processeurs simples,
+     c.….d. qui ont pour chaque instruction qu'un type de donn‚es et qu'une
+     taille de donn‚es, cet indicateur de donn‚es peut ˆtre supprim‚, car
+     il est implicite.
+     
+     indicateur de donn‚es
+                   ---                                       ----------
+        --------->( . )------------------------------------->[ nombre ]--->
+                   ---    V    V    V    V    V    V    ^    ----------
+                         ---  ---  ---  ---  ---  ---   |
+                        ( U )( A )( S )( O )( D )( F )  |
+                         ---  ---  ---  ---  ---  ---   |
+                          |    |    |    |    |    |    |
+                          `-------------------------->--'
+     
+                                     Fig. 14
+     
+     INDICATEUR D'ADRESSES
+        On peut fixer une adresse, repr‚sent‚e par une expression
+     quelconque, dans un mode d'adressage absolu ou relatif par un
+     indicateur d'adresses plac‚ devant cette expression. Un accent
+     circonflexe est utilis‚ comme caractŠre de s‚paration.
+        Un indicateur d'adresses utilis‚ pour l'adressage absolu sp‚cifie
+     comment l'adresse donn‚e doit ˆtre ‚tendue … la taille de l'adresse
+     entiŠre. L'extension est soit non sign‚ (extension de z‚ro, rien ou
+     lettre U) soit arithm‚tique (extension du signe, lettre A), suivi par
+     le nombre de bits … prendre de l'adresse non ‚tendue.
+        L'indicateur d'adresses R va ˆtre d‚fini sous "adressage relatif"
+     et est utilis‚ pour l'adressage relatif.
+        Le diagramme de syntaxe d'un indicateur d'adresses est donn‚ … la
+     fig. 15.
+     
+     CALM D‚finitions                                             page: 11
+     
+     indicateur d'adresses
+                                            ----------         ---
+        --------------------->------------->[ nombre ]------->( ^ )--->
+                      |                ^    ----------   ^     ---
+                      |     ---        |                 |
+                      |--->( A )--------------->---------'
+                      |     ---    |
+                      |            |
+                      |     ---    |
+                      |--->( R )---|
+                      |     ---    |
+                      |            |
+                      |     ---    |
+                      `--->( U )---'
+                            ---
+     
+                                     Fig. 15
+     
+     ADRESSES, ESPACES D'ADRESSAGE ET ADRESSAGE DIRECT
+        Un espace d'adressage est une suite de locations m‚moire qui sont
+     num‚rot‚es … partir de z‚ro. Chaque location est souvent 8 bits (nomm‚
+     un octet) de large et est d‚termin‚ par un num‚ro unique ou une
+     expression ‚quivalente appel‚ son adresse. S'il y a plusieurs espaces
+     d'adressage, la d‚finition pr‚c‚dente se r‚fŠre … l'espace d'adressage
+     o— se trouvent les instructions du programme. Cet espace d'adressage
+     est appel‚ espace m‚moire. Les autres espaces d'adressage
+     (entr‚e/sortie, donn‚es) sont indiqu‚s par des caractŠres sp‚ciaux
+     r‚serv‚s ($, %).
+        Les espaces d'adressage des registres ne sont souvent pas ordonn‚s.
+     Les noms des registres sont r‚serv‚s. Des registres num‚rot‚s peuvent
+     ˆtre consid‚r‚s comme des espaces d'adressage qui commencent avec les
+     lettres A, D ou R.
+        L'adressage d'un espace d'adressage par son adresse (nom d'un
+     registre ou expression) est appel‚ adressage direct. Le diagramme de
+     syntaxe est donn‚ … la fig. 16.
+     
+        adressage direct
+                                ---------------
+                         /--->( nom de registre )---,
+                         |      ---------------     |
+        -----------------|                          |--->
+                         |      --------------      |
+                         `----->[ expression ]------'
+                                --------------
+     
+                                     Fig. 16
+     
+     ADRESSAGE INDIRECT
+        Le contenu d'une adresse quelconque dans un espace d'adressage
+     quelconque peut de nouveau ˆtre utilis‚ comme une adresse dans un
+     espace d'adressage quelconque. Ceci est appel‚ adressage indirect.
+        Si cet espace n'est pas l'espace m‚moire principale, alors il faut
+     indiquer l'espace d'adressage consid‚r‚.
+        Des accolades sont utilis‚es … indiquer que l'op‚rande est
+     r‚utilis‚ pour calculer la nouvelle adresse pendant l'ex‚cution de
+     l'instruction.
+        Le diagramme de syntaxe d'une adresse indirecte est illustr‚ … la
+     fig. 17. Le terme adresse effective est d‚fini plus tard.
+        On ne peut pas construire une adresse de registre par l'adressage
+     indirecte. Si ceci est possible sur un processeur particulier, il faut
+     consid‚rer les registres comme espace m‚moire ou espace de donn‚es
+     suppl‚mentaire.
+     
+     CALM D‚finitions                                             page: 12
+     
+     adresse indirecte
+                           ---     ---------------------     ---
+        ----------------->( { )--->[ adresse effective ]--->( } )--->
+                           ---     ---------------------     ---
+     
+                                     Fig. 17
+     
+     ADRESSAGE RELATIF
+        Puisque le PC (compteur d'adresses) a une valeur connue au moment
+     de l'assemblage, l'adressage indirect relatif par rapport au PC joue
+     un r“le particulier. Pour le programmeur, l'expression
+     {PC}+DEPLACEMENT est ‚quivalente … une adresse directe ADMEMOIRE
+     (uniquement dans l'espace m‚moire). L'assembleur ‚value la valeur
+     DEPLACEMENT … partir de la valeur de ADMEMOIRE et place le r‚sultat
+     dans l'instruction.
+        Le programmeur peut forcer l'adressage relatif en utilisant la
+     lettre R (indicateur d'adresses). Si le d‚placement est limit‚, on
+     ajoute derriŠre la lettre R le nombre de bits. DEPLACEMENT est
+     toujours cod‚ comme un nombre arithm‚tique (compl‚ment … deux) et est
+     aussi ‚tendu de signe jusqu'… la taille du PC.
+        L'indicateur relatif R a ‚t‚ pr‚sent‚ dans la fig. 15.
+     
+     AUTOMODIFICATION
+        Registres et locations m‚moire peuvent ˆtre modifi‚s s'ils sont
+     utilis‚s pour l'adressage indirect. Incr‚mentation ou d‚cr‚mentation
+     par 1, 2 ou 4 est l'op‚ration la plus fr‚quente.
+        Un seul signe plus ou moins est utilis‚ lorsque la valeur
+     incr‚ment‚/ d‚cr‚ment‚ d‚pend de la taille de l'op‚rande (1, 2, 4 pour
+     8, 16, 32 bits). Et deux signes plus ou moins encadrant la valeur
+     d'incr‚mentation/d‚cr‚mentation si cette valeur ne d‚pend pas de la
+     taille de l'op‚rande.
+        Le diagramme de syntaxe est donn‚ … la fig. 18.
+     
+     adresse indirecte automodifi‚e
+                     ---------------------    ----------------
+                /--->[ adresse effective ]--->[ modification ]-,
+           ---  |    ---------------------    ---------------- |   ---
+        ->( { )-|                                              |->( } )->
+           ---  |    ----------------    --------------------- |   ---
+                `--->[ modification ]--->[ adresse effective ]-'
+                     ----------------    ---------------------
+     
+     modification
+                                         ---
+                                     /->( + )-,
+                                     |   ---  |
+                            /--------|        |---------,
+                            |        |   ---  |         |
+                            |        `->( - )-'         |
+                            |            ---            |
+                            |                           |
+        --------------------|   ---   ----------   ---  |--->
+                            |->( + )->[ nombre ]->( + )-|
+                            |   ---   ----------   ---  |
+                            |                           |
+                            |   ---   ----------   ---  |
+                            `->( - )->[ nombre ]->( - )-'
+                                ---   ----------   ---
+     
+                                     Fig. 18
+     
+     CALM D‚finitions                                             page: 13
+     
+     ADRESSE EFFECTIVE
+        Le processeur peut calculer une adresse … partir d'informations
+     provenant directement ou indirectement du champ d'instruction.
+        Une adresse effective est la somme d'adresses diff‚rentes dans le
+     mˆme espace d'adressage. Chaque adresse peut se trouver dans un
+     sous-espace donn‚ et l'additionneur peut avoir une taille limit‚e.
+        La taille de l'additionneur et la maniŠre avec laquelle les
+     adresses sont ‚tendues sont donn‚es par des indicateurs d'adresses
+     facultatifs (uniquement n‚cessaire pour des instructions sp‚ciaux).
+        Les op‚rations entre les adresses sont ‚valu‚es pendant l'ex‚cution
+     de l'instruction. Les op‚rations possibles sont l'addition (+), la
+     soustraction (-) et la multiplication (*).
+        L'op‚rateur * est utilis‚ pour le scaling automatique, c.….d. la
+     multiplication du facteur d'adresse par 2, 4, etc. d‚pendant de la
+     taille des ‚l‚ments dans un tableau. Des parenthŠses sont utilis‚es
+     pour regrouper des expressions. Le diagramme de syntaxe r‚cursif d'une
+     adresse effective est donn‚ … la fig. 19.
+        S'il n'y a pas d'indicateurs d'adresses utilis‚s, l'assembleur
+     choisit l'instruction qui est la plus compacte et la plus rapide.
+     
+     adresse effective                 ------------------------------
+        ------------------------------>[ simple adresse effective   ]--->
+                         |        ^    ------------------------------
+                         |   ---  |
+                         |->( $ )-|
+                         |   ---  |
+                         |   ---  |
+                         `->( % )-'
+                             ---
+     
+     simple adresse effective        -------------------
+        ---------------------------->[ terme d'adresse ]---------->
+                                  ^  -------------------  V    V
+                                  |                      ---  ---
+                                  |                     ( + )( - )
+                                  |                      ---  ---
+                                  |                       |    |
+                                  `------------<---------------'
+     
+     terme d'adresse----------------
+        ----------->[facteur d'adr.]----------------------->-------------->
+                    ----------------  |         ^                     ^
+                                      |   ---   |   ----------------  |
+                                      `->( * )----->[facteur d'adr.]--'
+                                          ---       ----------------
+     
+     facteur d'adresse                  -------------------
+                                     /->[ adresse directe ]-,
+                                     |  ------------------- |
+                                     |                      |
+          ------                     |  ------------------- |      ------
+        ->[s.f.]------->--------------->[adresse indirecte]------->[s.f.]->
+          ------ |           ^  |    |  ------------------- |   ^  ------
+                 |  -------- |  |    |                      |   |
+                 `->[ i.a. ]-'  |    |  ------------------- |   |
+                    --------    |    `->[adr.ind.automod. ]-'   |
+                                |       -------------------     |
+                                |                               |
+                                |   ---   --------------   ---  |
+                                `->( ( )->[simp.adr.eff]->( ) )-'
+                                    ---   --------------   ---
+        i.a.: indicateur d'adresses         Fig. 19
+     
+     CALM D‚finitions                                             page: 14
+     
+     ADRESSAGE IMMEDIAT
+        Dans l'adressage imm‚diat on utilise l'adresse effective elle-mˆme
+     comme op‚rande. Ce mode d'adressage, r‚serv‚ pour l'op‚rande source,
+     est sp‚cifi‚ avec le diŠze comme premier ‚l‚ment.
+        La mˆme notation est utilis‚e pour les op‚randes avec des valeurs
+     arithm‚tiques (entier ou point flottant).
+        Le diagramme de syntaxe d'une adresse imm‚diate est donn‚ … la fig.
+     20.
+        Si l'instruction limite la taille de la valeur imm‚diate (p.ex.
+     instruction ADD-QUICK), on peut sp‚cifier sa taille avec un indicateur
+     d'adresses ou de donn‚es.
+     
+     adresse imm‚diate
+                              ---     ---------------------
+        -------------------->( # )--->[ adresse effective ]--->
+                              ---     ---------------------
+     
+                                 Fig. 20
+     
+     ADRESSAGE DE BITS
+        L'adresse d'octet d‚finie pr‚c‚demment pointe au bit 0 de l'octet,
+     c.….d. le bit de poids le plus faible (LSB) de cet octet. Les bits
+     sont num‚rot‚s de 0 … 7 dans l'octet adress‚, de 8 … 15 dans l'octet
+     suivant, etc. Des adresses de bits n‚gatives sont possibles: les bits
+     dans l'octet pr‚c‚dant sont num‚rot‚s de -8 … -1, o— le bit -8 est le
+     LSB.
+        L'adresse de bit est une extension de l'adresse d'octet. Tous les
+     modes d'adressage sont permis. Un deux-points (:) s‚pare l'adresse
+     d'octet de l'adresse de bit. Le diagramme de syntaxe est donn‚ … la
+     fig. 21.
+     
+     adresse de bit
+                                             ---------------------
+                                         /-->[ adresse effective ]--,
+            ---------------------   ---  |   ---------------------  |
+        --->[ adresse effective ]->( : )-|                          |--->
+            ---------------------   ---  |   ---   --------------   |
+                                         `->( # )->[ expression ]---'
+                                             ---   --------------
+     
+                                     Fig. 21
+     
+     LISTES
+        Une liste est une ‚num‚ration de registres, locations m‚moire ou
+     bits. Des registres, locations m‚moire ou bits cons‚cutifs peuvent
+     ˆtre r‚unis dans un groupe.
+        Une liste de registres ou locations m‚moire est soit d‚fini par des
+     groupes (le premier et le dernier ‚l‚ment, le premier ‚l‚ment et la
+     longueur), soit par des ‚l‚ments individuels. Une barre verticale
+     s‚pare les ‚num‚rations individuels.
+        Le diagramme de syntaxe d'une liste de registres ou de locations
+     m‚moire est illustr‚ … la fig. 22.
+     
+     CALM D‚finitions                                             page: 15
+     
+     liste de registres ou de locations m‚moire
+                                  ---
+                         /-------( | )<-----------,
+                         |        ---             |
+                         |                        |
+                         V  --------------------- |
+        ------------------->[ ‚l‚ment de liste  ]----->
+                            ---------------------
+     
+     ‚l‚ment de liste
+                                    ---    ---   ---------------------
+                                /->( . )->( . )->[ adresse effective ]-,
+                                |   ---    ---   --------------------- |
+                                |                                      |
+                                |           ---------------------      |
+                                |        /->[ adresse effective ]------|
+          --------------------- |   ---  |  ---------------------      |
+        ->[ adresse effective ]--->( % )-|                             |->
+          --------------------- |   ---  |   ---   --------------      |
+                                |        `->( # )->[ expression ]------|
+                                |            ---   --------------      |
+                                |                                      |
+                                `------------------->------------------'
+     
+                                     Fig. 22
+     
+        Une liste de bits est d‚finie ou bien par des groupes (la premiŠre
+     et la derniŠre adresse de bit, la premiŠre adresse de bit et la
+     longueur en bits) ou bien par chaque adresse de bit individuelle. Une
+     barre verticale s‚pare les bits individuels et les groupes de bits.
+        Le diagramme de syntaxe d'une liste de bits est donn‚ … la figure
+     23.
+     
+     liste de bits
+                                                        ---
+                                           /-----------( | )<----------,
+                                           |            ---            |
+                                           |                           |
+                                           |    --------------------   |
+                                           | /->[ ‚l‚ment de liste ]-, |
+            ---------------------   ---    V |  -------------------- | |
+        --->[ adresse effective ]->( : )-----|                       |---->
+            ---------------------   ---      |  -------------------- |
+                                             `->[ ‚l. de liste im. ]-'
+                                                --------------------
+     
+     ‚l‚ment de liste imm‚diat
+                                    ---    ---    ---   --------------
+                                /->( . )->( . )->( # )->[ expression ]-,
+                                |   ---    ---    ---   -------------- |
+                                |                                      |
+           ---   -------------- |   ---    ---   --------------        |
+        ->( # )->[ expression ]--->( % )->( # )->[ expression ]---------->
+           ---   -------------- |   ---    ---   --------------        |
+                                |                                      |
+                                `-------------------->-----------------'
+     
+                                     Fig. 23
+     
+     CALM D‚finitions                                             page: 16
+     
+     BITS DES REGISTRES D'INDICATEURS ET D'ETAT
+        Les bits dans les registres d'indicateurs et d'‚tat (F et S) des
+     processeurs sont souvent indiqu‚s par des lettres. Ces lettres ne sont
+     pas des adresses, mais des lettres mn‚motechniques ajout‚es aux codes
+     op‚ratoires.
+        Les lettres recommend‚es sont donn‚es ci-dessous. Il faut ‚viter …
+     tout prix une confusion possible avec les lettres d‚finies par le
+     fabricant.
+        lettre/fonction            utilisation
+        C report (Carry)           additioneur binaire et d‚calage
+        L lien (Link)              unique. si jamais utilis‚ comme report
+        Z z‚ro (Zero)              … un: r‚sultat est z‚ro
+        N signe (Negative)         … un: MSB … un (nombre n‚gatif)
+        H report aux. (Half Carry) report 4 bit (proc. 8 bits uniquement)
+        V d‚passement (Overflow)   … un: d‚passement de capacit‚ pour des
+                                   nombres arithm‚tiques
+        I interruption (Interrupt) … un: interruption active
+        T tra‡age (Trace)          … un: mode de tra‡age actif
+        S superviseur (Supervisor) … un: mode superviseur actif
+        Exemples: SETC, CLRC, etc.
+     
+     OPERANDES
+        Op‚rande est le terme collectif pour diff‚rentes possibilit‚s
+     d'adressage: adresse effective, adressage imm‚diat, adressage de bit,
+     liste, nombres arithm‚tiques et nombres point flottant.
+        La taille des donn‚es … transf‚rer est donn‚e par un indicateur de
+     donn‚es. L'indicateur de donn‚es est ajout‚ directement ou bien au
+     code op‚ratoire ou bien au(x) op‚rande(s).
+        Le diagrammes de syntaxe d'un op‚rande est donn‚ … la fig. 24.
+     
+     op‚rande
+                            ---------------------
+                       /--->[ adresse effective ]------------,
+                       |    ---------------------            |
+                       |                                     |
+                       |   ------------------------          |
+                       |-->[  adresse imm‚diate   ]----------|
+                       |   ------------------------          |
+                       |                                     |
+                       |      ------------------             |
+                       |----->[ adresse de bit ]-------------|
+                       |      ------------------             |
+        ---------------|                                     |--->
+                       |           ----------                |
+                       |---------->[ liste  ]----------------|
+                       |           ----------                |
+                       |                                     |
+                       |             --------------          |
+                       |        /--->[ expression ]----------|
+                       |   ---  |    --------------          |
+                       `->( # )-|                            |
+                           ---  |  ------------------------- |
+                                `->[ nombre point flottant ]-'
+                                   -------------------------
+     
+                                     Fig. 24
+     
+     CALM D‚finitions                                             page: 17
+     
+     CODES CONDITIONS
+        L'ex‚cution d'une instruction peut d‚pendre de l'‚tat d'un
+     indicateur. Un indicateur lui-mˆme peut ˆtre modifi‚ par une
+     instruction. Un code condition exprime l'‚tat d'un indicateur ou la
+     combinaison d'‚tats d'indicateurs. Les codes conditions sont des noms
+     mn‚motechniques qui sont compos‚s usuellement de deux lettres:
+        EQ   ‚gal
+        NE   diff‚rent
+        BC   bit … z‚ro (EQ)
+        BS   bit … un (NE)
+        CS   report … un
+        CC   report … z‚ro
+        VS   d‚passement … un
+        VC   d‚passement … z‚ro
+        MI   moins, n‚gatif
+        PL   plus, positif
+     
+        LO   inf‚rieur                |  aprŠs comparaison non sign‚e
+        LS   inf‚rieur ou ‚gal        |
+        HS   sup‚rieur ou ‚gal        |
+        HI   sup‚rieur                |
+     
+        LT   plus petit que           |  aprŠs comparaison arithm‚tique
+        LE   plus petit que ou ‚gal   |
+        GE   plus grand que ou ‚gal   |
+        GT   plus grand que           |
+     
+        Les instructions souvent combin‚es: JUMP, DJ, CALL, RET und SKIP.
+     
+     

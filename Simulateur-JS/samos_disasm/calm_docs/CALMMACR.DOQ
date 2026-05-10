@@ -1,0 +1,411 @@
+     CALMMACR.DOK                                               CALM macros
+     
+     1 Introduction
+        Les macros sont trait‚es par le macropr‚processeur. Le fichier
+     source contient un texte de programme et des macros qu'il faut
+     remplacer. Le macropr‚processeur fait partie de l'assembleur CALM
+     actuel et peut ˆtre ‚mul‚ par ASCALM fichier/R/V/C (‚liminer macros).
+     
+     1.1 Utilisation de macros
+        Le programmeur d'assembleur rencontre souvent des groupes
+     d'instructions r‚p‚titifs. En utilisant une instruction unique,
+     appel‚e instruction de macro, plusieurs instructions d'assembleur sont
+     int‚gr‚es et le programmeur est lib‚r‚ de r‚p‚titions embarrassantes.
+     En outre, on peut comprendre une instruction de macro comme
+     instruction d'un langage de haut niveau. Ceci est surtout int‚ressant
+     pour le programmeur puisque lui-mˆme a con‡u ce langage.
+     
+     1.2 Diff‚rence sous-programme - macro
+        Un sous-programme est caract‚ris‚ par le fait qu'il n'y a qu'une
+     copie du texte de sous-programme dans le programme. Le sous-programme
+     est ex‚cut‚ si l'instruction de programme qui appelle le
+     sous-programme, est ex‚cut‚e. Les paramŠtres transmis au
+     sous-programme d‚terminent sa fonction dans les limites ‚tablies au
+     d‚veloppement du sous-programme. Des sous-programmes diminuent la
+     longueur totale d'un programme ainsi que l'effort pour les ‚crire
+     puisqu'un appel remplace un sous-programme entier.
+        Cependant, les ‚conomies en m‚moire et d'effort co–tent du temps,
+     car il faut appeler le sous-programme, passer les paramŠtres, accŠder
+     aux paramŠtres et quitter le sous-programme. La macro ou "le code de
+     ligne" offre une solution plus rapide aux frais de la place m‚moire et
+     de l'effort. Une copie d'une instruction de macro au lieu d'un appel
+     de sous-programme est plac‚ dans le programme. Des modifications ne se
+     font pas au moment de l'ex‚cution mais lors de la programmation et
+     permettent toutes les fonctions d‚sir‚es par le programmeur. Ainsi on
+     trouve plusieurs copies de textes sp‚cialis‚s dans le programme au
+     lieu d'une seule copie d'un texte g‚n‚ral.
+     
+     2 Ligne de commande
+        Veuillez consulter le manuel d'utilisation de l'assembleur CALM.
+     
+     3 D‚finition d'une macro
+        La structure g‚n‚rale d'une macro a la forme suivante:
+           d‚but      d‚finit le nom de la macro, les paramŠtres pr‚d‚finis
+           partie principale  d‚finit le corps de la macro
+           fin
+        Il y a cinq pseudo-instructions pour les macros.
+     
+     3.1 .MACRO
+        .MACRO  nom_de_la_macro.extension,paramŠtre1,paramŠtre2,...,
+                paramŠtre8
+        Cette pseudo-instruction commence la d‚finition d'une macro. Le nom
+     de cette macro est nom_de_la_macro. Les caractŠres admis dans
+     nom_de_la_macro sont les mˆmes que pour les ‚tiquettes dans
+     l'assembleur CALM. Actuellement, 32 caractŠres sont significatifs dans
+     nom_de_la_macro. Une autre macro ne peut pas ˆtre d‚finie …
+     l'int‚rieur de la d‚finition d'une macro.
+        Extension est une chaŒne de caractŠres quelconque, termin‚e par une
+     virgule, qui d‚finit l'indicateur de donn‚es. On peut appeler
+     l'extension dans la partie principale d'une macro par le symbole
+     r‚serv‚ %0. Extension est la valeur pr‚d‚finie. Celle-ci est remplac‚e
+     par %0 si l'on n'a pas sp‚cifi‚ une extension lors de l'appel … la
+     macro correspondante. Le point ne fait pas partie de %0. Tous les
+     caractŠres sont permis sauf virgule, espace, tabulateur, point-virgule
+     et fin de ligne (<CR>).
+     
+     CALM macros                                                   page: 2
+     
+        ParamŠtre1 … paramŠtre8 sont les paramŠtres pr‚d‚finis de cette
+     macro et sont appel‚s dans la partie principale de la macro par les
+     symboles %1 … %8. Ils sont remplac‚s par les %1 … %8 si le paramŠtre
+     correspondant n'a pas ‚t‚ sp‚cifi‚ lors de l'appel … cette macro. Les
+     espaces et les tabulateurs sont permis … l'int‚rieur d'un paramŠtre.
+     Exemple:   .MACRO  TEST," ",D0
+        Si un paramŠtre contient des virgules il faut placer le paramŠtre
+     entre parenthŠses pointues: Exemple:
+                .MACRO  TEST,<{R0}+DEPLACEMENT,R1>,<R0,R2>
+        Pour passer la parenthŠse pointue gauche comme premier caractŠre,
+     il faut utiliser <<chaŒne de caractŠres>. Pour passer la parenthŠse
+     droite dans une telle chaŒne, il faut la r‚p‚ter deux fois (<chaŒne de
+     >> caractŠres).
+        La longueur d'un paramŠtre n'est limit‚e que par la longueur de la
+     ligne de source.
+     
+     3.2 .LOCALMACRO
+        .LOCALMACRO ‚tiquette1,...,‚tiquette8
+        Cette pseudo-instruction d‚finit jusqu'… huit ‚tiquettes qui
+     peuvent ˆtre utilis‚es dans la partie principale d'une macro. Ces
+     ‚tiquettes seront converties  en ‚tiquettes locales (M_0$..M_999$) si
+     cette macro est appel‚e. Ceci ‚vite des ‚tiquettes … double si cette
+     macro est appel‚e plusieurs fois. La syntaxe permise pour les
+     ‚tiquettes est la mˆme que pour les ‚tiquettes dans l'assembleur CALM.
+     Une virgule s‚pare les ‚tiquettes. Des espaces et des tabulateurs
+     avant et aprŠs les ‚tiquettes sont ignor‚s. Si cette
+     pseudo-instruction est utilis‚e, elle doit directement suivre .MACRO.
+     32 caractŠres sont actuellement significatifs dans les noms des
+     ‚tiquettes.
+     
+     3.3 .ENDMACRO
+        .ENDMACRO
+        Cette pseudo-instruction termine la d‚finition d'une macro.
+     
+     3.4 .LAYOUTMACRO
+        .LAYOUTMACRO    COMMENT,COMPRESS,ERROR,LIST,REPLACE TRUE
+        Cette pseudo-instruction est valable partout dans le programme. Les
+     paramŠtres possibles:
+        COMMENT m‚morise toute la partie principale d'une macro
+     (commentaires, lignes vides, etc.). Ces informations apparaissent
+     aussi dans les macros remplac‚es. Par d‚faut: pas de commentaires: les
+     lignes vides et les commentaires sont ignor‚s.
+        COMPRESS: le texte d'entr‚e est comprim‚ pour minimiser la longueur
+     du fichier de sortie. Tous les commentaires, les lignes vides et les
+     espaces au d‚but d'une ligne sont ‚limin‚s. Des espaces successifs
+     sont r‚duits … un. Aucune information d'assembleur n'est perdue.
+     Seulement la lisibilit‚ est entrav‚e. Par d‚faut: texte pas comprim‚.
+        ERROR copie les erreurs aussi dans le fichier de sortie. Par
+     d‚faut: les erreurs ne sont pas copi‚es dans le fichier de sortie.
+        LIST copie le nom de la macro et les paramŠtres lors de l'appel de
+     macro dans le fichier de sortie. Exemple:
+        ; MACRO TEST    {A0}+10,{A0+}
+        ... ici suit la partie principale de la macro
+        Par d‚faut: l'appel de la macro n'est pas copi‚.
+        REPLACE: un appel de macro qui s'appelle lui-mˆme (directement ou
+     par d'autres macros) est recursif et conduit … une erreur. Avec la
+     commande "REPLACE TRUE" la macro de nouveau appel‚e ne sera pas
+     interpr‚t‚e mais simplement remplac‚e par l'appel de macro lui-mˆme
+     (la ligne d'entr‚e reste inchang‚e). Vous trouverez des informations
+     plus d‚taill‚es dans le chapitre "traduction de texte d'assembleur
+     avec des macros". Par d‚faut: REPLACE FALSE: produit une erreur s'il y
+     a un appel de macro recursif.
+     
+     CALM macros                                                   page: 3
+     
+     3.5 .EXITMACRO
+     
+        .EXITMACRO
+        Cette pseudo-instruction termine le remplacement d'une macro.
+     L'effet correspond … .ENDMACRO. Les structures des pseudo-instructions
+     .IF/.ELSE/.ENDIF sont termin‚es correctement.
+     
+     3.5 Partie principale d'une macro
+        La partie principale d'une macro contient toutes les instructions
+     qui sont … remplacer lors d'un appel de macro. Des commentaires ou des
+     lignes vides ne sont normalement pas m‚moris‚s (voir .LAYOUTMACRO).
+     Exemple:
+               .MACRO         LDIR.8,D0,D0,#ERREUR#
+               .LOCALMACRO    BOUCLE
+        BOUCLE:
+               MOVE.%0        %1,%2
+               DJ.16,NMO      %3,BOUCLE
+               .ENDMACRO
+        L'appel de macro:
+               LDIR.16        {A0+},{A1+},D0
+        produit:
+        M_0$:
+               MOVE.16        {A0+},{A1+}
+               DJ.16,NMO      D0,M_0$
+     
+        On accŠde … l'indicateur de donn‚es (l'extension) par %0 et aux
+     paramŠtres par %1 … %8. Si les %0 … %8 sont plac‚s entre guillemets,
+     ils se r‚fŠrent aux paramŠtres de l'appel de macro, c.….d. les
+     paramŠtres pr‚d‚finis n'y sont pas inclus.
+        %0 est remplac‚ par l'indicateur de donn‚es; l'indicateur de
+     donn‚es est d‚fini … l'appel de macro, ou, si pas indiqu‚, par
+     l'extension pr‚d‚finie (si pr‚sent).
+        "%0" est remplac‚ par l'indicateur de donn‚es indiqu‚ … l'appel de
+     macro.
+        %1..%8 est remplac‚ par le n-iŠme paramŠtre; un paramŠtre est
+     d‚fini … l'appel de macro, ou, si pas indiqu‚, par les paramŠtres
+     pr‚d‚finis (si pr‚sent).
+        "%1".."%8" est remplac‚ par le n-iŠme paramŠtre indiqu‚e … l'appel
+     de macro.
+        %MC est le compteur de macro et est remplac‚ lors d'un remplacement
+     d'une macro par un nombre qui indique le nombre d'appels … cette macro
+     (1..999).
+        %ML est le niveau actuel d'imbrication auquel la macro appel‚e se
+     trouve. On peut utiliser ce nombre avec la pseudo-instruction .IF
+     pour, par exemple, tester si cette macro a ‚t‚ appel‚ au premier
+     niveau d'imbrication. Ceci est utile dans les traductions de texte
+     d'assembleur.
+     
+     3.6 Appel de macro
+        Nous avons pu voir dans les exemples pr‚c‚dants qu'un appel de
+     macro est compos‚ de trois champs: le nom de la macro, l'extension et
+     les paramŠtres. A chaque paramŠtre correspond exactement un nom de
+     paramŠtre utilis‚ dans la partie principale d'une macro: %1..%8. Un
+     paramŠtre … l'appel de macro peut ˆtre vide. Un paramŠtre …
+     l'int‚rieur d'une macro est vide si aucun paramŠtre n'a ‚t‚ indiqu‚ …
+     l'appel de macro et aucune valeur n'a ‚t‚ pr‚d‚fini. Pour un paramŠtre
+     vide, aucun caractŠre n'est ins‚r‚ dans la macro remplac‚e.
+        Une macro peut appeler une autre macro mais pas elle-mˆme
+     (exception: voir .LAYOUTMACRO). Jusqu'… dix appels de macro imbriqu‚s
+     sont possible.
+        La d‚finition d'une macro doit se trouver avant l'appel … cette
+     macro.
+     
+     CALM macros                                                   page: 4
+     
+     4 Extensions de macro
+        Les possibilit‚s de macro offertes correspondent aux performances
+     de macro habituelles. Mais il y a des fonctions de macro
+     additionnelles. Par exemple, on peut analyser les paramŠtres transmis
+     et utiliser l'assemblage conditionnel dans la partie principale d'une
+     macro.
+     
+     4.1 Analyse de paramŠtre
+        Les fonctions suivantes ne sont reconnues qu'… l'int‚rieur de la
+     partie principale d'une macro. Elles sont ‚valu‚es au moment de
+     l'appel de macro (remplacement de la macro). Abr‚viations utilis‚es:
+        %Vj        variables globales, modifi‚es par .VARMACRO 0..9 {,Text}
+        par        %i ou "%i" ou %Vj      0 <= i <= 8, 0 <= j <= 9
+        exp        nombres ou LENGTH()    op‚rateurs plus (+) et moins (-)
+        parcopy    par ou COPY()
+        parpos     parcopy ou nom de symbole
+     
+     Fonctions:
+        LENGTH(par) retourne la longueur de par.
+        COPY(par,exp1,exp2) g‚nŠre de par un nouveau paramŠtre qui commence
+     en position exp1 et qui a la longueur exp2.
+        DIGIT(parcopy) donne TRUE, si tous les caractŠres dans parcopy sont
+     des chiffres ["0".."9"], sinon FALSE.
+        LETTER(parcopy) donne TRUE, si tous les caractŠres dans parcopy
+     sont des lettres ["A".."Z","a".."z"], sinon FALSE.
+        HEX(parcopy) donne TRUE, si tous les caractŠres dans parcopy sont
+     des caractŠres hexad‚cimales ["0".."9", "A".."F","a".."f"], sinon
+     FALSE.
+        EMPTY(parcopy) donne TRUE, si la longueur de parcopy est nulle. On
+     peut v‚rifier la pr‚sence d'un paramŠtre lors d'un appel de macro.
+        UPCASE(parcopy) convertit parcopy en majuscules.
+        POS(parpos1,parpos2) retourne position de parpos1 dans parpos2
+     (0..)
+     
+     4.2 Assemblage conditionnel dans les macros
+        Les fonctions additionnelles deviennent encore plus puissantes si
+     l'on les combinent avec l'assemblage conditionnel. En plus, on peut
+     comparer deux chaŒnes de caractŠres si elles sont plac‚es avec un
+     signe d'‚galit‚ dans la pseudo-instruction .IF.
+        Exemples: Teste si un paramŠtre a ‚t‚ d‚fini … l'appel de macro
+     (68000):   .MACRO         LDIR
+                .LOCALMACRO    BOUCLE
+        BOUCLE:
+                MOVE.%0        %1,%2
+                .IF            EMPTY("%3")
+                *** erreur: pas de compteur!
+                .ELSE
+                DJ.16,NMO      %3,BOUCLE
+                .ENDIF
+                .ENDMACRO
+        Macro g‚n‚rale qui teste si une valeur est nulle (68000):
+                .MACRO         ZERO
+                .IF            LENGTH("%1")=2
+                .IF            COPY("%1",1,1)DIGIT(COPY("%1",2,1))=ATRUE
+                COMP.%0        #0,%1       ; registre d'adresse
+                .ELSE
+                TEST.%0        %1
+                .ENDIF
+                .ELSE
+                TEST.%0        %1
+                .ENDIF
+                .ENDMACRO
+     
+     CALM macros                                                   page: 5
+     
+     5 Les pseudo-instructions qui sont interpr‚t‚es
+        L'assembleur CALM interprŠte toutes les pseudo-instructions. Avec
+     les options /C/R/V on peut g‚n‚rer un fichier de sortie qui ne
+     contient plus les pseudo-instructions de macro et les
+     pseudo-instructions .IF/.ELSE/.ENDIF.
+     
+     6 Exemples de macro
+        L'utilisation de macros est illustr‚e dans les exemples suivants.
+        a) but: il faut ins‚rer un sous-programme dans un programme
+     uniquement si le sous-programme est appel‚. D‚finition:
+     
+                .MACRO         SP_NAME
+                .IF            %MC=1
+                JUMP           SPNAMEE
+        SPNAME:  
+                ... ici se trouve le sous-programme traditionnel
+                RET
+        SPNAMEE:
+                .ENDIF
+                CALL           SPNAME
+                .ENDMACRO
+        Premier appel de macro:
+                SP_NAME
+        g‚nŠre:
+                JUMP           SPNAMEE
+        SPNAME:  
+                ... ici se trouve le sous-programme traditionnel
+                RET
+        SPNAMEE:
+                CALL           SPNAME
+        D'autres appels de macro g‚nŠrent:
+                CALL           SPNAME
+     
+        b) but: instruction de transfert de bloc g‚n‚ral qui tient compte
+     de la taille du compteur (68000). Si le compteur est un registre de
+     donn‚es et d'une taille de .16, une optimisation est faite (DJ). De
+     plus, une instruction de transfert par d‚faut doit ˆtre d‚finie (comme
+     LDIR dans le Z80). D‚finition:
+     
+                .MACRO         MOVESTRING.8,{A0+},{A1+},D0.32
+                .LOCALMACRO    BOUCLE
+                .IF            COPY(%3,LENGTH(%3)-1,2)=16
+                 .IF       DIGIT(COPY(%3,2,1))COPY(%3,1,1)LENGTH(%3)=TRUED5
+                DEC.16         COPY(%3,1,2)
+        BOUCLE:
+                MOVE.%0         %1,%2
+                DJ.16,NMO      COPY(%3,1,2),BOUCLE
+                 .ELSE
+        BOUCLE:
+                MOVE.%0         %1,%2
+                DEC.16         COPY(%3,1,LENGTH(%3)-3)
+                JUMP,NE        BOUCLE
+                 .ENDIF
+                .ELSE
+                 .IF           COPY(%3,LENGTH(%3)-1,2)=32
+        BOUCLE:
+                MOVE.%0         %1,%2
+                DEC.32         COPY(%3,1,LENGTH(%3)-3)
+                JUMP,NE        BOUCLE
+                 .ELSE
+                  .IF           COPY(%3,LENGTH(%3),1)=8
+     
+     CALM macros                                                   page: 6
+     
+        BOUCLE:
+                MOVE.%0         %1,%2
+                DEC.8          COPY(%3,1,LENGTH(%3)-2)
+                JUMP,NE        BOUCLE
+                  .ENDIF
+                 .ENDIF
+                .ENDIF
+                .ENDMACRO
+     
+        L'appel de macro:
+                MOVESTRING
+        g‚nŠre:
+        M_0$:
+                MOVE.8         {A0+},{A1+}
+                DEC.32         D0
+                JUMP,NE        M_0$
+     
+        L'appel de macro:
+                MOVESTRING.16    {A4+},ADWINCH,{A6}+LEN.8
+        g‚nŠre:
+        M_1$:
+                MOVE.16        {A4+},ADWINCH
+                DEC.8          {A6}+LEN
+                JUMP,NE        M_1$
+     
+        L'appel de macro:
+                MOVESTRING.32    #0,{A3+},D2.16
+        g‚nŠre:
+                DEC.16         D2
+        M_2$:
+                MOVE.32        #0,{A3+}
+                DJ.16,NMO      D2,M_2$
+     
+     7 Traduction de texte d'assembleur avec des macros
+        L'utilisateur veut souvent ‚tendre le jeu d'instructions en
+     ajoutant quelques instructions avec des possibilit‚s d'op‚randes
+     additonnelles. C.….d. le code op‚ratoire ne change pas. Pour ‚viter
+     des appels de macro r‚cursifs, la pseudo-instruction .LAYOUTMACRO avec
+     l'op‚rande REPLACE est utilis‚e. Exemple: Il faut ajouter les deux
+     instructions suivantes au jeu d'instructions du Z80:
+                MOVE           DE,HL
+                MOVE           BC,HL
+     
+     CALM macros                                                   page: 7
+     
+        D‚finition de la macro:
+                .LAYOUTMACRO   REPLACE TRUE    ; remplace l'appel de macro
+     recursif
+                .MACRO         MOVE
+                .IF            %1%2=DEHL
+                MOVE           D,H
+                MOVE           E,L
+                .ELSE
+                 .IF           %1%2=BCHL
+                MOVE           B,H
+                MOVE           C,L
+                 .ELSE
+                MOVE           %1,%2
+                 .ENDIF
+                .ENDIF
+                .ENDMACRO
+                .LAYOUTMACRO   REPLACE FALSE
+     
+        L'appel de macro:
+                MOVE           {HL},A
+     
+        g‚nŠre:
+                MOVE           {HL},A
+     
+        L'appel de macro:
+                MOVE           DE,HL
+        g‚nŠre:
+                MOVE           D,H
+                MOVE           E,L
+     
+        La pseudo-instruction .LAYOUTMACRO avec le paramŠtre REPLACE TRUE
+     ‚vite qu'il y a un appel de macro r‚cursif (c.….d. une erreur) si l'on
+     rencontre de nouveau le code op‚ratoire MOVE.
+        Une autre utilisation est la traduction de la notation du fabricant
+     en notation CALM. Ceci est possible si l'organisation g‚n‚rale
+     (‚tiquettes, instructions, commentaires, etc.) ressemble … celle de
+     CALM.
+     
+     
+     

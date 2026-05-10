@@ -1,0 +1,733 @@
+     ASCALM.DOQ
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+                      ASSEMBLEUR CALM  Manuel d'utilisation
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+                              Table des matiŠres
+                                                               page
+        Fichiers CALM                                           1
+        Configuration minimale                                  1
+        Ligne de commande                                       1
+        Fonctionnement                                          2
+        Liste des r‚f‚rences crois‚es                           2
+        Format d'objet                                          2
+        Pseudo-instructions                                     4
+        Diff‚rences assembleur - standard CALM                  4
+        Messages d'erreur                                       5
+        Inline avec l'assembleur CALM                           6
+        G‚n‚ration de programmes .EXE avec l'assembleur CALM    9
+        Utilisation d'‚tiquettes locales                       14
+        Instructions de saut optimis‚es automatiquement        14
+        Extensions de l'assembleur CALM                        15
+     
+     
+     
+     
+     
+     
+     
+     
+     
+     
+                           (c) Copyright Mai 1994
+             Patrick F„h, La ColombiŠre, CH-1783 Pensier, Suisse
+     
+     Assembleur CALM manuel d'utilisation                          page: 1
+     
+     Fichiers CALM
+        Vous devez trouver les fichiers suivants sur votre systŠme
+     d'exploitation (nous supposons qu'il s'agit d'un assembleur CALM pour
+     le Z80):
+        ASCALM.*      assembleur CALM
+        MUFBIN.*      convertit le format binaire g‚n‚r‚ (MUFOM)
+        Z80.PRO       module pour le microprocesseur Z80
+        TZ80.ASM      fichier de test avec des instructions Z80
+        ASCALMER.TXT  liste d'erreurs pour l'assembleur
+        Configuration minimale:
+        Atari ST:     680x0, 256 Koctets libre, une disquette
+        PC/MS-DOS >= 2.x: proc. comp. avec iAPX86, 256 Koctets, une disque.
+        PC/MS-DOS:    mettez dans CONFIG.SYS au minimum FILES=16.
+        DOS, TOS:     ASCALMER.TXT, *.PRO et *.REF: le PATH act. est util.;
+                      on peut changer celui-ci par SET CALM=r‚pertoire(s).
+     
+     Ligne de commande
+        L'assembleur est d‚marr‚ par:
+        ASCALM <fichier_source> [/option]
+        Les options sont facultatives. Les options … disposition sont:
+        /Apath1;path2; ASCALM d‚finit des "paths" add. pour ASCALM, c.….d.
+                      pour ASCALMER.TXT, les *.PRO et *.REF. Exemple:
+                      DOS, TOS:       PATH C:\ASCALM;C:\BIN;
+                      ligne de commande: /AA:\PRODEF;
+                      instruction:    .PROC  Z80
+                      essaye d'ouvrir: 1) Z80.PRO
+                                      2) A:\PRODEF\Z80.PRO
+                                      3) C:\ASCALM\Z80.PRO
+                                      4) C:\BIN\Z80.PRO
+                      De mˆme pour ASCALMER.TXT et les *.REF. Long. limite
+                      pour tous les "paths" est de 80 caractŠres. Pour
+                      .PROC A:Z80   , ASCALM ne cherche que A:Z80.PRO.
+        fichier/B  .MUF  g‚nŠre un objet (format MUFOM)
+        fichier/C  .ASC  g‚nŠre fichier.ASC: toutes les macros et les .IF/
+                      .ELSE/.ENDIF sont remplac‚es. Pas possible si /E.
+        /Dnom=valeur  d‚finit un symbole avec nom et valeur (+ ou -, d‚c.)
+        fichier/E  .ERR  copie les messages d'erreurs dans ce fichier
+        /F       Fix  n'enlŠve pas les symb. inutilis‚s charg‚s par .REF.
+        /Ipath1;path2; InsŠre d‚finit des "paths" add. pour .INS. Exemple:
+                      ligne de commande: /IA:\SOURCE;B:\DEF\;C:\PROJET;
+                      instruction:    .INS  IO_PART
+                      essaye d'ouvrir: 1) A:\SOURCE\IO_PART.ASM
+                                      2) B:\DEF\IO_PART.ASM
+                                      3) C:\PROJET\IO_PART.ASM
+                                      4) IO_PART.ASM
+                      Longueur maximale pour tous les "paths": 80 caract.
+                      Pour  .INS B:IO_PART  , ASCALM cherche B:IO_PART.ASM.
+        fichier/L .LST  g‚nŠre un listage
+        /R       Read  les fichiers sources ne sont pas modifi‚s
+        fichier/S .REF  contient tous les symb. util. sous forme d'assign.
+        fichier/SA... .REF comme /S sauf que adr. avec des ":"; +TRUE etc.
+        fichier/Si... .REF ne pas ‚crire quelques symboles dans .REF: sans
+                      valeurs (i=0), adresses (1), == (2) ou .SYSCALL (3).
+        /V       Verify  ne g‚nŠre pas d'objet (annule /B)
+        /W       Wait  attend … chaque ligne avec une erreur
+        fichier/X .XRF  g‚n. des ind. de r‚f. crois‚es (ajout‚es au list.)
+        Si aucune option n'est sp‚cifi‚e, l'assembleur g‚nŠre uniquement le
+     programme objet. L'option /B est n‚cessaire si l'on veut donner au
+     fichier objet .MUF un autre nom ou le placer sur un autre disque. Le
+     fichier source peut ˆtre cr‚‚ par PFED ou tout autre ‚diteur
+     similaire. La longueur d'une ligne ne doit pas d‚passer 128 caractŠres
+     et doit finir par <CR><LF>.
+     
+     Assembleur CALM manuel d'utilisation                          page: 2
+     
+        A titre d'exemple, nous allons tester l'assembleur et son module:
+     Nous allons assembler le fichier de test correspondant et g‚n‚rer un
+     objet et un listage:
+        ASCALM TZ80/L
+        L'assembleur cherche le fichier TZ80.ASM et g‚nŠre l'objet TZ80.MUF
+     et le listage TZ80.LST. Si l'on veut assembler un fichier dans le
+     disque B: et mettre l'objet et le listage dans le disque A:, il faut
+     introduire:
+        ASCALM B:TZ80 A:TZ80/L/B      ou
+        ASCALM B:TZ80 A:TZ80/L A:TZ80/B
+     
+     Fonctionnement
+        L'assembleur est d‚marr‚ par la commande:   ASCALM <source>/L
+        On demande aussi un listage. L'assembleur ouvre le fichier source
+     et g‚nŠre les fichiers d'objet (.MUF) et de listage (.LST). Le fichier
+     source est lu deux fois. La g‚n‚ration de l'objet se fait dans la
+     deuxiŠme passe. Si des erreurs sont d‚tect‚es dans le programme, la
+     ligne d'erreur avec l'indication d'erreur est affich‚e dans le
+     listage, dans le fichier d'erreur (si /E), … l'‚cran et dans le source
+     (s'il n'y a pas /R):
+             MOVE    B,ALPHA         ; ligne dans un programme Z80
+                       ^ 31
+        Pour cela, l'assembleur cherche au d‚but de l'assemblage le fichier
+     ASCALMER.TXT. S'il n'existe pas sur le disque courant, toutes les
+     erreurs sont affich‚es par des nombres. Sinon, l'exemple pr‚c‚dent
+     apparaŒt comme suit:
+             MOVE    B,ALPHA         ; ligne dans un programme Z80
+                       ^ symbol value undefined
+        Les touches suivantes sont interpr‚t‚es lors d'un message d'erreur
+     affich‚:
+        "D"   ne plus attendre aprŠs une erreur
+        "S"   stopper le programme (cette commande est toujours possible)
+        "W"   attendre aprŠs une erreur
+        Lors d'une erreur fatale (fichier n'existe pas, disque plein,
+     etc.), l'assembleur s'arrˆte et affiche … l'‚cran les informations
+     associ‚es (ASCALM retourne 4 au systŠme, sinon 0). L'utilisateur doit
+     corriger l'erreur et peut red‚marrer l'assembleur.
+        Les fichiers d'E/S comme CON:, AUX:, etc. sont support‚s.
+        La ligne de commande suivante d‚vie le listage … l'‚cran et ne
+     g‚nŠre pas d'objet:   ASCALM TZ80 CON:/L/V
+        Important: L'assembleur fait une copie du fichier source afin
+     d'ins‚rer les messages d'erreurs. Prevoyez donc assez de place sur
+     disque! Cette copie (.AST) avec les messages d'erreurs remplacera
+     ensuite le fichier original. Avec l'option /R, l'assembleur ne
+     modifiera pas le(s) fichier(s) source(s). Cette copie est aussi faite
+     pour les fichiers ins‚r‚s (.INS).
+        CaractŠres dans les noms des fichiers: "0".."9","A".."Z","a".."z",
+     "_","?","-",":","\",".".
+     
+     Liste des r‚f‚rences crois‚es
+        Afin d'obtenir la liste des r‚f‚rences crois‚es d'un programme, il
+     faut indiquer l'option /X:   ASCALM TZ80 B:TZ80/X
+        L'assembleur g‚nŠre le fichier TZ80.XRF dans le disque B:. Plus il
+     y a de symboles plus ce fichier sera volumineux. La liste des
+     r‚f‚rences crois‚es est ‚crite (ajout‚e si /L) dans TZ80.LST. Le
+     ficher TZ80.XRF sera d‚truit.
+     
+     Format d'objet
+        L'assembleur CALM g‚nŠre des fichiers objets avec l'extension .MUF.
+     Ce format est un format ASCII. Les formats absolus (non translatables)
+     sont uniquement g‚n‚r‚s. Pour convertir le format MUFOM en, par
+     exemple, le format .COM, il faut utiliser MUFBIN:
+     
+     Assembleur CALM manuel d'utilisation                          page: 3
+     
+        MUFBIN <objet.MUF>/options
+     
+     MUFBIN limite actuellement la longueur du fichier de sortie … 64
+     Koctets (exception: pas de limitations pour /B/N, /H/N, /I/U, /M/U
+     (/N: si donn‚es cons‚cutives).
+        Les options suivantes d‚terminent le format de sortie (rien n'est
+     par d‚faut):
+     
+        /B        .BIN, binaire, il faut aussi indiquer /N ou /Y
+        i/E       .EXE, pour PC/MS-DOS, i (1..3) d‚finit la r‚part. de m‚m.
+        /H        .BIN, hexad‚cimal, ASCII, il faut aussi indiquer /N ou /Y
+        /I        .HEX, format hex d'Intel
+        /M ou i/M .FRS, format S de Motorola (par d‚faut: S0, S3 et S7;
+                  1/M: S0, S1 et S9; 2/M: S0, S2 et S8; 3/M: S0, S3 et S7)
+        /T        .TOS, pour Atari ST
+     
+        Pour les formats de sortie /B et /H on peut ins‚rer une entˆte
+     devant le fichier original. Ainsi, ces fichiers sont compos‚s d'une
+     entˆte (d'une longueur de 256 octets) et de donn‚es binaires. L'entˆte
+     contient les informations suivantes:
+     
+        d‚pl.   contenu [d‚termin‚ par]
+        0       adresse de chargement [.LOC le plus bas avec du code g‚n.]
+        2       longueur [code]
+        4       adresse de d‚but [.START d‚but]
+     
+        L'ordre des octets des trois valeurs est: LSB-MSB.
+        Si vous ne voulez pas ajouter une entˆte, introduisez /N. Le
+     fichier g‚n‚r‚ est aussi compatible avec un fichier .COM si l'adresse
+     de d‚but et de chargement sont 16'100. Et avec /Y vous pouvez ajouter
+     une entˆte. D'autres options sont:
+     
+        /A d‚place l'objet par une val. quelconque (nombre_hexad‚cimal/A).
+        /D taille des donn‚es (utilis‚ avec /E; nombre_hexad‚cimal/D).
+        /F effectue une op‚ration ET entre la valeur de filtrage indiqu‚e
+           et les adresses (nombre_hexad‚cimal/F).
+        /J hh/J: valeur pour les octets non-d‚finis, par d‚faut: 00/J.
+           Utilisez FF/J pour des EPROMs.
+        /L fixe le nombre d'octets de donn‚es dans /H, /I et /M
+           (gamme: 1 … 250; valeurs par d‚faut: 39, 32, 32; valeur/L).
+           La commande  /H 0/L  ne g‚n‚ra pas de <CR><LF>.
+        /O change le nom du fichier de sortie (nom_fichier/O).
+        /S taille de la pile (utilis‚ avec /E; nombre_hexad‚cimal/S).
+        /U ne remplit pas les zones non d‚finies (utilis‚ avec /I ou /M).
+        /V affiche toutes les inform. (sauf donn‚es) d'un fichier MUFOM.
+        /W ‚change LSB et MSB dans un mot de 16 bits (word swap).
+     
+     Exemples:
+        - changer le nom du fichier de sortie (p.ex. il faut g‚n‚rer le
+          format d'Intel): MUFBIN objet_entr‚e/I objet_sortie/O. Les
+          fichiers d'E/S (CON: ou AUX:) pour objet_sortie sont possibles.
+        - il faut placer les deux zones d'adresses 16'0 … 16'FFF et 16'F000
+          … 16'FFFF dans une EPROM de 8 Koctets. Par la commande:
+          MUFBIN objet_entr‚e/B/N 1FFF/F
+          un fichier binaire d'une longueur de 8 Koctets est g‚n‚r‚ qu'on
+          peut directement utiliser pour la programmation de l'EPROM. Sinon
+          le fichier aurait eu une longueur de 64 Koctets.
+        - d‚pl. un objet par une val. quelcon.: MUFBIN objet_entr‚e/I 200/A
+          Si, par exemple, le fichier a ‚t‚ ass. avec .LOC 0, MUFBIN g‚n.
+          un fichier en format .HEX d'Intel qui commence en 16'200. Le code
+          objet n'a pas ‚t‚ modifi‚. Si /F a ‚t‚ indiqu‚ en mˆme temps,
+          l'op‚ration de filtrage est effectu‚e en premier.
+     
+     Assembleur CALM manuel d'utilisation                          page: 4
+     
+     Pseudo-instructions
+        L'assembleur CALM supporte uniquement les pseudo-instructions
+     suivantes: .ALIGN, .APC, .ASCII, .ASCIZ, .ASCIZE, .BASE, .BLK.n,
+     .CHAP, .DATA.n, .ELSE, .END, .ENDIF, .ENDLIST, .ENDMACRO, .ERROR,
+     .EVEN, .EXITMACRO, .FILL.n, .IF, .INS, .LAYOUT, .LAYOUTMACRO, .LIST,
+     .LISTIF, .LOC, .LOCALMACRO, .MACRO, .MESSAGE, .ODD, .PAGE, .PROC,
+     .PROCSET, .PROCVAL, .RANGE, .REF, .START, .STRING, .SYSCALL, .TITLE,
+     .8, .16 und .32 .
+        Remarques concernant quelques pseudo-instructions (voir aussi
+     UPDATESF.*):
+        .ASCIZE
+        - correspond … .ASCIZ suivi de .EVEN (g‚nŠre 0).
+        .IF/.ELSE/.ENDIF
+        - IF <expression>  est vrai si <expression> <> z‚ro.
+        - IF..ENDIF peut ˆtre imbriqu‚ jusqu'… 32 fois.
+        - IF et l'ENDIF corres. doivent se trouver dans le mˆme fichier.
+        - IF..ELSE..ELSE..ENDIF est possible.
+        .INS
+        - Avec  .INS fichier,READONLY  le fichier ins‚r‚ est seulement lu.
+          Les messages d'erreurs ne seront pas ins‚r‚s dans ce fichier.
+          Ils sont ajout‚s dans le fichier principal (si permis) ou le
+          fichier d'erreur (si /E).
+        - extension par d‚faut: .ASM.
+        - on ne peut imbriquer .INS qu'une fois.
+        .LAYOUT
+        - les paramŠtres suivants sont possibles avec .LAYOUT:
+            HEX          (adr. et donn‚es en repr‚sentation hexad‚cimale)
+            LENGTH n     (n lignes par page de listage, n=0: infini)
+          Exemple:       .LAYOUT HEX, LENGTH 60 ; valeurs de l'assembleur
+        - les paramŠtres suivants ne sont pas modifiables:
+            HEX          (OCT n'est pas possible)
+            WIDTH   127  (longueur d'une ligne)
+            TAB     8    (un tabulateur correspond … 8 espaces)
+        .LIST/.ENDLIST
+        - LIST <expression>  est vrai si <expression> est <> z‚ro.
+        - LIST..ENDLIST peut ˆtre imbriqu‚ jusqu'… 255 fois.
+        - LIST/ENDLIST corres. doivent se trouver dans le mˆme fichier.
+        .LISTIF <expression>
+        - montre toutes les pseudo-instr. .IF/.ELSE/.ENDIF dans le listage.
+        - .LISTIF est actif si <expr.> est <> z‚ro ou si <expr.> manque.
+        .REF fichier
+        - fichier.REF est un fichier de texte qui contient des assignat.,
+          des .SYSCALL et des commentaires. Le fichier n'est lu qu'une fois
+          et n'est jamais modifi‚.
+        - le PATH actuel est respect‚.
+        .SYSCALL.n nom (n = 8, 16 ou 32)
+        - d‚finit une macro sp‚ciale: .MACRO nom; .n nom%1; .ENDMACRO. Les
+          SYSCALL sont admis dans les fichiers .REF. Exemple: INTDOS =
+          16'CD21; .SYSCALL.16 INT; appel: INT DOS; g‚nŠre: .16 INTDOS.
+     
+        Les pseudo-instructions suivantes ne sont pas support‚es: .ENDTEXT,
+     .EXPORT, .IMPORT, .TEXT
+     
+     
+     Diff‚rences assembleur CALM - standard CALM
+        L'assembleur CALM ne supporte pas le standard CALM complet. Les
+     diff‚rences:
+     
+        symbole:  - nom: 32 (‚tiquettes locales: 29) caractŠres signif.;
+                    caractŠres: "A".."Z", "a".."z", "_", "?" et "0".."9"
+                    (<> 1re position). Les accents sont convertis en maj.
+                  - valeur: 32 bits avec signe.
+     
+     Assembleur CALM manuel d'utilisation                          page: 5
+     
+        expression: - longueur de mot: 32 bits avec signe.
+                  - le nombre maximal d'op‚rations ouvertes est de 15.
+                  - ampl. de d‚calage (.SR., .SL. et .ASR.): l'ampl. de
+                    d‚calage est limit‚e … 8 bits (-256..+255). Une
+                    amplitude n‚gative inverse la direction du d‚calage.
+        g‚n‚ral:  - la longueur maximale d'une ligne de source est de 127.
+                  - l'APC a une taille de 32 bits.
+                  - quelques pseudo-instructions ne sont pas trait‚es.
+                  - les commandes "\" ne sont pas support‚es.
+                  - plusieurs .PROC dans le mˆme source ne sont pas poss.
+     
+     Messages d'erreur
+        Voir ASCALMER.TXT. Les messages d'erreur en fran‡ais se trouve en
+     ASCALMEF.TXT. Ce fichier peut ˆtre copi‚ dans ASCALMER.TXT.
+     
+     Quelques remarques concernant les erreurs fatales:
+        101 erreur dans .PROC
+            (Il y a une erreur dans la description du proc. On peut trouver
+            l'instruction qui provoque cette erreur par l'option /D).
+        102 .PROC trop long
+            (pas assez de m‚moire)
+        103 fichier n'existe pas
+            (Le fichier indiqu‚ aprŠs la pseudo-instruction .PROC ou .INS
+            n'existe pas.)
+        104 fichier d'entr‚e n'existe pas
+            (L'assembleur ne trouve pas le fichier source.)
+        105 fichier n'est pas cr‚able.
+            (Le fichier objet ou le fichier listage ne peut pas ˆtre cr‚‚.)
+        106 pas de .PROC
+            (Il faut placer  .PROC processeur  au d‚but du fichier.)
+        107 rebobinage du source ne va pas
+            (Le fichier de source est remis  z‚ro au d‚but de la seconde
+            passe. V‚rifiez le systŠme.)
+        108 mauvaise version du .PROC
+            (L'assembleur et la description du proc. ne sont pas compat.)
+        109 ligne de commande vide
+            (Il faut indiquer le fichier source et les options sur la ligne
+            de commande.)
+        110 nouveau symbole dans la deuxiŠme passe
+            (R‚assemblez si vous travailler sur un r‚seau. Essayez de
+            trouver la ligne fautive avec l'option /D.)
+        111 erreur de pile dans .PRO
+            (Erreur fatale pendant l'interpr‚tation de la description du
+            processeur.)
+        112 table des symboles trop grande
+        113 fin du fichier: .ENDMACRO manque
+        114 place pour macro trop petite
+        115 trop de .INS imbriqu‚s
+        116 stopp‚
+            (L'assemblage a ‚t‚ arrˆt‚ par la touche "S".)
+        117 .PROC/.REF: doit pr‚c‚der la g‚n‚ration de code
+            (.PROC et .REF doivent se trouver au d‚but du fichier;
+            aprŠs .TITLE.)
+     
+     Assembleur CALM manuel d'utilisation                          page: 6
+     
+     Inline avec l'assembleur CALM
+        TurboPascal et Pascal/MT+ permettent d'ins‚rer des codes machines
+     directement dans le source d'un programme Pascal grƒce … l'instruction
+     INLINE. Pour plus de d‚tails concernant la syntaxe et les limites
+     d'INLINE, consultez vos manuels d'utilisation de ces compilateurs
+     Pascal.
+        L'assembleur CALM peut ˆtre utilis‚ pour g‚n‚rer ces codes
+     machines. L'exemple suivant vous montre les diff‚rentes ‚tappes
+     n‚cessaires pour g‚n‚rer des instructions INLINE pour les processeurs
+     iAPX86 (PC/MS-DOS) et Z80 (CP/M-80).
+        La fonction HEXNIBBLE teste et convertit le caractŠre d'entr‚e en
+     un nombre si le caractŠre est un nombre hexad‚cimal
+     ('0'..'9','A'..'F','a'..'f').
+        FUNCTION HEXNIBBLE(VAR H:INTEGER):BOOLEAN;
+        {in: ActCh, out: H (value), HEXNIBBLE (true or false)}
+        VAR C:CHAR;
+          BEGIN
+          C:=UpCase(ActCh); HEXNIBBLE:=TRUE;
+          IF (C >= '0') AND (C <= '9') THEN
+            BEGIN H:=ORD(C)-ORD('0'); END
+          ELSE
+          IF (C >= 'A') AND (C <= 'F') THEN
+            BEGIN H:=ORD(C)-ORD('A')+10; END
+          ELSE BEGIN H:=0; HEXNIBBLE:=FALSE; END;
+          END;
+        Maintenant il faut traduire cette proc‚dure de Pascal en
+     assembleur. Les deux pages suivantes vous montrent la version iAPX86
+     et Z80 de la fonction HEXNIBBLE. Pour cela, les instructions en
+     assembleur sont ‚crites normalement dans un fichier source et
+     assembl‚es (avec listage). Ensuite on d‚truit les lignes de Pascal
+     dans la fonction HEXNIBBLE entre BEGIN et END et on insŠre le fichier
+     listage aprŠs BEGIN. Vous effacez toutes les lignes d'assembleur
+     superflues et les adresses (4 caractŠres au d‚but de chaque ligne). Il
+     faut placer ensuite les octets de listage g‚n‚r‚s sous la forme
+     INLINE: commencer par INLINE(, placer des $ et / entre les octets,
+     etc. Mettez les instructions d'assembleur en commentaire (avec (* et
+     *)). Finalement, il faut remplacer toutes les variables par leurs noms
+     (ici: RESULT, HEX).
+        Il est d'ailleurs important que vous connaissez bien la
+     repr‚sentation interne des diff‚rents types de donn‚es. Vous pouvez
+     ainsi consid‚rablement am‚liorer la version en assembleur (vitesse
+     d'ex‚cution, longueur du code). Par exemple, la valeur des variables
+     bool‚ennes est ici 1 pour TRUE et 0 pour FALSE. Il faut aussi savoir
+     comment on peut acc‚der aux diff‚rentes variables. Le manuel
+     d'utilisation de votre compilateur Pascal vous donne plus de d‚tails.
+        Pour mesurer la vitesse de la version Pascal et la version
+     assembleur, on a utilis‚ le programme suivant:
+        PROGRAM THEX;
+        VAR {teste la version en assembleur et en Pascal de HEXNIBBLE}
+          ACTCH: CHAR;
+          RESULT: BOOLEAN;
+          I, VALUE: INTEGER;
+        {$I P_HEX} { P_HEX: Pascal, A_HEX: assembleur }
+        BEGIN
+        WRITELN('START');
+        FOR I:=1 TO 1000 DO  {1000 x}
+          BEGIN
+          FOR ACTCH:=' ' TO '~' DO  {95 caractŠres}
+            RESULT:=HEXNIBBLE(VALUE);
+          END;
+        WRITELN('END');
+        END.
+     
+     Assembleur CALM manuel d'utilisation                          page: 7
+     
+     Les r‚sultats suivants ont ‚t‚ obtenus:
+     
+                            longueur du code  secondes (pour THEX)
+        version Pascal      192 octets        26,3
+        version assembleur   80 octets        20,6
+        diff‚rence          -58 %             -22 %
+        (compatible XT, horloge 4.77 MHz, TurboPascal 3.0 pour PC-DOS)
+     
+        Ces nombres peuvent vous donner un ordre de grandeur. La version
+     assembleur est souvent nettement plus rapide (2..4) que la version
+     Pascal. Et la longueur du code de la version assembleur est presque
+     toujours nettement plus courte.
+     
+     La version iAPX86 (PC/MS-DOS), Listage:
+        0000                            .TITLE  HEXNIBBLE
+        0000                            .PROC   IAPX86
+        2710     00002710               .LOC    10000
+        2710                    RESULT:                 ; address > 8 bit:
+        2710                    HEX:                ; assembler gets 16 bit
+        0000     00000000               .LOC    0
+        0000                    HEXNIBBLE:
+        0000   8A861027                 MOVE.8  [SS]+{BP}+RESULT,AL
+        0004   31C9                     XOR.16  CX,CX   ; CL = FALSE (=0),
+        0006   2C30                     SUB.8   #"0",AL ; CH = VALUE
+        0008   7211                     JUMP,LO END$
+        000A   3C09                     COMP.8  #9,AL
+        000C   760A                     JUMP,LS OK$
+        000E   2C07                     SUB.8   #"A"-"0"-10,AL
+        0010   3C0A                     COMP.8  #10,AL
+        0012   7207                     JUMP,LO END$
+        0014   3C0F                     COMP.8  #15,AL
+        0016   7703                     JUMP,HI END$
+        0018   88C5             OK$:    MOVE.8  AL,CH   ; nibble
+        001A   41                       INC.16  CX      ; CL = TRUE (=1)
+        001B   88AE1027         END$:   MOVE.8  CH,[SS]+{BP}+RESULT
+        001F   888E1027                 MOVE.8  CL,[SS]+{BP}+HEX
+     
+     Proc‚dure:
+        FUNCTION HEXNIBBLE(VAR H:INTEGER):BOOLEAN;
+        {in: ActCh, out: H (value), HEXNIBBLE (true or false)}
+        VAR RESULT:INTEGER; HEX:BOOLEAN;
+          BEGIN
+          RESULT:=ORD(UpCase(ActCh));
+          INLINE(
+          $8A/$86/RESULT/ (*        MOVE.8  [SS]+{BP}+RESULT,AL          *)
+          $31/$C9/        (*        XOR.16  CX,CX;CL=FALSE (=0), CH=VALUE*)
+          $2C/$30/        (*        SUB.8   #"0",AL                      *)
+          $72/$11/        (*        JUMP,LO END$                         *)
+          $3C/$09/        (*        COMP.8  #9,AL                        *)
+          $76/$0A/        (*        JUMP,LS OK$                          *)
+          $2C/$07/        (*        SUB.8   #"A"-"0"-10,AL               *)
+          $3C/$0A/        (*        COMP.8  #10,AL                       *)
+          $72/$07/        (*        JUMP,LO END$                         *)
+          $3C/$0F/        (*        COMP.8  #15,AL                       *)
+          $77/$03/        (*        JUMP,HI END$                         *)
+          $88/$C5/        (*OK$:    MOVE.8  AL,CH   ; nibble             *)
+          $41/            (*        INC.16  CX      ; CL = TRUE (=1)     *)
+          $88/$AE/RESULT/ (*END$:   MOVE.8  CH,[SS]+{BP}+RESULT          *)
+          $88/$8E/HEX);   (*        MOVE.8  CL,[SS]+{BP}+HEX             *)
+          HEXNIBBLE:=HEX; H:=RESULT;
+          END;
+     
+     Assembleur CALM manuel d'utilisation                          page: 8
+     
+     La version Z80 (CP/M-80), Listage:
+     
+        0000                            .TITLE  HEXNIBBLE
+        0000                            .PROC   Z80
+        2710     00002710               .LOC    10000
+        2710                    RESULT:
+        2710                    HEX:
+        0000     00000000               .LOC    0
+        0000                    HEXNIBBLE:
+        0000   3A1027                   MOVE    RESULT,A
+        0003   010000                   MOVE    #0,BC   ; C = FALSE (=0),
+        0006   D630                     SUB     #"0",A  ; B = VALUE
+        0008   3810                     JUMP,LO R8^END$
+        000A   FE0A                     COMP    #9+1,A
+        000C   380A                     JUMP,LO R8^OK$
+        000E   D607                     SUB     #"A"-"0"-10,A
+        0010   FE0A                     COMP    #10,A
+        0012   3806                     JUMP,LO R8^END$
+        0014   FE10                     COMP    #15+1,A
+        0016   3002                     JUMP,HS R8^END$
+        0018   47               OK$:    MOVE    A,B     ; nibble value
+        0019   0C                       INC     C       ; TRUE (=1)
+        001A   78               END$:   MOVE    B,A
+        001B   321027                   MOVE    A,RESULT
+        001E   79                       MOVE    C,A
+        001F   321027                   MOVE    A,HEX
+     
+     Proc‚dure:
+        FUNCTION HEXNIBBLE(VAR H:INTEGER):BOOLEAN;
+        {in: ActCh, out: H (value), HEXNIBBLE (true or false)}
+        VAR RESULT:INTEGER; HEX:BOOLEAN;
+          BEGIN
+          RESULT:=ORD(UpCase(ActCh));
+          INLINE(
+          $3A/RESULT/     (*        MOVE    RESULT,A                     *)
+          $01/$00/$00/    (*        MOVE    #0,BC  ;C=FALSE (=0), B=VALUE*)
+          $D6/$30/        (*        SUB     #"0",A                       *)
+          $38/$10/        (*        JUMP,LO R8^END$                      *)
+          $FE/$0A/        (*        COMP    #9+1,A                       *)
+          $38/$0A/        (*        JUMP,LO R8^OK$                       *)
+          $D6/$07/        (*        SUB     #"A"-"0"-10,A                *)
+          $FE/$0A/        (*        COMP    #10,A                        *)
+          $38/$06/        (*        JUMP,LO R8^END$                      *)
+          $FE/$10/        (*        COMP    #15+1,A                      *)
+          $30/$02/        (*        JUMP,HS R8^END$                      *)
+          $47/            (*OK$:    MOVE    A,B     ; nibble value       *)
+          $0C/            (*        INC     C       ; TRUE (=1)          *)
+          $78/            (*END$:   MOVE    B,A                          *)
+          $32/RESULT/     (*        MOVE    A,RESULT                     *)
+          $79/            (*        MOVE    C,A                          *)
+          $32/HEX);       (*        MOVE    A,HEX                        *)
+          HEXNIBBLE:=HEX; H:=RESULT;
+          END;
+     
+     Assembleur CALM manuel d'utilisation                          page: 9
+     
+     G‚n‚ration de programmes .EXE avec l'assembleur CALM
+        Le systŠme d'exploitation PC/MS-DOS connaŒt deux types de
+     programme: .COM et .EXE. Les programmes .COM sont des r‚sidus du
+     CP/M-80. Les segments de programme, de donn‚es et de pile sont dans
+     une zone de m‚moire 64 K. L'ex‚cution du programme commence en 16'100.
+     Et les quatre registres de segment du iAPX86 (CS, DS, ES et SS) ont
+     tous la mˆme valeur et pointent au d‚but d'un segment de 64 K. Mais
+     lors de l'ex‚cution d'un programme .COM, toute la m‚moire libre est
+     occup‚e et pas seulement les 64 K.
+        Les programmes .EXE sont plus compliqu‚s. Ils ont une entˆte qui
+     contient des informations sur la longueur du code, les valeurs
+     initiales du compteur d'adresse (CS:IP) et du pointeur de pile
+     (SS:SP), etc.. Un programme .EXE peut avoir des segments s‚par‚s de
+     programme, de donn‚es et de pile. La limitation … 64 K est ainsi
+     supprim‚e. Et un programme .EXE occupe uniquement la place m‚moire
+     n‚cessaire.
+        Il est possible de g‚n‚rer des programmes .EXE avec l'assembleur
+     CALM. Pour cela, le programmeur doit savoir o— se trouvent les
+     segments (programme, donn‚es, pile), comment ils ont ‚t‚ initialis‚s
+     et comment il faut les acc‚der. La longueur du segment de programme
+     est par contre limit‚e … 64 K (sans astuces). Et les segments de pile
+     et de donn‚es peuvent aussi avoir individuellement 64 K (et … peu de
+     frais une longueur illimit‚e).
+        La programmation de programmes .EXE avec l'assembleur CALM
+     n‚cessite un certain soin. Par exemple, il n'est pas possible de
+     charger un registre de segment (DS ou ES) avec une constante (p.ex.
+     par l'interm‚diaire d'AX avec une ‚tiquette), car le programme est
+     charg‚ … une autre adresse (inconnue). La translation (relogement) est
+     assur‚e par le programmeur. Il initialise correctement les registres
+     de segment et les utilise comme registre de base. Notez que ce style
+     de programmation est possible avec tous les assembleurs. Beaucoup de
+     programmes .EXE ne n‚cessitent pas de translation avant l'ex‚cution
+     (la table de translation dans l'entˆte de .EXE est vide).
+        Pour g‚n‚rer des programmes .EXE, vous avez besoin de l'assembleur
+     CALM (ASCALM et MUFBIN), et le module de processeur iAPX86 (iAPX186,
+     iAPX286).
+        L'assembleur CALM est aussi utilis‚ pour g‚n‚rer les programmes
+     .COM. Dans les programmes .COM il ne faut jamais modifier les
+     registres de segment et le programme commence par .LOC 16'100. Dans
+     les programmes .EXE il faut au moins initialiser le segment de
+     donn‚es. Avant l'ex‚cution, le systŠme initialise les segments CS
+     (programme) et SS (pile). Les segments DS et ES (donn‚es) pointent sur
+     le PSP (segment pr‚fixe de programme). Le programme .EXE commence dans
+     le fichier source toujours par .LOC 0. En plus, il faut sp‚cifier une
+     adresse de d‚part avec .START. Vous pouvez finalement assembler le
+     fichier source et convertir l'objet … l'aide de  MUFBIN fichier i/E 
+     en un fichier binaire .EXE sp‚cifique. Par contre, les tailles de la
+     pile et des donn‚es ne sont pas connues et il faut les sp‚cifier.
+     MUFBIN supporte actuellement trois r‚partitions de m‚moire. Ces trois
+     possibilit‚s d‚pendent de votre programmation. Vous trouvez trois
+     exemples correspondants (TESTEXE1/2/3.ASM) avec le module iAPX86. Ces
+     exemples vous donnent aussi plus de d‚tails.
+        La ligne de commande pour MUFBIN a l'allure suivante:
+     
+        MUFBIN fichier_d'entr‚e{.MUF} i/E
+               {taille_de_la_pile/S} {taille_des_donn‚es/D}
+     
+     Les indications entre accolades sont facultatives. i choisit une des
+     trois r‚partitions de m‚moire. /S et /D initialisent les tailles de la
+     pile et des donn‚es (si n‚cessaire). Exemple (deuxiŠme cas):
+     
+        MUFBIN TESTEXE2 2/E 80/S 104/D
+     
+     Assembleur CALM manuel d'utilisation                         page: 14
+     
+     Utilisation d'‚tiquettes locales
+        Les ‚tiquettes locales (p.ex. LOOP$) ne sont pas r‚ellement
+     diff‚rentes des ‚tiquettes globales (p.ex. START). Mais les ‚tiquettes
+     locales n'apparaissent pas dans la liste des r‚f‚rences crois‚es
+     puisque leur signification est seulement locale. De plus, les
+     ‚tiquettes locales sont uniquement valides entre deux ‚tiquettes
+     globales. Pour ces raisons, les ‚tiquettes locales sont utili‚es de
+     pr‚f‚rence dans des sous-programmes o— ils fixent les points pour les
+     boucles, les conditions et la sortie. Exemple:
+        TEXTHL:
+        PRINTC$ =       2               ; assignation locale
+                PUSH    HL              ; in HL ^.ASCIZ
+        LOOP$:
+                MOVE    {HL},A
+                OR      A,A
+                JUMP,EQ R8^END$         ; <NULL> trouv‚ ?
+                PUSH    HL
+                MOVE    A,E
+                MOVE    #PRINTC$,C      ; montre le caractŠre … l'‚cran
+                PUSH    HL
+                CALL    BDOS
+                POP     HL
+                INC     HL
+                JUMP    LOOP$
+        END$:
+                POP     HL
+                RET
+        LOOP$ et END$ sont aussi utilisables dans d'autres sous-programmes.
+     Pour cette raison, on ne doit pas toujours inventer des nouveaux noms
+     comme LOOP1, LOOP2, etc. De plus, seulement TEXTHL (le nom et le point
+     d'entr‚e du sous-programme) apparaŒt dans la liste des r‚f‚rences
+     crois‚es.
+     
+     Instructions de saut optimis‚es automatiquement
+        Il y a souvent deux possibilit‚s d'adressage pour les instructions
+     de saut dans plusieurs microprocesseurs 8 bit:
+     
+        1)  JUMP R8^‚tiquette  (adr. relatif, APC-128..APC+127, 2 octets)
+        2)  JUMP 16^‚tiquette  (adr. absolu, 0..16'FFFF, 3 octets)
+     
+        Si les indicateurs d'adresses R8^ et 16^ ne sont pas pr‚sents,
+     l'assembleur CALM choisit automatiquement soit le cas 1) ou 2). Mais
+     quand est-ce que le cas 1) est choisi? Le cas 1) a deux avantages par
+     rapport au cas 2): adressage relatif (ind‚pendant de l'adresse) et un
+     code machine plus court (2 au lieu 3 octets).
+        Consid‚rons la situation suivante:
+                ...
+        AVANT:
+                ...
+                JUMP    AVANT           ; (a)
+                ...
+                JUMP    APRES           ; (b)
+                ...
+        APRES:
+        Nous remarquons que   JUMP AVANT   (a) saute … une ‚tiquette qui
+     est d‚finie avant l'instruction de saut, et que   JUMP APRES   (b)
+     saute … une ‚tiquette qui est d‚finie aprŠs l'instruction de saut.
+        L'assembleur CALM g‚n‚rera en (a) peut-ˆtre l'adressage relatif.
+     Mais il faut que la distance de l'APC de l'instruction JUMP AVANT …
+     l'‚tiquette AVANT soit inf‚rieure … 129 octets. Si la distance est
+     plus grande, l'assembleur CALM choisira l'adressage absolu.
+     
+     Assembleur CALM manuel d'utilisation                         page: 15
+     
+        L'assembleur CALM choisit en (b) toujours l'adressage absolu, mˆme
+     si APRES est moins loin que 127 octets de (b). Ceci est d– … la raison
+     suivante: L'assembleur CALM lit le source deux fois (deux passes) pour
+     g‚n‚rer le code machine. Dans la premiŠre passe, l'assembleur CALM
+     rencontre en (b) l'‚tiquette inconnue APRES. L'assembleur CALM, ne
+     connaissant pas la valeur, considŠre le cas pire (c.….d. l'‚tiquette
+     est trŠs loin) et g‚nŠre un saut absolu (3 octets). La premiŠre passe
+     sert uniquement … calculer les adresses correctes. Dans la deuxiŠme
+     passe, l'assembleur CALM rencontre en (b) une deuxiŠme fois
+     l'‚tiquette APRES, cette fois-ci connue. Et, dans certains cas, la
+     distance est r‚ellement inf‚rieure … 128, c.….d. l'adressage relatif
+     serait possible. Mais, c'est maintenant impossible: Si l'assembleur
+     CALM choisirait ici une instruction de saut relatif (2 octets), alors
+     toutes les adresses suivantes seraient chang‚es d'un octet! Ainsi,
+     l'assembleur CALM doit choisir en (b) la mˆme instruction comme dans
+     la premiŠre passe, c.….d. une instruction de saut absolue.
+        Si l'on veut forcer le cas 1) ou 2), il faut utiliser les
+     indicateurs d'adresses R8^ et 16^. La mˆme chose est valide pour les
+     autres instructions optimis‚es automatiquement.
+     
+     Extensions de l'assembleur CALM
+        L'assembleur CALM est un macroassembleur, c.….d. qu'il traite aussi
+     les macros.
+        Les d‚finitions multiples dans les assignations et les ‚tiquettes
+     sont permises si les symboles ont le mˆme nom et la mˆme valeur (CR =
+     13; CR = 16'D).
+        Les assignations locales (A$ = 10) sont admises et ont les mˆmes
+     possibilit‚s que les ‚tiquettes locales (A$:).
+        Les assignations multiples (A == 10) sont possibles et la valeur
+     peut ˆtre modifi‚e (A == 20). Correspond … SET sur d'autres
+     assembleurs. On ne peut pas m‚langer les assignations normales (A =
+     10) avec les assignations multiples (A == 20).
+        La base des nombres peut ˆtre indiqu‚e par des lettres:
+     
+        16'nnnn  H'nnnn  X'nnnn  H'AF
+        10'nnnn  D'nnnn          D'100
+         8'nnnn  O'nnnn  Q'nnnn  Q'377
+         2'nnnn  B'nnnn          B'110
+     
+     
