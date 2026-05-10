@@ -161,6 +161,27 @@ class Smaky {
         this._wdLastRead    = null;
         this._wdLastReadLba = null;
 
+        // ── E405 RTC (Micro Electronic Marin, port $8) ───────────
+        // Bit-banging sériel : bit0=data, bit1=master OE, bit2=CS,
+        // bit3=clk. Adresse 4 bits LSB-first ($0F=lecture, $07=écri-
+        // ture), puis 7 octets BCD : H, M, dom, mo, yy, dow, sec.
+        // Asymétrie : la puce envoie en LSB-first, le master écrit
+        // en MSB-first (RR (HL) vs RL (HL) côté SAMOS).
+        // L'écriture met à jour `_rtcOffsetMs` (heure simulée =
+        // heure du PC + offset). L'horloge du PC n'est jamais
+        // touchée.
+        this._rtcCS        = false;
+        this._rtcLastClk   = false;
+        this._rtcPhase     = 'idle';      // 'idle' | 'addr' | 'data'
+        this._rtcAddrBits  = 0;
+        this._rtcAddrCount = 0;
+        this._rtcDir       = 'read';      // 'read' | 'write'
+        this._rtcByteIdx   = 0;
+        this._rtcBitIdx    = 0;
+        this._rtcReadBuf   = new Uint8Array(7);
+        this._rtcWriteBuf  = new Uint8Array(7);
+        this._rtcOffsetMs  = 0;
+
         // ── Callbacks utilisateur ────────────────────────────────
         this.onFrame      = null;   // (textMem, gfxMem, gfxMode) => void
         this.onStopped    = null;   // (reason) => void
@@ -604,6 +625,8 @@ class Smaky {
             return 0x85 | (this._prFifo.length > 0 ? 0x02 : 0x00);
         }
 
+        if (p === 0x08) return this._rtcIn();
+
         if (p >= 0x20 && p <= 0x27) return this._wd1002In(p);
 
         if (p === 0x19) return 0xFF;  // pas de FDC : timeout
@@ -653,6 +676,8 @@ class Smaky {
             }
             return;
         }
+
+        if (p === 0x08) { this._rtcOut(v); return; }
 
         if (p >= 0x20 && p <= 0x27) { this._wd1002Out(p, v); return; }
 
@@ -756,6 +781,111 @@ class Smaky {
                 this._wdMode = null; this._wdData = new Uint8Array(0); this._wdDataIdx = 0;
             }
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // E405 — Real-Time Clock (port $8)
+    // ─────────────────────────────────────────────────────────────
+
+    _bcd(n)   { return ((Math.floor(n / 10) << 4) | (n % 10)) & 0xFF; }
+    _unbcd(b) { return ((b >> 4) & 0xF) * 10 + (b & 0xF); }
+
+    /** Capture l'heure simulée (PC + offset) dans _rtcReadBuf en BCD. */
+    _rtcCaptureSnapshot() {
+        const d = new Date(Date.now() + this._rtcOffsetMs);
+        this._rtcReadBuf[0] = this._bcd(d.getHours());
+        this._rtcReadBuf[1] = this._bcd(d.getMinutes());
+        this._rtcReadBuf[2] = this._bcd(d.getDate());
+        this._rtcReadBuf[3] = this._bcd(d.getMonth() + 1);
+        this._rtcReadBuf[4] = this._bcd(d.getFullYear() % 100);
+        // JS getDay() : 0=dimanche..6=samedi → convention E405 1=lundi..7=dimanche
+        const jsDow = d.getDay();
+        this._rtcReadBuf[5] = this._bcd(jsDow === 0 ? 7 : jsDow);
+        this._rtcReadBuf[6] = this._bcd(d.getSeconds());
+    }
+
+    /** Décode _rtcWriteBuf BCD et met à jour _rtcOffsetMs. */
+    _rtcApplyWrite() {
+        const b   = this._rtcWriteBuf;
+        const H   = this._unbcd(b[0]);
+        const M   = this._unbcd(b[1]);
+        const dom = this._unbcd(b[2]);
+        const mo  = this._unbcd(b[3]);
+        const yy  = this._unbcd(b[4]);
+        // dow (b[5]) ignoré : redondant avec la date.
+        const ss  = this._unbcd(b[6]);
+        // Pivot YY → année : ≥70 → 19YY, sinon 20YY.
+        const Y = yy >= 70 ? 1900 + yy : 2000 + yy;
+        const target = new Date(Y, mo - 1, dom, H, M, ss).getTime();
+        if (!isNaN(target)) {
+            this._rtcOffsetMs = target - Date.now();
+        }
+    }
+
+    _rtcIn() {
+        // En lecture data : présente bit `_rtcBitIdx` (LSB-first) du
+        // snapshot[byteIdx] sur bit 0. Hors phase data en lecture : 0.
+        if (this._rtcPhase === 'data' && this._rtcDir === 'read' &&
+            this._rtcByteIdx < 7) {
+            return (this._rtcReadBuf[this._rtcByteIdx] >> this._rtcBitIdx) & 0x01;
+        }
+        return 0;
+    }
+
+    _rtcOut(v) {
+        const cs   = !!(v & 0x04);
+        const clk = !!(v & 0x08);
+        const data =  (v & 0x01);
+
+        // CS rising edge : nouvelle transaction → snapshot et reset FSM.
+        if (cs && !this._rtcCS) {
+            this._rtcPhase     = 'addr';
+            this._rtcAddrBits  = 0;
+            this._rtcAddrCount = 0;
+            this._rtcByteIdx   = 0;
+            this._rtcBitIdx    = 0;
+            this._rtcCaptureSnapshot();
+            this._rtcWriteBuf.fill(0);
+        }
+
+        // CS falling edge : fin de transaction. Si écriture complète,
+        // applique l'offset.
+        if (!cs && this._rtcCS) {
+            if (this._rtcPhase === 'data' && this._rtcDir === 'write' &&
+                this._rtcByteIdx === 7) {
+                this._rtcApplyWrite();
+            }
+            this._rtcPhase = 'idle';
+        }
+
+        // Front montant horloge pendant transaction.
+        if (cs && clk && !this._rtcLastClk) {
+            if (this._rtcPhase === 'addr') {
+                // 4 bits adresse, LSB-first.
+                this._rtcAddrBits |= (data << this._rtcAddrCount);
+                this._rtcAddrCount++;
+                if (this._rtcAddrCount === 4) {
+                    // $0F=lecture, $07=écriture (le bit 3 de l'adresse
+                    // distingue les deux ; tout autre code → ignoré).
+                    this._rtcDir   = (this._rtcAddrBits & 0x08) ? 'read' : 'write';
+                    this._rtcPhase = 'data';
+                }
+            } else if (this._rtcPhase === 'data') {
+                if (this._rtcDir === 'write' && this._rtcByteIdx < 7) {
+                    // Écriture : MSB-first (bit transmis = bit 7,6,...,0).
+                    this._rtcWriteBuf[this._rtcByteIdx] |= (data << (7 - this._rtcBitIdx));
+                }
+                // Avance compteur (lecture comme écriture).
+                this._rtcBitIdx++;
+                if (this._rtcBitIdx === 8) {
+                    this._rtcBitIdx = 0;
+                    this._rtcByteIdx++;
+                }
+            }
+        }
+
+        this._rtcCS      = cs;
+        this._rtcLastClk = clk;
     }
 }
 
