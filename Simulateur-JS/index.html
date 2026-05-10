@@ -294,6 +294,8 @@ body {
     <button id="disk-resume-btn" style="display:none;font-size:11px">🔓 Reprendre le dossier précédent</button>
     <span id="disk-dir-name" style="color:#777;font-size:11px;margin-left:4px"></span>
     <button id="start-btn" onclick="onStart()" style="margin-left:8px">▶ Démarrer</button>
+    <button id="audio-btn" onclick="toggleAudio()" title="Activer / couper le haut-parleur"
+            style="margin-left:4px;font-size:13px;padding:1px 6px">🔊</button>
     <span id="load-status" style="margin-left:8px">Sélectionnez le dossier contenant SM6WIN0-7.DSK, puis Démarrer.</span>
 </div>
 
@@ -409,7 +411,7 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
         <div class="sp-title">Vitesse</div>
         <div style="display:flex;align-items:center;gap:4px">
           <input type="number" id="speed-input" value="100" min="1" max="9999"
-                 title="Vitesse en % (100 = Z80 réel 3.5 MHz)"
+                 title="Vitesse en % (100 = Z80 réel 2.5 MHz)"
                  oninput="onSpeedChange(this.value)">
           <span style="color:#666;font-size:10px">%</span>
           <button class="sp-btn" onclick="onSpeedChange(100)" title="Revenir à 100%">100%</button>
@@ -473,6 +475,7 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
 <script src="z80.js"></script>
 <script src="disasm.js"></script>
 <script src="smaky.js"></script>
+<script src="audio.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
 // UI principale du simulateur Smaky 6
@@ -491,6 +494,26 @@ let fnKeysKbd   = 0;   // bits actifs via clavier
 let altgrPending = false;
 let altgrSynthCtrl = null;  // code du Ctrl synthétique envoyé avec AltGr
 let altgrLastCtrl  = null;  // dernier Ctrl pressé (candidat fantôme pour AltGr)
+
+// ─── Haut-parleur ────────────────────────────────────────────────
+// Persiste la préférence on/off entre sessions. Le contexte audio
+// lui-même n'est créé que lors d'un clic utilisateur.
+const speaker = new SpeakerAudio();
+try {
+    if (localStorage.getItem('audioOff') === '1') speaker.setEnabled(false);
+} catch (_) {}
+
+function toggleAudio() {
+    speaker.resume();   // ce clic est un geste utilisateur → débloque
+    const on = speaker.setEnabled(!speaker.enabled);
+    document.getElementById('audio-btn').textContent = on ? '🔊' : '🔇';
+    try { localStorage.setItem('audioOff', on ? '0' : '1'); } catch (_) {}
+}
+// Synchroniser l'icône avec l'état chargé.
+{
+    const ab = document.getElementById('audio-btn');
+    if (ab) ab.textContent = speaker.enabled ? '🔊' : '🔇';
+}
 
 // Canvas (initialisés dans initCanvas())
 const textCanvas = document.getElementById('text-canvas');
@@ -1614,7 +1637,7 @@ function onSpeedChange(val) {
     const pct = Math.min(9999, Math.max(1, Math.round(parseFloat(val))));
     if (isNaN(pct)) return;
     document.getElementById('speed-input').value = pct;
-    if (sim) sim.speed = pct / 100 * 3.5;
+    if (sim) sim.speed = pct / 100 * 2.5;
 }
 
 // ─── Clic Démarrer / Arrêt / Reprise ────────────────────────────
@@ -1640,7 +1663,7 @@ function startSimulation() {
 
     // Créer le simulateur
     sim = new Smaky();
-    sim.speed = (isNaN(pct) ? 100 : pct) / 100 * 3.5;
+    sim.speed = (isNaN(pct) ? 100 : pct) / 100 * 2.5;
     sim.loadROM(romBuffer);
     if (diskBuffer) sim.loadDisk(diskBuffer);
 
@@ -1648,6 +1671,11 @@ function startSimulation() {
     sim.onPpByte  = () => updatePpStatus();
     updateDiskPanel();
     sim.onFrame   = onFrame;
+    // Haut-parleur : ce démarrage est dans un handler de clic, donc
+    // on peut débloquer l'AudioContext sans risque (politique autoplay).
+    speaker.resume();
+    sim.onSpeakerChunk = (events, ticks, levelStart, tStateSec) =>
+        speaker.feed(events, ticks, levelStart, tStateSec);
     // Electron : persister les écritures disque sur le système de fichiers
     if (window.electronAPI) {
         sim.onDiskWrite = (name, buf) => window.electronAPI.writeDisk(name, buf);

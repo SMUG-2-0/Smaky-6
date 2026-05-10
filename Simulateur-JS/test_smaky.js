@@ -6,7 +6,7 @@ const fs = require('fs');
 const { Smaky } = require('./smaky.js');
 
 const sim = new Smaky();
-sim.loadROM(fs.readFileSync('../ROM18.bin'));
+sim.loadROM(fs.readFileSync('./ROM18.bin'));
 
 // Simuler 100 instructions pas-à-pas
 const cpu = sim.cpu;

@@ -53,6 +53,7 @@ class Z80 {
 
         // Execution
         this.ticksToStop = 0;
+        this.tCount      = 0;   // T-states écoulés depuis le début du run() courant
 
         // Parity table
         this._par = new Uint8Array(256);
@@ -105,12 +106,19 @@ class Z80 {
     }
 
     // ── Run loop ───────────────────────────────────────────────────
+    // Pendant l'exécution, this.tCount reflète le nombre de T-states déjà
+    // écoulés depuis le début de ce run(). Quand onInput/onOutput sont
+    // appelés depuis _step(), tCount tient les T-states qui précèdent
+    // l'instruction courante (le coût de l'I/O lui-même n'est ajouté
+    // qu'au retour de _step). Cela suffit pour horodater au mieux les
+    // bascules du haut-parleur.
     run() {
-        let ticks = 0, events = 0;
+        let events = 0;
         const limit = this.ticksToStop;
-        while (ticks < limit) {
+        this.tCount = 0;
+        while (this.tCount < limit) {
             if (this._bp[this.pc]) { events |= Z80.BREAKPOINT_HIT; break; }
-            ticks += this._step();
+            this.tCount += this._step();
         }
         return events;
     }

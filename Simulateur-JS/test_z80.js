@@ -7,7 +7,7 @@ const Z80 = require('./z80.js');
 const cpu = new Z80();
 
 // Charger la ROM
-const rom = fs.readFileSync('../ROM18.bin');
+const rom = fs.readFileSync('./ROM18.bin');
 for (let i = 0; i < rom.length && i < 65536; i++) cpu.mem[i] = rom[i];
 
 // Callbacks I/O minimaux

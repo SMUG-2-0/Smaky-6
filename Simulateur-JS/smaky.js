@@ -27,8 +27,8 @@ const GFX_ADDR        = 0x4600;  // SGRA : début écran graphique
 const GFX_W           = 256;
 const GFX_H           = 120;
 const GFX_BPR         = GFX_W >> 2;  // 64 octets par paire de lignes
-const TICKS_PER_CHUNK = 17500;        // ~5 ms Z80 (3.5 MHz)
-const TICKS_PER_FRAME = 70000;        // 3.5 MHz / 50 Hz
+const TICKS_PER_CHUNK = 12500;        // ~5 ms Z80 (2.5 MHz)
+const TICKS_PER_FRAME = 50000;        // 2.5 MHz / 50 Hz
 
 // ─── Table Smaky → Unicode ────────────────────────────────────────
 const _SMAKY2ISO = [
@@ -74,9 +74,9 @@ class Smaky {
         this._lastTime      = 0;      // timestamp ms du dernier tick
 
         // ── Vitesse ──────────────────────────────────────────────
-        // 3.25 = vitesse relative au Z80 réel 3.5 MHz
-        // 0 = illimité (max CPU)
-        this.speed          = 3.25;
+        // Valeur en MHz "Z80-équivalent" : 2.5 = vitesse réelle du
+        // Smaky 6 (quartz 2.5 MHz). 0 = illimité (max CPU).
+        this.speed          = 2.5;
 
         // ── Clavier ──────────────────────────────────────────────
         // Modèle matériel Smaky 6 : port $1 bit2 passe à 1 quand une touche
@@ -127,6 +127,18 @@ class Smaky {
 
         // ── Timer 50 Hz ──────────────────────────────────────────
         this._timer50Pending = false;
+
+        // ── Haut-parleur (port $3) ──────────────────────────────
+        // Schéma matériel : chaque OUT $3 fait basculer une JK qui
+        // commande un petit haut-parleur via une résistance. La valeur
+        // écrite est ignorée. On collecte les bascules du tick courant
+        // avec leur position en T-states (depuis le début du tick) et
+        // on les transmet via onSpeakerChunk pour reconstituer le
+        // signal carré côté Web Audio.
+        this._spkLevel        = 1;     // état courant de la JK : +1 / -1
+        this._spkChunkEvents  = null;  // array exposé à _ioOut pendant cpu.run()
+        this._spkChunkAccum   = 0;     // T-states écoulés avant le run() en cours
+        this.onSpeakerChunk   = null;  // (events, ticks, levelStart, tStateSec) => void
 
         // ── WD1002 ───────────────────────────────────────────────
         this._wdSectorSize       = 256;
@@ -275,10 +287,20 @@ class Smaky {
         if (this.speed <= 0) {
             ticksToRun = TICKS_PER_FRAME;  // illimité : 1 frame de Z80 par tick JS
         } else {
-            // speed en MHz relatif, Z80 réel = 3.5 MHz
+            // speed en MHz "Z80-équivalent", Z80 réel du Smaky 6 = 2.5 MHz
             const mhz = this.speed;
             ticksToRun = Math.round(mhz * 1e6 * elapsed / 1000);
         }
+
+        // Préparer la collecte des bascules haut-parleur pour ce tick.
+        // Ne rien collecter (et donc ne rien faire dans _ioOut) si aucun
+        // consommateur n'écoute, ou si la vitesse est illimitée (audio
+        // n'aurait pas de sens : pas de référence temporelle).
+        const wantSpk    = !!(this.onSpeakerChunk && this.speed > 0);
+        const spkEvents  = wantSpk ? [] : null;
+        const spkLvlInit = this._spkLevel;
+        this._spkChunkEvents = spkEvents;
+        this._spkChunkAccum  = 0;
 
         let ticksDone = 0;
         while (ticksDone < ticksToRun && this.mode === 'running') {
@@ -286,9 +308,12 @@ class Smaky {
             cpu.ticksToStop = chunk;
             const ev = cpu.run();
             ticksDone += chunk;
+            if (wantSpk) this._spkChunkAccum += cpu.tCount;
 
             if (ev & _Z80.BREAKPOINT_HIT) {
                 this.mode = 'interactive';
+                this._emitSpeaker(spkEvents, spkLvlInit);
+                this._spkChunkEvents = null;
                 this._emitFrame();
                 if (this.onStopped) this.onStopped('breakpoint');
                 return;
@@ -304,8 +329,23 @@ class Smaky {
             }
         }
 
+        this._emitSpeaker(spkEvents, spkLvlInit);
+        this._spkChunkEvents = null;
         this._emitFrame();
         this._scheduleNext();
+    }
+
+    _emitSpeaker(events, levelStart) {
+        if (!events || events.length === 0) return;
+        // tStateSec : durée d'un T-state en secondes de temps réel
+        // (= durée audio à produire). Calculée à partir de la vitesse
+        // instantanée du simulateur, pour que le son reste synchrone
+        // avec la perception visuelle, même si l'utilisateur change
+        // la vitesse en cours de session.
+        const tStateSec = 1 / (this.speed * 1e6);
+        this.onSpeakerChunk(events, this._spkChunkAccum, levelStart, tStateSec);
+        // Toggle final : nombre impair de bascules → niveau inversé.
+        if (events.length & 1) this._spkLevel = -this._spkLevel;
     }
 
     _emitFrame() {
@@ -585,6 +625,15 @@ class Smaky {
 
         if (p === 0x01) {
             if (v & 0x08) this._timer50Pending = false;
+            return;
+        }
+
+        if (p === 0x03) {
+            // Haut-parleur : bascule JK, valeur ignorée. On enregistre
+            // la position T-state de la bascule pour le module audio.
+            if (this._spkChunkEvents) {
+                this._spkChunkEvents.push(this._spkChunkAccum + this.cpu.tCount);
+            }
             return;
         }
 

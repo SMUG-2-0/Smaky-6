@@ -5,7 +5,7 @@
 const fs = require('fs');
 const { disasmAt } = require('./disasm.js');
 
-const rom = fs.readFileSync('../ROM18.bin');
+const rom = fs.readFileSync('./ROM18.bin');
 const memRead = (a) => rom[a & 0xFFFF] ?? 0;
 
 // Désassembler les 16 premières instructions depuis 0x0000
