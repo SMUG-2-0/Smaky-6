@@ -74,23 +74,23 @@ RST38H:  PUSH HL                 ;0038: E5
  PUSH HL                         ;0041: E5         
  LOAD A,$1                       ;0042: DB 01      
  AND A,#10                       ;0044: E6 08      
- JUMP EQ,L_0081                  ;0046: 28 39      
+ JUMP. EQ,L_0081                 ;0046: 28 39      
  LOAD $1,A                       ;0048: D3 01      
  CALL L_0148                     ;004A: CD 48 01   
  CALL L_0195                     ;004D: CD 95 01   
  LOAD HL,H'456E                  ;0050: 2A 6E 45   
  LOAD A,H                        ;0053: 7C         
  OR A,L                          ;0054: B5         
- JUMP EQ,L_005F                  ;0055: 28 08      
+ JUMP. EQ,L_005F                 ;0055: 28 08      
  DEC HL                          ;0057: 2B         
  LOAD H'456E,HL                  ;0058: 22 6E 45   
  LOAD A,H                        ;005B: 7C         
  OR A,L                          ;005C: B5         
- JUMP EQ,L_006C                  ;005D: 28 0D      
+ JUMP. EQ,L_006C                 ;005D: 28 0D      
 L_005F:  LOAD HL,H'4572          ;005F: 2A 72 45   
  LOAD A,H                        ;0062: 7C         
  OR A,L                          ;0063: B5         
- JUMP L_0074                     ;0064: 18 0E      
+ JUMP. L_0074                    ;0064: 18 0E      
 NMI:     PUSH HL                 ;0066: E5         
  LOAD HL,H'456C                  ;0067: 2A 6C 45   
  EX (SP),HL                      ;006A: E3         
@@ -99,7 +99,7 @@ L_006C:  LOAD HL,H'4570          ;006C: 2A 70 45
  LOAD DE,#L_005F                 ;006F: 11 5F 00   
  PUSH DE                         ;0072: D5         
  JUMP (HL)                       ;0073: E9         
-L_0074:  JUMP EQ,L_007B          ;0074: 28 05      
+L_0074:  JUMP. EQ,L_007B         ;0074: 28 05      
 L_0076:  LOAD DE,#L_007B         ;0076: 11 7B 00   
  PUSH DE                         ;0079: D5         
  JUMP (HL)                       ;007A: E9         
@@ -112,7 +112,7 @@ L_007B:  POP HL                  ;007B: E1
 L_0081:  LOAD HL,H'455E          ;0081: 2A 5E 45   
  LOAD A,H                        ;0084: 7C         
  OR A,L                          ;0085: B5         
- JUMP NE,L_0076                  ;0086: 20 EE      
+ JUMP. NE,L_0076                 ;0086: 20 EE      
  .W ?TEXTI                       ;0088: E7 5E
  LOAD C,C                        ;008A: 49         
  LOAD C,(HL)                     ;008B: 4E         
@@ -139,7 +139,7 @@ L_009B:  LOAD (HL),A             ;009B: 77
 L_00B3:  DECJ,NE B,L_00B3        ;00B3: 10 FE      
  LOAD A,$0                       ;00B5: DB 00      
  AND A,#H'80                     ;00B7: E6 80      
- JUMP NE,L_00B3                  ;00B9: 20 F8      
+ JUMP. NE,L_00B3                 ;00B9: 20 F8      
  LOAD C,#5                       ;00BB: 0E 05      
  CALL L_0575                     ;00BD: CD 75 05   
  LOAD C,#7                       ;00C0: 0E 07      
@@ -168,7 +168,7 @@ L_00F0:  ADD HL,DE               ;00F0: 19
  LOAD (HL),A                     ;00F2: 77         
  COMP A,(HL)                     ;00F3: BE         
  LOAD (HL),C                     ;00F4: 71         
- JUMP NE,L_00FB                  ;00F5: 20 04      
+ JUMP. NE,L_00FB                 ;00F5: 20 04      
  ADD A,#20                       ;00F7: C6 10      
  DECJ,NE B,L_00F0                ;00F9: 10 F5      
 L_00FB:  PUSH HL                 ;00FB: E5         
@@ -188,13 +188,13 @@ L_0105:  CALL L_0095             ;0105: CD 95 00
  .W ?AFHEX                       ;0112: E7 39
  .W ?DITEX                       ;0114: E7 06
  LOAD HL,#L_07F9                 ;0116: 21 F9 07   
- JUMP L_0121                     ;0119: 18 06      
+ JUMP. L_0121                    ;0119: 18 06      
 L_011B:  .W ?TEXT                ;011B: E7 53
  LOAD L,(HL)                     ;011D: 6E         
  ADD HL,BC                       ;011E: 09         
 L_011F:  .W ?GETLI               ;011F: E7 05
 L_0121:  .W ?BRANC               ;0121: E7 1C
- JUMP CS,L_011B                  ;0123: 38 F6      
+ JUMP. CS,L_011B                 ;0123: 38 F6      
  PUSH DE                         ;0125: D5         
  RET                             ;0126: C9         
  IOF                             ;0127: F3         
@@ -205,9 +205,10 @@ L_0121:  .W ?BRANC               ;0121: E7 1C
  EX (SP),HL                      ;012E: E3         
  PUSH HL                         ;012F: E5         
  PUSH AF                         ;0130: F5         
- SL A                            ;0131: CB 27      
+ .B H'CB                         ;0131: CB  SLA A (Zilog) — pas de mnémonique 1re gen
+ .B H'27                         ;0132: 27
  LOAD HL,TABEX                   ;0133: 2A 5A 45   
- JUMP CS,L_013B                  ;0136: 38 03      
+ JUMP. CS,L_013B                 ;0136: 38 03      
  LOAD HL,#DISP_RST20H            ;0138: 21 30 0F   
 L_013B:  ADD A,L                 ;013B: 85         
  LOAD L,A                        ;013C: 6F         
@@ -223,16 +224,17 @@ L_013B:  ADD A,L                 ;013B: 85
 L_0148:  LOAD HL,#FLOFF          ;0148: 21 BF 45   
  LOAD A,(HL)                     ;014B: 7E         
  OR A,A                          ;014C: B7         
- JUMP EQ,L_0155                  ;014D: 28 06      
+ JUMP. EQ,L_0155                 ;014D: 28 06      
  DEC A                           ;014F: 3D         
- JUMP NE,L_0154                  ;0150: 20 02      
+ JUMP. NE,L_0154                 ;0150: 20 02      
  LOAD $31,A                      ;0152: D3 19      
 L_0154:  LOAD (HL),A             ;0154: 77         
 L_0155:  LOAD HL,#H'4580         ;0155: 21 80 45   
  LOAD (HL),#0                    ;0158: 36 00      
  LOAD A,$0                       ;015A: DB 00      
- ;TODO BIT 7,A                   ;015C: CB 7F        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
- JUMP NE,L_0168                  ;015E: 20 08      
+ .B H'CB                         ;015C: CB  BIT 7,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'7F                         ;015D: 7F
+ JUMP. NE,L_0168                 ;015E: 20 08      
  LOAD H'457E,A                   ;0160: 32 7E 45   
  XOR A,A                         ;0163: AF         
  LOAD H'4558,A                   ;0164: 32 58 45   
@@ -259,34 +261,35 @@ L_0176:  DECJ,NE B,L_0176        ;0176: 10 FE
 L_0186:  INC HL                  ;0186: 23         
  LOAD A,(HL)                     ;0187: 7E         
  OR A,A                          ;0188: B7         
- JUMP EQ,L_0190                  ;0189: 28 05      
+ JUMP. EQ,L_0190                 ;0189: 28 05      
  COMP A,B                        ;018B: B8         
- JUMP NE,L_0186                  ;018C: 20 F8      
+ JUMP. NE,L_0186                 ;018C: 20 F8      
  POP HL                          ;018E: E1         
  RET                             ;018F: C9         
 L_0190:  INC SP                  ;0190: 33         
  INC SP                          ;0191: 33         
  LOAD A,B                        ;0192: 78         
- JUMP L_016A                     ;0193: 18 D5      
+ JUMP. L_016A                    ;0193: 18 D5      
 L_0195:  LOAD DE,#H'4580         ;0195: 11 80 45   
 L_0198:  LOAD HL,#H'458A         ;0198: 21 8A 45   
 L_019B:  INC HL                  ;019B: 23         
  INC HL                          ;019C: 23         
  LOAD A,(HL)                     ;019D: 7E         
  COMP A,#H'80                    ;019E: FE 80      
- JUMP EQ,L_01D9                  ;01A0: 28 37      
+ JUMP. EQ,L_01D9                 ;01A0: 28 37      
  DEC HL                          ;01A2: 2B         
  LOAD A,(DE)                     ;01A3: 1A         
  OR A,A                          ;01A4: B7         
- JUMP EQ,L_01C3                  ;01A5: 28 1C      
+ JUMP. EQ,L_01C3                 ;01A5: 28 1C      
  COMP A,(HL)                     ;01A7: BE         
- JUMP NE,L_01AF                  ;01A8: 20 05      
-L_01AA:  ;TODO SET 7,(HL)        ;01AA: CB FE        LOAD A,(HL) ; OR/AND A,#mask ; LOAD (HL),A
+ JUMP. NE,L_01AF                 ;01A8: 20 05      
+L_01AA:  .B H'CB                 ;01AA: CB  SET 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
+ .B H'FE                         ;01AB: FE
  INC DE                          ;01AC: 13         
- JUMP L_0198                     ;01AD: 18 E9      
+ JUMP. L_0198                    ;01AD: 18 E9      
 L_01AF:  LOAD A,(HL)             ;01AF: 7E         
  OR A,A                          ;01B0: B7         
- JUMP NE,L_019B                  ;01B1: 20 E8      
+ JUMP. NE,L_019B                 ;01B1: 20 E8      
  LOAD A,(DE)                     ;01B3: 1A         
  LOAD (HL),A                     ;01B4: 77         
  CALL L_01ED                     ;01B5: CD ED 01   
@@ -295,7 +298,7 @@ L_01AF:  LOAD A,(HL)             ;01AF: 7E
  INC HL                          ;01BD: 23         
  LOAD (HL),#0                    ;01BE: 36 00      
  DEC HL                          ;01C0: 2B         
- JUMP L_01AA                     ;01C1: 18 E7      
+ JUMP. L_01AA                    ;01C1: 18 E7      
 L_01C3:  LOAD HL,#H'458A         ;01C3: 21 8A 45   
  LOAD D,H                        ;01C6: 54         
  LOAD E,L                        ;01C7: 5D         
@@ -304,16 +307,19 @@ L_01C9:  INC HL                  ;01C9: 23
  LOAD A,(HL)                     ;01CA: 7E         
  OR A,A                          ;01CB: B7         
  LOAD (DE),A                     ;01CC: 12         
- JUMP EQ,L_01D9                  ;01CD: 28 0A      
- ;TODO BIT 7,(HL)                ;01CF: CB 7E        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
- ;TODO RES 7,(HL)                ;01D1: CB BE        LOAD A,(HL) ; OR/AND A,#mask ; LOAD (HL),A
+ JUMP. EQ,L_01D9                 ;01CD: 28 0A      
+ .B H'CB                         ;01CF: CB  BIT 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
+ .B H'7E                         ;01D0: 7E
+ .B H'CB                         ;01D1: CB  RES 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
+ .B H'BE                         ;01D2: BE
  LOAD A,(HL)                     ;01D3: 7E         
  LOAD (DE),A                     ;01D4: 12         
- JUMP NE,L_01C8                  ;01D5: 20 F1      
- JUMP L_01C9                     ;01D7: 18 F0      
+ JUMP. NE,L_01C8                 ;01D5: 20 F1      
+ JUMP. L_01C9                    ;01D7: 18 F0      
 L_01D9:  LOAD HL,H'457C          ;01D9: 2A 7C 45   
  DEC HL                          ;01DC: 2B         
- ;TODO BIT 7,(HL)                ;01DD: CB 7E        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
+ .B H'CB                         ;01DD: CB  BIT 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
+ .B H'7E                         ;01DE: 7E
  RET EQ                          ;01DF: C8         
  LOAD HL,#H'4558                 ;01E0: 21 58 45   
  LOAD A,(HL)                     ;01E3: 7E         
@@ -329,7 +335,7 @@ L_01ED:  PUSH HL                 ;01ED: E5
  LOAD HL,H'457C                  ;01F2: 2A 7C 45   
  LOAD A,(HL)                     ;01F5: 7E         
  COMP A,#H'80                    ;01F6: FE 80      
- JUMP EQ,L_01FF                  ;01F8: 28 05      
+ JUMP. EQ,L_01FF                 ;01F8: 28 05      
  LOAD (HL),B                     ;01FA: 70         
  INC HL                          ;01FB: 23         
  LOAD H'457C,HL                  ;01FC: 22 7C 45   
@@ -337,40 +343,44 @@ L_01FF:  POP HL                  ;01FF: E1
  RET                             ;0200: C9         
  LOAD A,#20                      ;0201: 3E 10      
 L_0203:  OR A,A                  ;0203: B7         
- ;TODO BIT 0,E                   ;0204: CB 43        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
- JUMP EQ,L_0209                  ;0206: 28 01      
+ .B H'CB                         ;0204: CB  BIT 0,E (Zilog) — pas d'équivalent direct 1re gen
+ .B H'43                         ;0205: 43
+ JUMP. EQ,L_0209                 ;0206: 28 01      
  ADD HL,BC                       ;0208: 09         
-L_0209:  RR H                    ;0209: CB 1C      
- RR L                            ;020B: CB 1D      
- RR D                            ;020D: CB 1A      
- RR E                            ;020F: CB 1B      
+L_0209:  RRC H                   ;0209: CB 1C      
+ RRC L                           ;020B: CB 1D      
+ RRC D                           ;020D: CB 1A      
+ RRC E                           ;020F: CB 1B      
  DEC A                           ;0211: 3D         
- JUMP NE,L_0203                  ;0212: 20 EF      
+ JUMP. NE,L_0203                 ;0212: 20 EF      
  RET                             ;0214: C9         
  LOAD A,#20                      ;0215: 3E 10      
  PUSH HL                         ;0217: E5         
  OR A,A                          ;0218: B7         
  SUBC HL,BC                      ;0219: ED 42      
  POP HL                          ;021B: E1         
- JUMP CC,L_0230                  ;021C: 30 12      
+ JUMP. CC,L_0230                 ;021C: 30 12      
 L_021E:  SETC                    ;021E: 37         
- RL E                            ;021F: CB 13      
- RL D                            ;0221: CB 12      
- RL L                            ;0223: CB 15      
- RL H                            ;0225: CB 14      
- RL A                            ;0227: 17         
+ RLC E                           ;021F: CB 13      
+ RLC D                           ;0221: CB 12      
+ RLC L                           ;0223: CB 15      
+ RLC H                           ;0225: CB 14      
+ RLC A                           ;0227: 17         
  SUBC HL,BC                      ;0228: ED 42      
- ;TODO BIT 0,A                   ;022A: CB 47        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
- JUMP EQ,L_0232                  ;022C: 28 04      
- JUMP CS,L_0237                  ;022E: 38 07      
+ .B H'CB                         ;022A: CB  BIT 0,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'47                         ;022B: 47
+ JUMP. EQ,L_0232                 ;022C: 28 04      
+ JUMP. CS,L_0237                 ;022E: 38 07      
 L_0230:  SETC                    ;0230: 37         
  RET                             ;0231: C9         
-L_0232:  JUMP CC,L_0237          ;0232: 30 03      
+L_0232:  JUMP. CC,L_0237         ;0232: 30 03      
  ADD HL,BC                       ;0234: 09         
- ;TODO RES 0,E                   ;0235: CB 83        LOAD A,E ; OR/AND A,#mask ; LOAD E,A
-L_0237:  SRC A                   ;0237: CB 3F        ?? CALM 1re gen à confirmer
+ .B H'CB                         ;0235: CB  RES 0,E (Zilog) — pas d'équivalent direct 1re gen
+ .B H'83                         ;0236: 83
+L_0237:  .B H'CB                 ;0237: CB  SRL A (Zilog) — pas de mnémonique 1re gen
+ .B H'3F                         ;0238: 3F
  DEC A                           ;0239: 3D         
- JUMP NE,L_021E                  ;023A: 20 E2      
+ JUMP. NE,L_021E                 ;023A: 20 E2      
  OR A,A                          ;023C: B7         
  RET                             ;023D: C9         
  IOF                             ;023E: F3         
@@ -392,19 +402,19 @@ L_024D:  LOAD B,(HL)             ;024D: 46
  INC HL                          ;024E: 23         
  INC B                           ;024F: 04         
  DEC B                           ;0250: 05         
- JUMP EQ,L_025A                  ;0251: 28 07      
+ JUMP. EQ,L_025A                 ;0251: 28 07      
  COMP A,B                        ;0253: B8         
- JUMP EQ,L_025B                  ;0254: 28 05      
+ JUMP. EQ,L_025B                 ;0254: 28 05      
  INC HL                          ;0256: 23         
  INC HL                          ;0257: 23         
- JUMP L_024D                     ;0258: 18 F3      
+ JUMP. L_024D                    ;0258: 18 F3      
 L_025A:  SETC                    ;025A: 37         
 L_025B:  EX HL,DE                ;025B: EB         
  POP BC                          ;025C: C1         
  RET                             ;025D: C9         
  PUSH AF                         ;025E: F5         
  .W ?SCAR                        ;025F: E7 32
- JUMP CS,H'0267                  ;0261: 38 04      
+ JUMP. CS,H'0267                 ;0261: 38 04      
  POP AF                          ;0263: F1         
  JUMP L_05DF                     ;0264: C3 DF 05   
  POP AF                          ;0267: F1         
@@ -421,18 +431,18 @@ L_0279:  LOAD A,(DE)             ;0279: 1A
  INC DE                          ;027A: 13         
  COMP A,(HL)                     ;027B: BE         
  INC HL                          ;027C: 23         
- JUMP EQ,L_0279                  ;027D: 28 FA      
+ JUMP. EQ,L_0279                 ;027D: 28 FA      
  DEC HL                          ;027F: 2B         
  LOAD A,(HL)                     ;0280: 7E         
  COMP A,#H'80                    ;0281: FE 80      
- JUMP NE,L_0270                  ;0283: 20 EB      
+ JUMP. NE,L_0270                 ;0283: 20 EB      
  INC HL                          ;0285: 23         
 L_0286:  EX HL,DE                ;0286: EB         
  INC SP                          ;0287: 33         
  INC SP                          ;0288: 33         
  RET                             ;0289: C9         
 L_028A:  SETC                    ;028A: 37         
- JUMP L_0286                     ;028B: 18 F9      
+ JUMP. L_0286                    ;028B: 18 F9      
  LOAD HL,MAXMEM                  ;028D: 2A 60 45   
  RET                             ;0290: C9         
  LOAD H'456E,HL                  ;0291: 22 6E 45   
@@ -458,9 +468,11 @@ L_028A:  SETC                    ;028A: 37
  PUSH AF                         ;02B9: F5         
  OR A,A                          ;02BA: B7         
  LOAD A,LAMODI                   ;02BB: 3A 7F 45   
- AND A,#B'11111110               ;02BE: CB 87        = RES 0,A
- JUMP EQ,L_02C4                  ;02C0: 28 02      
- OR  A,#B'00000001               ;02C2: CB C7        = SET 0,A
+ .B H'CB                         ;02BE: CB  RES 0,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'87                         ;02BF: 87
+ JUMP. EQ,L_02C4                 ;02C0: 28 02      
+ .B H'CB                         ;02C2: CB  SET 0,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'C7                         ;02C3: C7
 L_02C4:  LOAD LAMODI,A           ;02C4: 32 7F 45   
  LOAD $0,A                       ;02C7: D3 00      
  POP AF                          ;02C9: F1         
@@ -470,7 +482,7 @@ L_02CE:  LOAD (HL),#40           ;02CE: 36 20
  DEC HL                          ;02D0: 2B         
  LOAD A,H                        ;02D1: 7C         
  COMP A,#H'40                    ;02D2: FE 40      
- JUMP CC,L_02CE                  ;02D4: 30 F8      
+ JUMP. CC,L_02CE                 ;02D4: 30 F8      
  INC HL                          ;02D6: 23         
  LOAD A,#0                       ;02D7: 3E 00      
  RET                             ;02D9: C9         
@@ -480,36 +492,41 @@ L_02DE:  LOAD (HL),#0            ;02DE: 36 00
  INC HL                          ;02E0: 23         
  LOAD A,H                        ;02E1: 7C         
  COMP A,#H'55                    ;02E2: FE 55      
- JUMP NE,L_02DE                  ;02E4: 20 F8      
+ JUMP. NE,L_02DE                 ;02E4: 20 F8      
  POP HL                          ;02E6: E1         
  XOR A,A                         ;02E7: AF         
  RET                             ;02E8: C9         
  PUSH AF                         ;02E9: F5         
  LOAD A,LAMODI                   ;02EA: 3A 7F 45   
  AND A,#H'F3                     ;02ED: E6 F3      
- JUMP L_02C4                     ;02EF: 18 D3      
+ JUMP. L_02C4                    ;02EF: 18 D3      
  PUSH AF                         ;02F1: F5         
  LOAD A,LAMODI                   ;02F2: 3A 7F 45   
- OR  A,#B'00001000               ;02F5: CB DF        = SET 3,A
- JUMP L_02FF                     ;02F7: 18 06      
+ .B H'CB                         ;02F5: CB  SET 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'DF                         ;02F6: DF
+ JUMP. L_02FF                    ;02F7: 18 06      
  PUSH AF                         ;02F9: F5         
  LOAD A,LAMODI                   ;02FA: 3A 7F 45   
- AND A,#B'11110111               ;02FD: CB 9F        = RES 3,A
-L_02FF:  OR  A,#B'00000100       ;02FF: CB D7        = SET 2,A
- OR  A,#B'00000010               ;0301: CB CF        = SET 1,A
- JUMP CS,L_02C4                  ;0303: 38 BF      
- AND A,#B'11111101               ;0305: CB 8F        = RES 1,A
- JUMP L_02C4                     ;0307: 18 BB      
+ .B H'CB                         ;02FD: CB  RES 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'9F                         ;02FE: 9F
+L_02FF:  .B H'CB                 ;02FF: CB  SET 2,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'D7                         ;0300: D7
+ .B H'CB                         ;0301: CB  SET 1,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'CF                         ;0302: CF
+ JUMP. CS,L_02C4                 ;0303: 38 BF      
+ .B H'CB                         ;0305: CB  RES 1,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'8F                         ;0306: 8F
+ JUMP. L_02C4                    ;0307: 18 BB      
  PUSH AF                         ;0309: F5         
  PUSH HL                         ;030A: E5         
  PUSH BC                         ;030B: C5         
  PUSH DE                         ;030C: D5         
  LOAD A,C                        ;030D: 79         
  OR A,A                          ;030E: B7         
- JUMP EQ,L_0330                  ;030F: 28 1F      
+ JUMP. EQ,L_0330                 ;030F: 28 1F      
  ADD A,B                         ;0311: 80         
  COMP A,#25                      ;0312: FE 15      
- JUMP CC,L_0330                  ;0314: 30 1A      
+ JUMP. CC,L_0330                 ;0314: 30 1A      
  INC B                           ;0316: 04         
  LOAD HL,#SALPHA                 ;0317: 21 00 40   
  LOAD DE,#H'0040                 ;031A: 11 40 00   
@@ -523,7 +540,7 @@ L_0327:  LOAD (HL),H             ;0327: 74
  LOAD B,L                        ;0328: 45         
 L_0329:  ADD HL,DE               ;0329: 19         
  DEC C                           ;032A: 0D         
- JUMP NE,L_0329                  ;032B: 20 FC      
+ JUMP. NE,L_0329                 ;032B: 20 FC      
  LOAD H'457A,HL                  ;032D: 22 7A 45   
 L_0330:  POP DE                  ;0330: D1         
  POP BC                          ;0331: C1         
@@ -543,21 +560,25 @@ L_0332:  POP HL                  ;0332: E1
  RET                             ;0348: C9         
  PUSH AF                         ;0349: F5         
  PUSH HL                         ;034A: E5         
- SL L                            ;034B: CB 25      
- SL L                            ;034D: CB 25      
+ .B H'CB                         ;034B: CB  SLA L (Zilog) — pas de mnémonique 1re gen
+ .B H'25                         ;034C: 25
+ .B H'CB                         ;034D: CB  SLA L (Zilog) — pas de mnémonique 1re gen
+ .B H'25                         ;034E: 25
  LOAD A,H                        ;034F: 7C         
 L_0350:  COMP A,#24              ;0350: FE 14      
- JUMP CS,L_0358                  ;0352: 38 04      
+ JUMP. CS,L_0358                 ;0352: 38 04      
  SUB A,#24                       ;0354: D6 14      
- JUMP L_0350                     ;0356: 18 F8      
-L_0358:  SRC A                   ;0358: CB 3F        ?? CALM 1re gen à confirmer
- RR L                            ;035A: CB 1D      
- SRC A                           ;035C: CB 3F        ?? CALM 1re gen à confirmer
- RR L                            ;035E: CB 1D      
+ JUMP. L_0350                    ;0356: 18 F8      
+L_0358:  .B H'CB                 ;0358: CB  SRL A (Zilog) — pas de mnémonique 1re gen
+ .B H'3F                         ;0359: 3F
+ RRC L                           ;035A: CB 1D      
+ .B H'CB                         ;035C: CB  SRL A (Zilog) — pas de mnémonique 1re gen
+ .B H'3F                         ;035D: 3F
+ RRC L                           ;035E: CB 1D      
  ADD A,#H'40                     ;0360: C6 40      
  LOAD H,A                        ;0362: 67         
  LOAD H'4574,HL                  ;0363: 22 74 45   
- JUMP L_0332                     ;0366: 18 CA      
+ JUMP. L_0332                    ;0366: 18 CA      
 L_0368:  PUSH AF                 ;0368: F5         
  LOAD A,#H'83                    ;0369: 3E 83      
  .W ?BEEP                        ;036B: E7 3E
@@ -572,12 +593,12 @@ L_0375:  LOAD C,#40              ;0375: 0E 20
 L_0377:  POP AF                  ;0377: F1         
  PUSH AF                         ;0378: F5         
  INC A                           ;0379: 3C         
- JUMP EQ,L_037E                  ;037A: 28 02      
+ JUMP. EQ,L_037E                 ;037A: 28 02      
  LOAD $3,A                       ;037C: D3 03      
 L_037E:  DEC A                   ;037E: 3D         
- JUMP NE,L_037E                  ;037F: 20 FD      
+ JUMP. NE,L_037E                 ;037F: 20 FD      
  DEC C                           ;0381: 0D         
- JUMP NE,L_0377                  ;0382: 20 F3      
+ JUMP. NE,L_0377                 ;0382: 20 F3      
  DECJ,NE B,L_0375                ;0384: 10 EF      
  POP AF                          ;0386: F1         
  POP BC                          ;0387: C1         
@@ -589,7 +610,7 @@ L_038A:  .W ?BEEP                ;038A: E7 3E
  LOAD A,(HL)                     ;038E: 7E         
  INC HL                          ;038F: 23         
  OR A,A                          ;0390: B7         
- JUMP NE,L_038A                  ;0391: 20 F7      
+ JUMP. NE,L_038A                 ;0391: 20 F7      
  POP AF                          ;0393: F1         
  RET                             ;0394: C9         
  PUSH DE                         ;0395: D5         
@@ -605,7 +626,7 @@ L_03A5:  LOAD HL,H'457A          ;03A5: 2A 7A 45
 L_03A9:  CALL L_03C6             ;03A9: CD C6 03   
  LOAD (HL),#40                   ;03AC: 36 20      
  RET EQ                          ;03AE: C8         
- JUMP L_03A9                     ;03AF: 18 F8      
+ JUMP. L_03A9                    ;03AF: 18 F8      
 L_03B1:  INC HL                  ;03B1: 23         
 L_03B2:  LOAD DE,H'457A          ;03B2: ED 5B 7A 45
  CALL L_0E4F                     ;03B6: CD 4F 0E   
@@ -634,7 +655,7 @@ L_03D4:  LOAD A,#40              ;03D4: 3E 20
 L_03E0:  CALL L_03C6             ;03E0: CD C6 03   
  RET EQ                          ;03E3: C8         
  COMP A,(HL)                     ;03E4: BE         
- JUMP EQ,L_03E0                  ;03E5: 28 F9      
+ JUMP. EQ,L_03E0                 ;03E5: 28 F9      
  INC HL                          ;03E7: 23         
  RET                             ;03E8: C9         
 L_03E9:  CALL L_0368             ;03E9: CD 68 03   
@@ -642,15 +663,15 @@ L_03EC:  XOR A,A                 ;03EC: AF
  RET                             ;03ED: C9         
 L_03EE:  LOAD DE,H'4578          ;03EE: ED 5B 78 45
  CALL L_03D4                     ;03F2: CD D4 03   
- JUMP L_03EC                     ;03F5: 18 F5      
+ JUMP. L_03EC                    ;03F5: 18 F5      
 L_03F7:  DEC B                   ;03F7: 05         
 L_03F8:  CALL L_03B1             ;03F8: CD B1 03   
- JUMP EQ,L_0401                  ;03FB: 28 04      
+ JUMP. EQ,L_0401                 ;03FB: 28 04      
  LOAD A,L                        ;03FD: 7D         
  AND A,B                         ;03FE: A0         
- JUMP NE,L_03F8                  ;03FF: 20 F7      
+ JUMP. NE,L_03F8                 ;03FF: 20 F7      
 L_0401:  INC B                   ;0401: 04         
- JUMP L_03EC                     ;0402: 18 E8      
+ JUMP. L_03EC                    ;0402: 18 E8      
 L_0404:  PUSH AF                 ;0404: F5         
  PUSH BC                         ;0405: C5         
  PUSH DE                         ;0406: D5         
@@ -662,7 +683,7 @@ L_0404:  PUSH AF                 ;0404: F5
  LOAD DE,H'4578                  ;0411: ED 5B 78 45
  OR A,A                          ;0415: B7         
  SUBC HL,DE                      ;0416: ED 52      
- JUMP EQ,L_0423                  ;0418: 28 09      
+ JUMP. EQ,L_0423                 ;0418: 28 09      
  LOAD B,H                        ;041A: 44         
  LOAD C,L                        ;041B: 4D         
  LOAD HL,#H'0040                 ;041C: 21 40 00   
@@ -687,7 +708,7 @@ L_042D:  POP AF                  ;042D: F1
  LOAD A,L                        ;0437: 7D         
  OR A,H                          ;0438: B4         
  LOAD A,B                        ;0439: 78         
- JUMP EQ,L_0441                  ;043A: 28 05      
+ JUMP. EQ,L_0441                 ;043A: 28 05      
  LOAD DE,#H'048D                 ;043C: 11 8D 04   
  PUSH DE                         ;043F: D5         
  JUMP (HL)                       ;0440: E9         
@@ -715,7 +736,7 @@ L_0441:  LOAD HL,H'4574          ;0441: 2A 74 45
  COMP A,#12                      ;0472: FE 0A      
  CALL EQ,L_04B6                  ;0474: CC B6 04   
  OR A,A                          ;0477: B7         
- JUMP EQ,L_0484                  ;0478: 28 0A      
+ JUMP. EQ,L_0484                 ;0478: 28 0A      
  CALL L_0CF6                     ;047A: CD F6 0C   
  JUMP PE,L_0482                  ;047D: EA 82 04   
  XOR A,#H'80                     ;0480: EE 80      
@@ -725,14 +746,14 @@ L_0484:  CALL L_03B2             ;0484: CD B2 03
  CALL EQ,L_0404                  ;0487: CC 04 04   
  LOAD H'4574,HL                  ;048A: 22 74 45   
  POP HL                          ;048D: E1         
- JUMP L_042B                     ;048E: 18 9B      
+ JUMP. L_042B                    ;048E: 18 9B      
  PUSH AF                         ;0490: F5         
 L_0491:  LOAD A,(HL)             ;0491: 7E         
  INC HL                          ;0492: 23         
  OR A,A                          ;0493: B7         
-L_0494:  JUMP EQ,L_042D          ;0494: 28 97      
+L_0494:  JUMP. EQ,L_042D         ;0494: 28 97      
  .W ?DICAR                       ;0496: E7 00
- JUMP L_0491                     ;0498: 18 F7      
+ JUMP. L_0491                    ;0498: 18 F7      
  LOAD H'45BA,HL                  ;049A: 22 BA 45   
  EX HL,DE                        ;049D: EB         
  .W ?GETAR                       ;049E: E7 4F
@@ -748,18 +769,18 @@ L_0494:  JUMP EQ,L_042D          ;0494: 28 97
 L_04AD:  LOAD A,(HL)             ;04AD: 7E         
  INC HL                          ;04AE: 23         
  COMP A,B                        ;04AF: B8         
- JUMP EQ,L_0494                  ;04B0: 28 E2      
+ JUMP. EQ,L_0494                 ;04B0: 28 E2      
  .W ?DICAR                       ;04B2: E7 00
- JUMP L_04AD                     ;04B4: 18 F7      
+ JUMP. L_04AD                    ;04B4: 18 F7      
 L_04B6:  PUSH HL                 ;04B6: E5         
  LOAD HL,H'4574                  ;04B7: 2A 74 45   
 L_04BA:  LOAD A,L                ;04BA: 7D         
  AND A,#77                       ;04BB: E6 3F      
  COMP A,#77                      ;04BD: FE 3F      
- JUMP EQ,L_04C6                  ;04BF: 28 05      
+ JUMP. EQ,L_04C6                 ;04BF: 28 05      
  INC HL                          ;04C1: 23         
  LOAD (HL),#40                   ;04C2: 36 20      
- JUMP L_04BA                     ;04C4: 18 F4      
+ JUMP. L_04BA                    ;04C4: 18 F4      
 L_04C6:  POP HL                  ;04C6: E1         
  XOR A,A                         ;04C7: AF         
  RET                             ;04C8: C9         
@@ -769,7 +790,7 @@ L_04C6:  POP HL                  ;04C6: E1
  LOAD HL,INCAR                   ;04CC: 2A 52 45   
  LOAD A,L                        ;04CF: 7D         
  OR A,H                          ;04D0: B4         
- JUMP EQ,L_04D8                  ;04D1: 28 05      
+ JUMP. EQ,L_04D8                 ;04D1: 28 05      
  LOAD DE,#L_04FD                 ;04D3: 11 FD 04   
  PUSH DE                         ;04D6: D5         
  JUMP (HL)                       ;04D7: E9         
@@ -777,7 +798,7 @@ L_04D8:  LOAD HL,H'4574          ;04D8: 2A 74 45
  LOAD A,H'4576                   ;04DB: 3A 76 45   
  LOAD (HL),A                     ;04DE: 77         
 L_04DF:  CALL L_0501             ;04DF: CD 01 05   
- JUMP EQ,L_04DF                  ;04E2: 28 FB      
+ JUMP. EQ,L_04DF                 ;04E2: 28 FB      
  PUSH HL                         ;04E4: E5         
  LOAD HL,H'4574                  ;04E5: 2A 74 45   
  LOAD (HL),#40                   ;04E8: 36 20      
@@ -803,7 +824,7 @@ L_0501:  LOAD DE,#H'4596         ;0501: 11 96 45
  LOAD HL,H'457C                  ;0504: 2A 7C 45   
  LOAD A,(HL)                     ;0507: 7E         
  COMP A,#H'80                    ;0508: FE 80      
- JUMP NE,L_0510                  ;050A: 20 04      
+ JUMP. NE,L_0510                 ;050A: 20 04      
  DEC HL                          ;050C: 2B         
  LOAD H'457C,HL                  ;050D: 22 7C 45   
 L_0510:  OR A,A                  ;0510: B7         
@@ -814,10 +835,10 @@ L_0510:  OR A,A                  ;0510: B7
  PUSH HL                         ;0516: E5         
  PUSH AF                         ;0517: F5         
  CALL L_0501                     ;0518: CD 01 05   
- JUMP NE,L_04EC                  ;051B: 20 CF      
+ JUMP. NE,L_04EC                 ;051B: 20 CF      
  POP AF                          ;051D: F1         
  SETC                            ;051E: 37         
- JUMP L_04FD                     ;051F: 18 DC      
+ JUMP. L_04FD                    ;051F: 18 DC      
  LOAD A,H'457E                   ;0521: 3A 7E 45   
  OR A,A                          ;0524: B7         
  RET                             ;0525: C9         
@@ -826,42 +847,42 @@ L_0510:  OR A,A                  ;0510: B7
  LOAD BC,#H'000D                 ;0528: 01 0D 00   
  LOAD DE,#GJOUR_HND              ;052B: 11 FF 0E   
  CALL L_0533                     ;052E: CD 33 05   
- JUMP L_04FE                     ;0531: 18 CB      
+ JUMP. L_04FE                    ;0531: 18 CB      
 L_0533:  LOAD HL,#BUFLIN         ;0533: 21 C0 45   
 L_0536:  .W ?GETCA               ;0536: E7 01
  .W ?DICAR                       ;0538: E7 00
  COMP A,#10                      ;053A: FE 08      
- JUMP EQ,L_0561                  ;053C: 28 23      
+ JUMP. EQ,L_0561                 ;053C: 28 23      
  COMP A,#H'7F                    ;053E: FE 7F      
- JUMP EQ,L_056B                  ;0540: 28 29      
+ JUMP. EQ,L_056B                 ;0540: 28 29      
  COMP A,B                        ;0542: B8         
- JUMP CS,L_055E                  ;0543: 38 19      
+ JUMP. CS,L_055E                 ;0543: 38 19      
  COMP A,C                        ;0545: B9         
- JUMP CS,L_054E                  ;0546: 38 06      
+ JUMP. CS,L_054E                 ;0546: 38 06      
  COMP A,D                        ;0548: BA         
- JUMP CS,L_055E                  ;0549: 38 13      
+ JUMP. CS,L_055E                 ;0549: 38 13      
  COMP A,E                        ;054B: BB         
- JUMP CC,L_055E                  ;054C: 30 10      
+ JUMP. CC,L_055E                 ;054C: 30 10      
 L_054E:  LOAD (HL),A             ;054E: 77         
  INC HL                          ;054F: 23         
  INC HL                          ;0550: 23         
  LOAD A,(HL)                     ;0551: 7E         
  DEC HL                          ;0552: 2B         
  COMP A,#H'80                    ;0553: FE 80      
- JUMP NE,L_0536                  ;0555: 20 DF      
+ JUMP. NE,L_0536                 ;0555: 20 DF      
  SETC                            ;0557: 37         
 L_0558:  LOAD (HL),#0            ;0558: 36 00      
  LOAD HL,#BUFLIN                 ;055A: 21 C0 45   
  RET                             ;055D: C9         
 L_055E:  OR A,A                  ;055E: B7         
- JUMP L_0558                     ;055F: 18 F7      
+ JUMP. L_0558                    ;055F: 18 F7      
 L_0561:  PUSH DE                 ;0561: D5         
  LOAD DE,#BUFLIN                 ;0562: 11 C0 45   
  CALL L_03D4                     ;0565: CD D4 03   
  POP DE                          ;0568: D1         
- JUMP L_0536                     ;0569: 18 CB      
+ JUMP. L_0536                    ;0569: 18 CB      
 L_056B:  .W ?RETUR               ;056B: E7 23
- JUMP L_0533                     ;056D: 18 C4      
+ JUMP. L_0533                    ;056D: 18 C4      
  NOP                             ;056F: 00         
  NOP                             ;0570: 00         
  NOP                             ;0571: 00         
@@ -869,48 +890,48 @@ L_056B:  .W ?RETUR               ;056B: E7 23
  ADDC A,#47                      ;0573: CE 27      
 L_0575:  LOAD B,#6               ;0575: 06 06      
  LOAD HL,#H'056F                 ;0577: 21 6F 05   
- OTIR                            ;057A: ED B3      
+ OUTIR                           ;057A: ED B3      
  RET                             ;057C: C9         
  PUSH BC                         ;057D: C5         
  LOAD C,#5                       ;057E: 0E 05      
- JUMP L_058A                     ;0580: 18 08      
+ JUMP. L_058A                    ;0580: 18 08      
  PUSH BC                         ;0582: C5         
  LOAD C,#7                       ;0583: 0E 07      
- JUMP L_058A                     ;0585: 18 03      
+ JUMP. L_058A                    ;0585: 18 03      
  PUSH BC                         ;0587: C5         
  LOAD C,#3                       ;0588: 0E 03      
 L_058A:  LOAD A,$(C)             ;058A: ED 78        ?? IN r,(C) — vérifier syntaxe CALM
  AND A,#2                        ;058C: E6 02      
- JUMP EQ,L_058A                  ;058E: 28 FA      
+ JUMP. EQ,L_058A                 ;058E: 28 FA      
 L_0590:  DEC C                   ;0590: 0D         
  LOAD A,$(C)                     ;0591: ED 78        ?? IN r,(C) — vérifier syntaxe CALM
- JUMP L_05C3                     ;0593: 18 2E      
+ JUMP. L_05C3                    ;0593: 18 2E      
  PUSH BC                         ;0595: C5         
  LOAD C,#5                       ;0596: 0E 05      
- JUMP L_05A2                     ;0598: 18 08      
+ JUMP. L_05A2                    ;0598: 18 08      
  PUSH BC                         ;059A: C5         
  LOAD C,#7                       ;059B: 0E 07      
- JUMP L_05A2                     ;059D: 18 03      
+ JUMP. L_05A2                    ;059D: 18 03      
  PUSH BC                         ;059F: C5         
  LOAD C,#3                       ;05A0: 0E 03      
 L_05A2:  LOAD A,$(C)             ;05A2: ED 78        ?? IN r,(C) — vérifier syntaxe CALM
  AND A,#2                        ;05A4: E6 02      
- JUMP NE,L_0590                  ;05A6: 20 E8      
+ JUMP. NE,L_0590                 ;05A6: 20 E8      
 L_05A8:  SETC                    ;05A8: 37         
  POP BC                          ;05A9: C1         
  RET                             ;05AA: C9         
  PUSH BC                         ;05AB: C5         
  LOAD C,#5                       ;05AC: 0E 05      
- JUMP L_05B8                     ;05AE: 18 08      
+ JUMP. L_05B8                    ;05AE: 18 08      
  PUSH BC                         ;05B0: C5         
  LOAD C,#7                       ;05B1: 0E 07      
- JUMP L_05B8                     ;05B3: 18 03      
+ JUMP. L_05B8                    ;05B3: 18 03      
  PUSH BC                         ;05B5: C5         
  LOAD C,#3                       ;05B6: 0E 03      
 L_05B8:  PUSH AF                 ;05B8: F5         
 L_05B9:  LOAD A,$(C)             ;05B9: ED 78        ?? IN r,(C) — vérifier syntaxe CALM
  AND A,#1                        ;05BB: E6 01      
- JUMP EQ,L_05B9                  ;05BD: 28 FA      
+ JUMP. EQ,L_05B9                 ;05BD: 28 FA      
 L_05BF:  POP AF                  ;05BF: F1         
  DEC C                           ;05C0: 0D         
  LOAD $(C),A                     ;05C1: ED 79        ?? OUT (C),r — vérifier syntaxe CALM
@@ -920,18 +941,18 @@ L_05C3:  POP BC                  ;05C3: C1
  RET                             ;05C7: C9         
  PUSH BC                         ;05C8: C5         
  LOAD C,#5                       ;05C9: 0E 05      
- JUMP L_05D5                     ;05CB: 18 08      
+ JUMP. L_05D5                    ;05CB: 18 08      
  PUSH BC                         ;05CD: C5         
  LOAD C,#7                       ;05CE: 0E 07      
- JUMP L_05D5                     ;05D0: 18 03      
+ JUMP. L_05D5                    ;05D0: 18 03      
  PUSH BC                         ;05D2: C5         
  LOAD C,#3                       ;05D3: 0E 03      
 L_05D5:  PUSH AF                 ;05D5: F5         
  LOAD A,$(C)                     ;05D6: ED 78        ?? IN r,(C) — vérifier syntaxe CALM
  AND A,#1                        ;05D8: E6 01      
- JUMP NE,L_05BF                  ;05DA: 20 E3      
+ JUMP. NE,L_05BF                 ;05DA: 20 E3      
  POP AF                          ;05DC: F1         
- JUMP L_05A8                     ;05DD: 18 C9      
+ JUMP. L_05A8                    ;05DD: 18 C9      
 L_05DF:  INC SP                  ;05DF: 33         
  INC SP                          ;05E0: 33         
  PUSH HL                         ;05E1: E5         
@@ -948,13 +969,17 @@ L_05DF:  INC SP                  ;05DF: 33
  PUSH AF                         ;05EE: F5         
  LOAD A,H                        ;05EF: 7C         
  SUB A,#H'40                     ;05F0: D6 40      
- SL L                            ;05F2: CB 25      
- RL A                            ;05F4: 17         
- SL L                            ;05F5: CB 25      
- RL A                            ;05F7: 17         
+ .B H'CB                         ;05F2: CB  SLA L (Zilog) — pas de mnémonique 1re gen
+ .B H'25                         ;05F3: 25
+ RLC A                           ;05F4: 17         
+ .B H'CB                         ;05F5: CB  SLA L (Zilog) — pas de mnémonique 1re gen
+ .B H'25                         ;05F6: 25
+ RLC A                           ;05F7: 17         
  LOAD H,A                        ;05F8: 67         
- SRC L                           ;05F9: CB 3D        ?? CALM 1re gen à confirmer
- SRC L                           ;05FB: CB 3D        ?? CALM 1re gen à confirmer
+ .B H'CB                         ;05F9: CB  SRL L (Zilog) — pas de mnémonique 1re gen
+ .B H'3D                         ;05FA: 3D
+ .B H'CB                         ;05FB: CB  SRL L (Zilog) — pas de mnémonique 1re gen
+ .B H'3D                         ;05FC: 3D
  POP AF                          ;05FD: F1         
  RET                             ;05FE: C9         
  LOAD B,C                        ;05FF: 41         
@@ -977,20 +1002,20 @@ L_0623:  CALL L_063B             ;0623: CD 3B 06
  JUMP CS,L_07C7                  ;0626: DA C7 07   
  CALL L_0662                     ;0629: CD 62 06   
  CALL L_06EE                     ;062C: CD EE 06   
- JUMP L_0623                     ;062F: 18 F2      
+ JUMP. L_0623                    ;062F: 18 F2      
 L_0631:  SETC                    ;0631: 37         
  RET                             ;0632: C9         
-L_0633:  LOAD A,(IX+0)           ;0633: DD 7E 00   
+L_0633:  LOAD A,(IX)             ;0633: DD 7E 00   
  INC IX                          ;0636: DD 23      
  CALL L_06EB                     ;0638: CD EB 06   
-L_063B:  LOAD A,(IX+0)           ;063B: DD 7E 00   
+L_063B:  LOAD A,(IX)             ;063B: DD 7E 00   
  INC IX                          ;063E: DD 23      
  COMP A,#H'FF                    ;0640: FE FF      
- JUMP EQ,L_0631                  ;0642: 28 ED      
+ JUMP. EQ,L_0631                 ;0642: 28 ED      
  COMP A,#H'FE                    ;0644: FE FE      
- JUMP EQ,L_0633                  ;0646: 28 EB      
+ JUMP. EQ,L_0633                 ;0646: 28 EB      
  LOAD H,A                        ;0648: 67         
- LOAD IXL,(IX+0)                 ;0649: DD 6E 00   
+ LOAD L,(IX)                     ;0649: DD 6E 00   
  INC IX                          ;064C: DD 23      
  OR A,A                          ;064E: B7         
  RET                             ;064F: C9         
@@ -1002,14 +1027,14 @@ L_0654:  CALL L_063B             ;0654: CD 3B 06
  JUMP CS,L_07C7                  ;0657: DA C7 07   
  CALL L_06D3                     ;065A: CD D3 06   
  CALL L_06EE                     ;065D: CD EE 06   
- JUMP L_0654                     ;0660: 18 F2      
+ JUMP. L_0654                    ;0660: 18 F2      
 L_0662:  PUSH DE                 ;0662: D5         
  LOAD A,E                        ;0663: 7B         
  COMP A,L                        ;0664: BD         
- JUMP NE,L_0670                  ;0665: 20 09      
+ JUMP. NE,L_0670                 ;0665: 20 09      
  LOAD A,D                        ;0667: 7A         
  COMP A,H                        ;0668: BC         
- JUMP NE,L_0670                  ;0669: 20 05      
+ JUMP. NE,L_0670                 ;0669: 20 05      
  CALL L_06F4                     ;066B: CD F4 06   
  POP DE                          ;066E: D1         
  RET                             ;066F: C9         
@@ -1017,13 +1042,13 @@ L_0670:  LOAD C,#24              ;0670: 0E 14
  LOAD B,#34                      ;0672: 06 1C      
  LOAD A,H                        ;0674: 7C         
  SUB A,D                         ;0675: 92         
- JUMP CC,L_067B                  ;0676: 30 03      
+ JUMP. CC,L_067B                 ;0676: 30 03      
  NEG A                           ;0678: ED 44      
  INC C                           ;067A: 0C         
 L_067B:  LOAD H,A                ;067B: 67         
  LOAD A,L                        ;067C: 7D         
  SUB A,E                         ;067D: 93         
- JUMP CC,L_0683                  ;067E: 30 03      
+ JUMP. CC,L_0683                 ;067E: 30 03      
  NEG A                           ;0680: ED 44      
  INC B                           ;0682: 04         
 L_0683:  LOAD L,A                ;0683: 6F         
@@ -1033,7 +1058,7 @@ L_0683:  LOAD L,A                ;0683: 6F
  LOAD H'45B8,A                   ;0687: 32 B8 45   
  LOAD A,D                        ;068A: 7A         
  SUB A,E                         ;068B: 93         
- JUMP CC,L_0694                  ;068C: 30 06      
+ JUMP. CC,L_0694                 ;068C: 30 06      
  LOAD D,L                        ;068E: 55         
  LOAD E,H                        ;068F: 5C         
  LOAD A,B                        ;0690: 78         
@@ -1043,33 +1068,34 @@ L_0694:  LOAD H'45BA,BC          ;0694: ED 43 BA 45
  LOAD H,E                        ;0699: 63         
  LOAD A,B                        ;069A: 78         
  SUB A,H                         ;069B: 94         
- JUMP CS,L_06A0                  ;069C: 38 02      
+ JUMP. CS,L_06A0                 ;069C: 38 02      
  NEG A                           ;069E: ED 44      
 L_06A0:  LOAD L,A                ;06A0: 6F         
  POP DE                          ;06A1: D1         
  CALL L_06F4                     ;06A2: CD F4 06   
  LOAD A,B                        ;06A5: 78         
- SRC A                           ;06A6: CB 3F        ?? CALM 1re gen à confirmer
+ .B H'CB                         ;06A6: CB  SRL A (Zilog) — pas de mnémonique 1re gen
+ .B H'3F                         ;06A7: 3F
  ADD A,L                         ;06A8: 85         
- JUMP CS,L_06BC                  ;06A9: 38 11      
+ JUMP. CS,L_06BC                 ;06A9: 38 11      
  PUSH AF                         ;06AB: F5         
  XOR A,A                         ;06AC: AF         
  COMP A,L                        ;06AD: BD         
- JUMP EQ,L_06C9                  ;06AE: 28 19      
+ JUMP. EQ,L_06C9                 ;06AE: 28 19      
  POP AF                          ;06B0: F1         
 L_06B1:  CALL H'45B8             ;06B1: CD B8 45   
  CALL L_06F4                     ;06B4: CD F4 06   
  ADD A,H                         ;06B7: 84         
  DEC B                           ;06B8: 05         
  RET EQ                          ;06B9: C8         
- JUMP CC,L_06B1                  ;06BA: 30 F5      
+ JUMP. CC,L_06B1                 ;06BA: 30 F5      
 L_06BC:  CALL H'45BA             ;06BC: CD BA 45   
  CALL L_06F4                     ;06BF: CD F4 06   
  ADD A,L                         ;06C2: 85         
  DEC B                           ;06C3: 05         
  RET EQ                          ;06C4: C8         
- JUMP CC,L_06B1                  ;06C5: 30 EA      
- JUMP L_06BC                     ;06C7: 18 F3      
+ JUMP. CC,L_06B1                 ;06C5: 30 EA      
+ JUMP. L_06BC                    ;06C7: 18 F3      
 L_06C9:  POP AF                  ;06C9: F1         
 L_06CA:  CALL H'45BA             ;06CA: CD BA 45   
  CALL L_06F4                     ;06CD: CD F4 06   
@@ -1089,7 +1115,7 @@ L_06E0:  LOAD H,A                ;06E0: 67
  JUMP PL,L_0683                  ;06E3: F2 83 06   
  AND A,#H'7F                     ;06E6: E6 7F      
  INC B                           ;06E8: 04         
- JUMP L_0683                     ;06E9: 18 98      
+ JUMP. L_0683                    ;06E9: 18 98      
 L_06EB:  LOAD H'45BE,A           ;06EB: 32 BE 45   
 L_06EE:  LOAD A,#2               ;06EE: 3E 02      
  LOAD H'45BD,A                   ;06F0: 32 BD 45   
@@ -1102,19 +1128,19 @@ L_06F4:  PUSH HL                 ;06F4: E5
  LOAD B,A                        ;06FB: 47         
  LOAD A,H'45BE                   ;06FC: 3A BE 45   
  OR A,A                          ;06FF: B7         
- JUMP EQ,L_071C                  ;0700: 28 1A      
+ JUMP. EQ,L_071C                 ;0700: 28 1A      
  DEC A                           ;0702: 3D         
  JUMP EQ,L_07C2                  ;0703: CA C2 07   
  DEC A                           ;0706: 3D         
- JUMP EQ,L_073C                  ;0707: 28 33      
+ JUMP. EQ,L_073C                 ;0707: 28 33      
  DEC A                           ;0709: 3D         
- JUMP EQ,L_074A                  ;070A: 28 3E      
+ JUMP. EQ,L_074A                 ;070A: 28 3E      
  DEC A                           ;070C: 3D         
- JUMP EQ,L_0754                  ;070D: 28 45      
+ JUMP. EQ,L_0754                 ;070D: 28 45      
  DEC A                           ;070F: 3D         
- JUMP EQ,L_075D                  ;0710: 28 4B      
+ JUMP. EQ,L_075D                 ;0710: 28 4B      
  DEC A                           ;0712: 3D         
- JUMP EQ,L_0779                  ;0713: 28 64      
+ JUMP. EQ,L_0779                 ;0713: 28 64      
 L_0715:  LOAD A,B                ;0715: 78         
  LOAD H'45BD,A                   ;0716: 32 BD 45   
  JUMP L_07C7                     ;0719: C3 C7 07   
@@ -1140,35 +1166,35 @@ L_073C:  CALL L_07BE             ;073C: CD BE 07
  INC E                           ;0743: 1C         
  CALL L_07BE                     ;0744: CD BE 07   
  DEC D                           ;0747: 15         
- JUMP L_07C2                     ;0748: 18 78      
+ JUMP. L_07C2                    ;0748: 18 78      
 L_074A:  INC B                   ;074A: 04         
  LOAD A,B                        ;074B: 78         
- RR A                            ;074C: 1F         
- JUMP CC,L_0715                  ;074D: 30 C6      
+ RRC A                           ;074C: 1F         
+ JUMP. CC,L_0715                 ;074D: 30 C6      
  CALL L_07BE                     ;074F: CD BE 07   
- JUMP L_0715                     ;0752: 18 C1      
+ JUMP. L_0715                    ;0752: 18 C1      
 L_0754:  DECJ,NE B,L_075A        ;0754: 10 04      
  LOAD B,#5                       ;0756: 06 05      
- JUMP L_0715                     ;0758: 18 BB      
+ JUMP. L_0715                    ;0758: 18 BB      
 L_075A:  LOAD A,B                ;075A: 78         
- JUMP L_076E                     ;075B: 18 11      
+ JUMP. L_076E                    ;075B: 18 11      
 L_075D:  DECJ,NE B,L_0763        ;075D: 10 04      
  LOAD B,#16                      ;075F: 06 0E      
- JUMP L_0715                     ;0761: 18 B2      
+ JUMP. L_0715                    ;0761: 18 B2      
 L_0763:  LOAD A,B                ;0763: 78         
  DEC A                           ;0764: 3D         
- JUMP EQ,L_0715                  ;0765: 28 AE      
+ JUMP. EQ,L_0715                 ;0765: 28 AE      
  DEC A                           ;0767: 3D         
- JUMP EQ,L_0715                  ;0768: 28 AB      
+ JUMP. EQ,L_0715                 ;0768: 28 AB      
  DEC A                           ;076A: 3D         
  DEC A                           ;076B: 3D         
- JUMP EQ,L_0715                  ;076C: 28 A7      
+ JUMP. EQ,L_0715                 ;076C: 28 A7      
 L_076E:  DEC A                   ;076E: 3D         
- JUMP EQ,L_0715                  ;076F: 28 A4      
+ JUMP. EQ,L_0715                 ;076F: 28 A4      
  DEC A                           ;0771: 3D         
- JUMP EQ,L_0715                  ;0772: 28 A1      
+ JUMP. EQ,L_0715                 ;0772: 28 A1      
  CALL L_07BE                     ;0774: CD BE 07   
- JUMP L_0715                     ;0777: 18 9C      
+ JUMP. L_0715                    ;0777: 18 9C      
 L_0779:  DECJ,NE B,L_0793        ;0779: 10 18      
  LOAD B,#4                       ;077B: 06 04      
  CALL L_07BE                     ;077D: CD BE 07   
@@ -1183,21 +1209,24 @@ L_0779:  DECJ,NE B,L_0793        ;0779: 10 18
  DEC D                           ;078E: 15         
  INC E                           ;078F: 1C         
  CALL L_07BE                     ;0790: CD BE 07   
-L_0793:  JUMP L_0715             ;0793: 18 80      
+L_0793:  JUMP. L_0715            ;0793: 18 80      
 L_0795:  LOAD A,D                ;0795: 7A         
  COMP A,#H'78                    ;0796: FE 78      
- JUMP CS,L_079C                  ;0798: 38 02      
+ JUMP. CS,L_079C                 ;0798: 38 02      
  LOAD D,#H'77                    ;079A: 16 77      
 L_079C:  XOR A,A                 ;079C: AF         
  LOAD B,A                        ;079D: 47         
- SRC D                           ;079E: CB 3A        ?? CALM 1re gen à confirmer
- RL A                            ;07A0: 17         
- SRC D                           ;07A1: CB 3A        ?? CALM 1re gen à confirmer
- RR E                            ;07A3: CB 1B      
- RL A                            ;07A5: 17         
- SRC D                           ;07A6: CB 3A        ?? CALM 1re gen à confirmer
- RR E                            ;07A8: CB 1B      
- RL A                            ;07AA: 17         
+ .B H'CB                         ;079E: CB  SRL D (Zilog) — pas de mnémonique 1re gen
+ .B H'3A                         ;079F: 3A
+ RLC A                           ;07A0: 17         
+ .B H'CB                         ;07A1: CB  SRL D (Zilog) — pas de mnémonique 1re gen
+ .B H'3A                         ;07A2: 3A
+ RRC E                           ;07A3: CB 1B      
+ RLC A                           ;07A5: 17         
+ .B H'CB                         ;07A6: CB  SRL D (Zilog) — pas de mnémonique 1re gen
+ .B H'3A                         ;07A7: 3A
+ RRC E                           ;07A8: CB 1B      
+ RLC A                           ;07AA: 17         
  LOAD C,A                        ;07AB: 4F         
  LOAD HL,#H'07B6                 ;07AC: 21 B6 07   
  ADD HL,BC                       ;07AF: 09         
@@ -1206,7 +1235,7 @@ L_079C:  XOR A,A                 ;079C: AF
  ADD HL,DE                       ;07B4: 19         
  RET                             ;07B5: C9         
  ADD A,B                         ;07B6: 80         
- JUMP NE,L_07F9                  ;07B7: 20 40      
+ JUMP. NE,L_07F9                 ;07B7: 20 40      
  DECJ,NE B,L_07C3                ;07B9: 10 08      
  LOAD (BC),A                     ;07BB: 02         
  INC B                           ;07BC: 04         
@@ -1217,7 +1246,7 @@ L_07BE:  PUSH HL                 ;07BE: E5
  PUSH AF                         ;07C1: F5         
 L_07C2:  .B H'CD                 ;07C2: CD          ;orphelin avant L_07C3
 L_07C3:  SUB A,L                 ;07C3: 95         
- RLC A                           ;07C4: 07         
+ RL A                            ;07C4: 07         
  OR A,(HL)                       ;07C5: B6         
  LOAD (HL),A                     ;07C6: 77         
 L_07C7:  POP AF                  ;07C7: F1         
@@ -1233,7 +1262,7 @@ L_07D0:  CALL L_0795             ;07D0: CD 95 07
  CPL A                           ;07D3: 2F         
  AND A,(HL)                      ;07D4: A6         
  LOAD (HL),A                     ;07D5: 77         
- JUMP L_07C7                     ;07D6: 18 EF      
+ JUMP. L_07C7                    ;07D6: 18 EF      
 L_07D8:  PUSH HL                 ;07D8: E5         
  PUSH DE                         ;07D9: D5         
  PUSH BC                         ;07DA: C5         
@@ -1241,17 +1270,17 @@ L_07D8:  PUSH HL                 ;07D8: E5
  CALL L_0795                     ;07DC: CD 95 07   
  XOR A,(HL)                      ;07DF: AE         
  LOAD (HL),A                     ;07E0: 77         
- JUMP L_07C7                     ;07E1: 18 E4      
+ JUMP. L_07C7                    ;07E1: 18 E4      
 L_07E3:  PUSH HL                 ;07E3: E5         
  PUSH DE                         ;07E4: D5         
  PUSH BC                         ;07E5: C5         
  CALL L_0795                     ;07E6: CD 95 07   
  AND A,(HL)                      ;07E9: A6         
- JUMP L_07C8                     ;07EA: 18 DC      
+ JUMP. L_07C8                    ;07EA: 18 DC      
  LOAD C,L                        ;07EC: 4D         
  LOAD C,A                        ;07ED: 4F         
  LOAD C,(HL)                     ;07EE: 4E         
- JUMP NE,L_0823                  ;07EF: 20 32      
+ JUMP. NE,L_0823                 ;07EF: 20 32      
  DEC L                           ;07F1: 2D         
  LOAD H'4800,A                   ;07F2: 32 00 48   
  LOAD B,L                        ;07F5: 45         
@@ -1263,7 +1292,7 @@ L_07F9:  LOAD B,D                ;07F9: 42
  LOAD C,A                        ;07FB: 4F         
  LOAD D,H                        ;07FC: 54         
  LOAD H,L                        ;07FD: 65         
- JUMP NE,L_0861                  ;07FE: 20 61      
+ JUMP. NE,L_0861                 ;07FE: 20 61      
  JUMP L_0941                     ;0800: C3 41 09   
  JUMP L_094D                     ;0803: C3 4D 09   
  JUMP L_0A61                     ;0806: C3 61 0A   
@@ -1288,13 +1317,14 @@ L_0828:  LOAD A,(DE)             ;0828: 1A
  INC DE                          ;0829: 13         
  COMP A,(HL)                     ;082A: BE         
  INC HL                          ;082B: 23         
- JUMP EQ,L_0836                  ;082C: 28 08      
- JUMP CS,L_0834                  ;082E: 38 04      
+ JUMP. EQ,L_0836                 ;082C: 28 08      
+ JUMP. CS,L_0834                 ;082E: 38 04      
  LOAD C,#H'80                    ;0830: 0E 80      
- JUMP L_0836                     ;0832: 18 02      
+ JUMP. L_0836                    ;0832: 18 02      
 L_0834:  LOAD C,#H'40            ;0834: 0E 40      
 L_0836:  DECJ,NE B,L_0828        ;0836: 10 F0      
- SL C                            ;0838: CB 21      
+ .B H'CB                         ;0838: CB  SLA C (Zilog) — pas de mnémonique 1re gen
+ .B H'21                         ;0839: 21
  EX HL,DE                        ;083A: EB         
  POP BC                          ;083B: C1         
  RET                             ;083C: C9         
@@ -1321,15 +1351,17 @@ L_0836:  DECJ,NE B,L_0828        ;0836: 10 F0
  LOAD H,D                        ;0854: 62         
  POP DE                          ;0855: D1         
  LOAD L,E                        ;0856: 6B         
- SRC L                           ;0857: CB 3D        ?? CALM 1re gen à confirmer
- SRC L                           ;0859: CB 3D        ?? CALM 1re gen à confirmer
+ .B H'CB                         ;0857: CB  SRL L (Zilog) — pas de mnémonique 1re gen
+ .B H'3D                         ;0858: 3D
+ .B H'CB                         ;0859: CB  SRL L (Zilog) — pas de mnémonique 1re gen
+ .B H'3D                         ;085A: 3D
  POP BC                          ;085B: C1         
  POP AF                          ;085C: F1         
  RET                             ;085D: C9         
 L_085E:  PUSH AF                 ;085E: F5         
  LOAD A,H                        ;085F: 7C         
  OR A,A                          ;0860: B7         
-L_0861:  RR A                    ;0861: 1F         
+L_0861:  RRC A                   ;0861: 1F         
  PUSH AF                         ;0862: F5         
  OR A,A                          ;0863: B7         
  .W ?AFOCA                       ;0864: E7 3A
@@ -1342,9 +1374,9 @@ L_086C:  OR A,A                  ;086C: B7
  PUSH AF                         ;086D: F5         
  PUSH BC                         ;086E: C5         
  LOAD B,#3                       ;086F: 06 03      
-L_0871:  RL A                    ;0871: 17         
- RL A                            ;0872: 17         
- RL A                            ;0873: 17         
+L_0871:  RLC A                   ;0871: 17         
+ RLC A                           ;0872: 17         
+ RLC A                           ;0873: 17         
  PUSH AF                         ;0874: F5         
  AND A,#7                        ;0875: E6 07      
  ADD A,#60                       ;0877: C6 30      
@@ -1359,26 +1391,26 @@ L_087E:  POP BC                  ;087E: C1
  LOAD C,A                        ;0883: 4F         
  LOAD B,#10                      ;0884: 06 08      
 L_0886:  XOR A,A                 ;0886: AF         
- RL C                            ;0887: CB 11      
+ RLC C                           ;0887: CB 11      
  ADDC A,#60                      ;0889: CE 30      
  .W ?DICAR                       ;088B: E7 00
  DECJ,NE B,L_0886                ;088D: 10 F7      
- JUMP L_087E                     ;088F: 18 ED      
+ JUMP. L_087E                    ;088F: 18 ED      
  PUSH AF                         ;0891: F5         
 L_0892:  PUSH BC                 ;0892: C5         
  LOAD B,A                        ;0893: 47         
- RLC A                           ;0894: 07         
- RLC A                           ;0895: 07         
- RLC A                           ;0896: 07         
- RLC A                           ;0897: 07         
+ RL A                            ;0894: 07         
+ RL A                            ;0895: 07         
+ RL A                            ;0896: 07         
+ RL A                            ;0897: 07         
  CALL L_08A1                     ;0898: CD A1 08   
  LOAD A,B                        ;089B: 78         
  CALL L_08A1                     ;089C: CD A1 08   
- JUMP L_087E                     ;089F: 18 DD      
+ JUMP. L_087E                    ;089F: 18 DD      
 L_08A1:  AND A,#17               ;08A1: E6 0F      
  ADD A,#60                       ;08A3: C6 30      
  COMP A,#72                      ;08A5: FE 3A      
- JUMP CS,L_08AB                  ;08A7: 38 02      
+ JUMP. CS,L_08AB                 ;08A7: 38 02      
  ADD A,#7                        ;08A9: C6 07      
 L_08AB:  .W ?DICAR               ;08AB: E7 00
  RET                             ;08AD: C9         
@@ -1386,15 +1418,15 @@ L_08AB:  .W ?DICAR               ;08AB: E7 00
  LOAD A,H                        ;08AF: 7C         
  .W ?AFHEX                       ;08B0: E7 39
  LOAD A,L                        ;08B2: 7D         
- JUMP L_0892                     ;08B3: 18 DD      
+ JUMP. L_0892                    ;08B3: 18 DD      
  .B 1                            ;08B5: 01          ;orphelin avant 08B6
  .B 72                           ;08B6: 3A          ;orphelin avant L_08B7
 L_08B7:  .B 60                   ;08B7: 30          ;orphelin avant L_08B8
 L_08B8:  PUSH DE                 ;08B8: D5         
  LOAD DE,#H'FFFF                 ;08B9: 11 FF FF   
- JUMP L_08CA                     ;08BC: 18 0C      
+ JUMP. L_08CA                    ;08BC: 18 0C      
  LOAD BC,#H'3038                 ;08BE: 01 38 30   
- JUMP L_08B8                     ;08C1: 18 F5      
+ JUMP. L_08B8                    ;08C1: 18 F5      
  LOAD BC,#H'303A                 ;08C3: 01 3A 30   
  PUSH DE                         ;08C6: D5         
  LOAD DE,#H'4147                 ;08C7: 11 47 41   
@@ -1405,32 +1437,33 @@ L_08CA:  CALL L_0533             ;08CA: CD 33 05
  LOAD E,C                        ;08D4: 59         
  LOAD C,#0                       ;08D5: 0E 00      
  LOAD HL,#RST00                  ;08D7: 21 00 00   
-L_08DA:  LOAD A,(IX+0)           ;08DA: DD 7E 00   
+L_08DA:  LOAD A,(IX)             ;08DA: DD 7E 00   
  INC IX                          ;08DD: DD 23      
  OR A,A                          ;08DF: B7         
- JUMP EQ,L_08FA                  ;08E0: 28 18      
+ JUMP. EQ,L_08FA                 ;08E0: 28 18      
  COMP A,D                        ;08E2: BA         
- JUMP CC,L_08E8                  ;08E3: 30 03      
+ JUMP. CC,L_08E8                 ;08E3: 30 03      
  SUB A,B                         ;08E5: 90         
- JUMP L_08EA                     ;08E6: 18 02      
+ JUMP. L_08EA                    ;08E6: 18 02      
 L_08E8:  SUB A,#67               ;08E8: D6 37      
 L_08EA:  INC C                   ;08EA: 0C         
  ADD HL,HL                       ;08EB: 29         
  ADD HL,HL                       ;08EC: 29         
  ADD HL,HL                       ;08ED: 29         
- ;TODO BIT 1,E                   ;08EE: CB 4B        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
- JUMP EQ,L_08F3                  ;08F0: 28 01      
+ .B H'CB                         ;08EE: CB  BIT 1,E (Zilog) — pas d'équivalent direct 1re gen
+ .B H'4B                         ;08EF: 4B
+ JUMP. EQ,L_08F3                 ;08F0: 28 01      
  ADD HL,HL                       ;08F2: 29         
 L_08F3:  ADD A,L                 ;08F3: 85         
  LOAD L,A                        ;08F4: 6F         
- JUMP CC,L_08DA                  ;08F5: 30 E3      
+ JUMP. CC,L_08DA                 ;08F5: 30 E3      
  INC H                           ;08F7: 24         
- JUMP L_08DA                     ;08F8: 18 E0      
+ JUMP. L_08DA                    ;08F8: 18 E0      
 L_08FA:  POP IX                  ;08FA: DD E1      
  POP AF                          ;08FC: F1         
  POP DE                          ;08FD: D1         
  RET                             ;08FE: C9         
- JUMP NE,L_0975                  ;08FF: 20 74      
+ JUMP. NE,L_0975                 ;08FF: 20 74      
  ADD HL,BC                       ;0901: 09         
  LOAD A,A                        ;0902: 7F         
  LOAD D,A                        ;0903: 57         
@@ -1480,7 +1513,7 @@ L_08FA:  POP IX                  ;08FA: DD E1
  ADD HL,BC                       ;0935: 09         
  COMP A,C                        ;0936: B9         
  ADD HL,BC                       ;0937: 09         
- EX AF,AF'                       ;0938: 08         
+ EX AF                           ;0938: 08         
  LOAD D,A                        ;0939: 57         
  ADD HL,BC                       ;093A: 09         
  NOP                             ;093B: 00         
@@ -1498,9 +1531,10 @@ L_094D:  LOAD C,#4               ;094D: 0E 04
  .W ?BUZZ                        ;0951: E7 1A
  .W ?TEXT                        ;0953: E7 53
  .B H'EC                         ;0955: EC          ;orphelin avant 0956
- RLC A                           ;0956: 07         
+ RL A                            ;0956: 07         
 L_0957:  LOAD HL,#H'4549         ;0957: 21 49 45   
- ;TODO SET 0,(HL)                ;095A: CB C6        LOAD A,(HL) ; OR/AND A,#mask ; LOAD (HL),A
+ .B H'CB                         ;095A: CB  SET 0,(HL) (Zilog) — pas d'équivalent direct 1re gen
+ .B H'C6                         ;095B: C6
  .W ?RETUR                       ;095C: E7 23
  LOAD HL,#L_0A61                 ;095E: 21 61 0A   
  .W ?IADNM                       ;0961: E7 0C
@@ -1509,10 +1543,10 @@ L_0965:  .W ?INMON               ;0965: E7 40
  LOAD DE,#H'08FF                 ;0967: 11 FF 08   
  .W ?JUMPC                       ;096A: E7 31
 L_096C:  .W ?TEXTI               ;096C: E7 5E
- JUMP NE,L_09AF                  ;096E: 20 3F      
+ JUMP. NE,L_09AF                 ;096E: 20 3F      
  DEC C                           ;0970: 0D         
  NOP                             ;0971: 00         
- JUMP L_0965                     ;0972: 18 F1      
+ JUMP. L_0965                    ;0972: 18 F1      
  PUSH HL                         ;0974: E5         
 L_0975:  .W ?INMON               ;0975: E7 40
  POP DE                          ;0977: D1         
@@ -1524,13 +1558,13 @@ L_0975:  .W ?INMON               ;0975: E7 40
  SUBC HL,DE                      ;0983: ED 52      
  INC HL                          ;0985: 23         
  EX HL,DE                        ;0986: EB         
- JUMP CS,L_096C                  ;0987: 38 E3      
+ JUMP. CS,L_096C                 ;0987: 38 E3      
  COMP A,#40                      ;0989: FE 20      
- JUMP NE,L_096C                  ;098B: 20 DF      
- EXX                             ;098D: D9         
+ JUMP. NE,L_096C                 ;098B: 20 DF      
+ EX BL                           ;098D: D9         
  .W ?INMON                       ;098E: E7 40
  PUSH HL                         ;0990: E5         
- EXX                             ;0991: D9         
+ EX BL                           ;0991: D9         
  POP BC                          ;0992: C1         
  COMP A,#75                      ;0993: FE 3D      
  JUMP EQ,L_09A4                  ;0995: CA A4 09   
@@ -1538,18 +1572,18 @@ L_0975:  .W ?INMON               ;0975: E7 40
  JUMP EQ,L_0C92                  ;099A: CA 92 0C   
  COMP A,#H'4D                    ;099D: FE 4D      
  JUMP EQ,L_0B9C                  ;099F: CA 9C 0B   
- JUMP L_096C                     ;09A2: 18 C8      
+ JUMP. L_096C                    ;09A2: 18 C8      
 L_09A4:  LOAD A,H                ;09A4: 7C         
  LOAD (HL),C                     ;09A5: 71         
  INC HL                          ;09A6: 23         
  DEC DE                          ;09A7: 1B         
  LOAD A,D                        ;09A8: 7A         
  OR A,E                          ;09A9: B3         
- JUMP NE,L_09A4                  ;09AA: 20 F8      
- JUMP L_0957                     ;09AC: 18 A9      
+ JUMP. NE,L_09A4                 ;09AA: 20 F8      
+ JUMP. L_0957                    ;09AC: 18 A9      
  LOAD C,L                        ;09AE: 4D         
 L_09AF:  .W ?IDIS                ;09AF: E7 56
- JUMP L_0957                     ;09B1: 18 A4      
+ JUMP. L_0957                    ;09B1: 18 A4      
  PUSH HL                         ;09B3: E5         
  LOAD HL,SAVS                    ;09B4: 2A 4E 45   
  EX (SP),HL                      ;09B7: E3         
@@ -1558,14 +1592,14 @@ L_09AF:  .W ?IDIS                ;09AF: E7 56
  LOAD HL,SAVT                    ;09BA: 2A 56 45   
  EX (SP),HL                      ;09BD: E3         
  RET                             ;09BE: C9         
- JUMP EQ,L_09C4                  ;09BF: 28 03      
+ JUMP. EQ,L_09C4                 ;09BF: 28 03      
  LOAD SAVLGO,HL                  ;09C1: 22 46 45   
 L_09C4:  LOAD HL,SAVLGO          ;09C4: 2A 46 45   
  LOAD H'4540,HL                  ;09C7: 22 40 45   
  LOAD HL,#SPUTIL                 ;09CA: 21 28 45   
  LOAD H'4542,HL                  ;09CD: 22 42 45   
- JUMP L_09D7                     ;09D0: 18 05      
- JUMP EQ,L_09D7                  ;09D2: 28 03      
+ JUMP. L_09D7                    ;09D0: 18 05      
+ JUMP. EQ,L_09D7                 ;09D2: 28 03      
  LOAD H'4540,HL                  ;09D4: 22 40 45   
 L_09D7:  LOAD A,H'4549           ;09D7: 3A 49 45   
  LOAD $0,A                       ;09DA: D3 00      
@@ -1574,14 +1608,14 @@ L_09D7:  LOAD A,H'4549           ;09D7: 3A 49 45
  LOAD SP,#H'452C                 ;09E0: 31 2C 45   
  POP IY                          ;09E3: FD E1      
  POP IX                          ;09E5: DD E1      
- EX AF,AF'                       ;09E7: 08         
- EXX                             ;09E8: D9         
+ EX AF                           ;09E7: 08         
+ EX BL                           ;09E8: D9         
  POP HL                          ;09E9: E1         
  POP DE                          ;09EA: D1         
  POP BC                          ;09EB: C1         
  POP AF                          ;09EC: F1         
- EX AF,AF'                       ;09ED: 08         
- EXX                             ;09EE: D9         
+ EX AF                           ;09ED: 08         
+ EX BL                           ;09EE: D9         
  POP HL                          ;09EF: E1         
  POP DE                          ;09F0: D1         
  POP BC                          ;09F1: C1         
@@ -1592,15 +1626,15 @@ L_09D7:  LOAD A,H'4549           ;09D7: 3A 49 45
  EX (SP),HL                      ;09FB: E3         
  ION                             ;09FC: FB         
  RET                             ;09FD: C9         
- JUMP EQ,L_0A03                  ;09FE: 28 03      
+ JUMP. EQ,L_0A03                 ;09FE: 28 03      
  LOAD H'4540,HL                  ;0A00: 22 40 45   
 L_0A03:  LOAD SP,#SPUTIL         ;0A03: 31 28 45   
  LOAD HL,#L_0A61                 ;0A06: 21 61 0A   
  PUSH HL                         ;0A09: E5         
  LOAD HL,#H'4526                 ;0A0A: 21 26 45   
  LOAD H'4542,HL                  ;0A0D: 22 42 45   
- JUMP L_09D7                     ;0A10: 18 C5      
- JUMP NE,L_0A17                  ;0A12: 20 03      
+ JUMP. L_09D7                    ;0A10: 18 C5      
+ JUMP. NE,L_0A17                 ;0A12: 20 03      
  LOAD HL,H'4544                  ;0A14: 2A 44 45   
 L_0A17:  .W ?RETUR               ;0A17: E7 23
 L_0A19:  .W ?AFMOH               ;0A19: E7 42
@@ -1614,22 +1648,22 @@ L_0A27:  JUMP L_0965             ;0A27: C3 65 09
  .W ?RETUR                       ;0A2A: E7 23
  EX HL,DE                        ;0A2C: EB         
  LOAD HL,H'4544                  ;0A2D: 2A 44 45   
- JUMP EQ,L_0A33                  ;0A30: 28 01      
+ JUMP. EQ,L_0A33                 ;0A30: 28 01      
  LOAD (HL),E                     ;0A32: 73         
 L_0A33:  INC HL                  ;0A33: 23         
-L_0A34:  JUMP L_0A19             ;0A34: 18 E3      
+L_0A34:  JUMP. L_0A19            ;0A34: 18 E3      
  .W ?RETUR                       ;0A36: E7 23
  EX HL,DE                        ;0A38: EB         
  LOAD HL,H'4544                  ;0A39: 2A 44 45   
- JUMP EQ,L_0A3F                  ;0A3C: 28 01      
+ JUMP. EQ,L_0A3F                 ;0A3C: 28 01      
  LOAD (HL),E                     ;0A3E: 73         
 L_0A3F:  DEC HL                  ;0A3F: 2B         
- JUMP L_0A34                     ;0A40: 18 F2      
+ JUMP. L_0A34                    ;0A40: 18 F2      
  EX HL,DE                        ;0A42: EB         
  LOAD HL,H'4544                  ;0A43: 2A 44 45   
- JUMP EQ,L_0A49                  ;0A46: 28 01      
+ JUMP. EQ,L_0A49                 ;0A46: 28 01      
  LOAD (HL),E                     ;0A48: 73         
-L_0A49:  JUMP L_0A27             ;0A49: 18 DC      
+L_0A49:  JUMP. L_0A27            ;0A49: 18 DC      
 L_0A4B:  EX HL,DE                ;0A4B: EB         
  LOAD A,E                        ;0A4C: 7B         
  LOAD BC,#RST00                  ;0A4D: 01 00 00   
@@ -1637,7 +1671,7 @@ L_0A4B:  EX HL,DE                ;0A4B: EB
  JUMP PO,L_0957                  ;0A52: E2 57 09   
  DEC HL                          ;0A55: 2B         
  LOAD H'4544,HL                  ;0A56: 22 44 45   
- JUMP L_0A17                     ;0A59: 18 BC      
+ JUMP. L_0A17                    ;0A59: 18 BC      
  CALL L_0C2A                     ;0A5B: CD 2A 0C   
  JUMP CC,L_094D                  ;0A5E: D2 4D 09   
 L_0A61:  CALL L_0A84             ;0A61: CD 84 0A   
@@ -1647,7 +1681,7 @@ L_0A61:  CALL L_0A84             ;0A61: CD 84 0A
  LOAD HL,MAXMEM                  ;0A6C: 2A 60 45   
  LOAD SP,HL                      ;0A6F: F9         
  .W ?PRSTA                       ;0A70: E7 47
- JUMP L_0A49                     ;0A72: 18 D5      
+ JUMP. L_0A49                    ;0A72: 18 D5      
  CALL L_0A84                     ;0A74: CD 84 0A   
  POP DE                          ;0A77: D1         
  POP HL                          ;0A78: E1         
@@ -1670,14 +1704,14 @@ L_0A84:  PUSH AF                 ;0A84: F5
  PUSH BC                         ;0A9A: C5         
  PUSH DE                         ;0A9B: D5         
  PUSH HL                         ;0A9C: E5         
- EX AF,AF'                       ;0A9D: 08         
- EXX                             ;0A9E: D9         
+ EX AF                           ;0A9D: 08         
+ EX BL                           ;0A9E: D9         
  PUSH AF                         ;0A9F: F5         
  PUSH BC                         ;0AA0: C5         
  PUSH DE                         ;0AA1: D5         
  PUSH HL                         ;0AA2: E5         
- EX AF,AF'                       ;0AA3: 08         
- EXX                             ;0AA4: D9         
+ EX AF                           ;0AA3: 08         
+ EX BL                           ;0AA4: D9         
  PUSH IX                         ;0AA5: DD E5      
  PUSH IY                         ;0AA7: FD E5      
  LOAD SP,H'4542                  ;0AA9: ED 7B 42 45
@@ -1707,35 +1741,35 @@ L_0A84:  PUSH AF                 ;0A84: F5
  LOAD D,(HL)                     ;0AD4: 56         
  LOAD C,(HL)                     ;0AD5: 4E         
  LOAD B,E                        ;0AD6: 43         
- JUMP NE,L_0AF9                  ;0AD7: 20 20      
+ JUMP. NE,L_0AF9                 ;0AD7: 20 20      
  LOAD B,C                        ;0AD9: 41         
- JUMP NE,L_0AFC                  ;0ADA: 20 20      
- JUMP NE,L_0B20                  ;0ADC: 20 42      
- JUMP NE,L_0B00                  ;0ADE: 20 20      
- JUMP NE,L_0B25                  ;0AE0: 20 43      
- JUMP NE,L_0B04                  ;0AE2: 20 20      
- JUMP NE,L_0B2A                  ;0AE4: 20 44      
- JUMP NE,L_0B08                  ;0AE6: 20 20      
- JUMP NE,L_0B2F                  ;0AE8: 20 45      
- JUMP NE,L_0B0C                  ;0AEA: 20 20      
- JUMP NE,L_0B0E                  ;0AEC: 20 20      
+ JUMP. NE,L_0AFC                 ;0ADA: 20 20      
+ JUMP. NE,L_0B20                 ;0ADC: 20 42      
+ JUMP. NE,L_0B00                 ;0ADE: 20 20      
+ JUMP. NE,L_0B25                 ;0AE0: 20 43      
+ JUMP. NE,L_0B04                 ;0AE2: 20 20      
+ JUMP. NE,L_0B2A                 ;0AE4: 20 44      
+ JUMP. NE,L_0B08                 ;0AE6: 20 20      
+ JUMP. NE,L_0B2F                 ;0AE8: 20 45      
+ JUMP. NE,L_0B0C                 ;0AEA: 20 20      
+ JUMP. NE,L_0B0E                 ;0AEC: 20 20      
  LOAD B,H                        ;0AEE: 44         
  LOAD B,L                        ;0AEF: 45         
- JUMP NE,L_0B12                  ;0AF0: 20 20      
- JUMP NE,L_0B14                  ;0AF2: 20 20      
- JUMP NE,L_0B3E                  ;0AF4: 20 48      
+ JUMP. NE,L_0B12                 ;0AF0: 20 20      
+ JUMP. NE,L_0B14                 ;0AF2: 20 20      
+ JUMP. NE,L_0B3E                 ;0AF4: 20 48      
  LOAD C,H                        ;0AF6: 4C         
- JUMP NE,L_0B19                  ;0AF7: 20 20      
-L_0AF9:  JUMP NE,L_0B44          ;0AF9: 20 49      
+ JUMP. NE,L_0B19                 ;0AF7: 20 20      
+L_0AF9:  JUMP. NE,L_0B44         ;0AF9: 20 49      
  LOAD E,B                        ;0AFB: 58         
-L_0AFC:  JUMP NE,L_0B5C          ;0AFC: 20 5E      
+L_0AFC:  JUMP. NE,L_0B5C         ;0AFC: 20 5E      
  LOAD D,E                        ;0AFE: 53         
  LOAD D,B                        ;0AFF: 50         
-L_0B00:  JUMP NE,L_0B4B          ;0B00: 20 49      
+L_0B00:  JUMP. NE,L_0B4B         ;0B00: 20 49      
  LOAD E,C                        ;0B02: 59         
  .B 40                           ;0B03: 20          ;orphelin avant L_0B04
 L_0B04:  LOAD E,(HL)             ;0B04: 5E         
- JUMP EQ,L_0B5A                  ;0B05: 28 53      
+ JUMP. EQ,L_0B5A                 ;0B05: 28 53      
  LOAD D,B                        ;0B07: 50         
 L_0B08:  ADD HL,HL               ;0B08: 29         
  .B 40                           ;0B09: 20          ;orphelin avant L_0B0A
@@ -1743,10 +1777,10 @@ L_0B0A:  LOAD C,C                ;0B0A: 49
  .B 40                           ;0B0B: 20          ;orphelin avant L_0B0C
 L_0B0C:  LOAD D,B                ;0B0C: 50         
  LOAD B,E                        ;0B0D: 43         
-L_0B0E:  JUMP NE,L_0B10          ;0B0E: 20 00      
+L_0B0E:  JUMP. NE,L_0B10         ;0B0E: 20 00      
 L_0B10:  DEC DE                  ;0B10: 1B         
  .B H'CD                         ;0B11: CD          ;orphelin avant L_0B12
-L_0B12:  RR A                    ;0B12: 1F         
+L_0B12:  RRC A                   ;0B12: 1F         
  DEC BC                          ;0B13: 0B         
 L_0B14:  CALL L_0B38             ;0B14: CD 38 0B   
  .B 72                           ;0B17: 3A          ;orphelin avant 0B18
@@ -1783,7 +1817,7 @@ L_0B3E:  DEC DE                  ;0B3E: 1B
  .W ?SPACE                       ;0B42: E7 22
 L_0B44:  DECJ,NE B,H'0B3A        ;0B44: 10 F4      
  RET                             ;0B46: C9         
- JUMP NE,L_0B4E                  ;0B47: 20 05      
+ JUMP. NE,L_0B4E                 ;0B47: 20 05      
  .B 72                           ;0B49: 3A          ;orphelin avant 0B4A
  COMP A,E                        ;0B4A: BB         
 L_0B4B:  LOAD B,L                ;0B4B: 45         
@@ -1798,7 +1832,7 @@ L_0B54:  COMP A,E                ;0B54: BB
  LOAD A,#44                      ;0B56: 3E 24      
  .W ?DICAR                       ;0B58: E7 00
 L_0B5A:  LOAD A,#72              ;0B5A: 3E 3A      
-L_0B5C:  RST 20h                 ;0B5C: E7         
+L_0B5C:  RST H'20                ;0B5C: E7         
 L_0B5D:  NOP                     ;0B5D: 00         
  LOAD C,L                        ;0B5E: 4D         
  LOAD A,$(C)                     ;0B5F: ED 78        ?? IN r,(C) — vérifier syntaxe CALM
@@ -1806,7 +1840,7 @@ L_0B5D:  NOP                     ;0B5D: 00
 L_0B63:  .W ?SPACE               ;0B63: E7 22
  JUMP L_0965                     ;0B65: C3 65 09   
  LOAD E,L                        ;0B68: 5D         
- JUMP NE,L_0B70                  ;0B69: 20 05      
+ JUMP. NE,L_0B70                 ;0B69: 20 05      
  LOAD A,H'45BA                   ;0B6B: 3A BA 45   
  INC A                           ;0B6E: 3C         
  LOAD E,A                        ;0B6F: 5F         
@@ -1818,7 +1852,7 @@ L_0B70:  LOAD A,E                ;0B70: 7B
  LOAD L,A                        ;0B7A: 6F         
  OR A,A                          ;0B7B: B7         
  .W ?AFMON                       ;0B7C: E7 41
- JUMP L_0B8E                     ;0B7E: 18 0E      
+ JUMP. L_0B8E                    ;0B7E: 18 0E      
 L_0B80:  .W ?RETUR               ;0B80: E7 23
  LOAD A,E                        ;0B82: 7B         
  .W ?AFMON                       ;0B83: E7 41
@@ -1840,30 +1874,33 @@ L_0B9C:  PUSH DE                 ;0B9C: D5
  POP BC                          ;0B9F: C1         
 L_0BA0:  LDIR                    ;0BA0: ED B0      
  LOAD H'4544,HL                  ;0BA2: 22 44 45   
- JUMP L_0B99                     ;0BA5: 18 F2      
- JUMP NE,L_0BAC                  ;0BA7: 20 03      
+ JUMP. L_0B99                    ;0BA5: 18 F2      
+ JUMP. NE,L_0BAC                 ;0BA7: 20 03      
  LOAD HL,H'4544                  ;0BA9: 2A 44 45   
 L_0BAC:  LOAD DE,#H'4100         ;0BAC: 11 00 41   
  LOAD BC,#H'0400                 ;0BAF: 01 00 04   
- JUMP L_0BA0                     ;0BB2: 18 EC      
-L_0BB4:  ;TODO SET 0,(HL)        ;0BB4: CB C6        LOAD A,(HL) ; OR/AND A,#mask ; LOAD (HL),A
+ JUMP. L_0BA0                    ;0BB2: 18 EC      
+L_0BB4:  .B H'CB                 ;0BB4: CB  SET 0,(HL) (Zilog) — pas d'équivalent direct 1re gen
+ .B H'C6                         ;0BB5: C6
  XOR A,A                         ;0BB6: AF         
  RET                             ;0BB7: C9         
-L_0BB8:  ;TODO RES 0,(HL)        ;0BB8: CB 86        LOAD A,(HL) ; OR/AND A,#mask ; LOAD (HL),A
+L_0BB8:  .B H'CB                 ;0BB8: CB  RES 0,(HL) (Zilog) — pas d'équivalent direct 1re gen
+ .B H'86                         ;0BB9: 86
  XOR A,A                         ;0BBA: AF         
  RET                             ;0BBB: C9         
  LOAD HL,#H'454A                 ;0BBC: 21 4A 45   
  LOAD A,#H'48                    ;0BBF: 3E 48      
  XOR A,(HL)                      ;0BC1: AE         
  LOAD (HL),A                     ;0BC2: 77         
- ;TODO BIT 6,A                   ;0BC3: CB 77        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
- JUMP NE,L_0BD0                  ;0BC5: 20 09      
+ .B H'CB                         ;0BC3: CB  BIT 6,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'77                         ;0BC4: 77
+ JUMP. NE,L_0BD0                 ;0BC5: 20 09      
  LOAD HL,#H'0D74                 ;0BC7: 21 74 0D   
 L_0BCA:  .W ?SPACE               ;0BCA: E7 22
  .W ?DITEX                       ;0BCC: E7 06
- JUMP L_0B99                     ;0BCE: 18 C9      
+ JUMP. L_0B99                    ;0BCE: 18 C9      
 L_0BD0:  LOAD HL,#H'07F4         ;0BD0: 21 F4 07   
- JUMP L_0BCA                     ;0BD3: 18 F5      
+ JUMP. L_0BCA                    ;0BD3: 18 F5      
 L_0BD5:  .W ?RPR                 ;0BD5: E7 14
  LOAD B,A                        ;0BD7: 47         
  ADD A,E                         ;0BD8: 83         
@@ -1873,19 +1910,19 @@ L_0BD5:  .W ?RPR                 ;0BD5: E7 14
 L_0BDC:  CALL L_0BD5             ;0BDC: CD D5 0B   
  LOAD A,B                        ;0BDF: 78         
  COMP A,#0                       ;0BE0: FE 00      
- JUMP EQ,L_0BDC                  ;0BE2: 28 F8      
+ JUMP. EQ,L_0BDC                 ;0BE2: 28 F8      
  DEC A                           ;0BE4: 3D         
- JUMP NE,L_0BDC                  ;0BE5: 20 F5      
+ JUMP. NE,L_0BDC                 ;0BE5: 20 F5      
  CALL L_0BD5                     ;0BE7: CD D5 0B   
  OR A,A                          ;0BEA: B7         
- JUMP NE,L_0BDC                  ;0BEB: 20 EF      
+ JUMP. NE,L_0BDC                 ;0BEB: 20 EF      
  LOAD E,#1                       ;0BED: 1E 01      
  CALL L_0BD5                     ;0BEF: CD D5 0B   
  SUB A,#5                        ;0BF2: D6 05      
  LOAD D,A                        ;0BF4: 57         
  CALL L_0BD5                     ;0BF5: CD D5 0B   
  OR A,A                          ;0BF8: B7         
- JUMP NE,L_0C3D                  ;0BF9: 20 42      
+ JUMP. NE,L_0C3D                 ;0BF9: 20 42      
  CALL L_0BD5                     ;0BFB: CD D5 0B   
  LOAD L,A                        ;0BFE: 6F         
  CALL L_0BD5                     ;0BFF: CD D5 0B   
@@ -1897,7 +1934,7 @@ L_0C05:  CALL L_0BD5             ;0C05: CD D5 0B
  CALL L_0C11                     ;0C09: CD 11 0C   
  INC HL                          ;0C0C: 23         
  DEC D                           ;0C0D: 15         
- JUMP NE,L_0C05                  ;0C0E: 20 F5      
+ JUMP. NE,L_0C05                 ;0C0E: 20 F5      
  RET                             ;0C10: C9         
 L_0C11:  LOAD $3,A               ;0C11: D3 03      
  PUSH HL                         ;0C13: E5         
@@ -1920,17 +1957,17 @@ L_0C11:  LOAD $3,A               ;0C11: D3 03
 L_0C2A:  PUSH HL                 ;0C2A: E5         
  LOAD A,C                        ;0C2B: 79         
  OR A,A                          ;0C2C: B7         
- JUMP NE,L_0C4D                  ;0C2D: 20 1E      
+ JUMP. NE,L_0C4D                 ;0C2D: 20 1E      
  POP HL                          ;0C2F: E1         
 L_0C30:  CALL L_0BDC             ;0C30: CD DC 0B   
- JUMP EQ,L_0C3F                  ;0C33: 28 0A      
+ JUMP. EQ,L_0C3F                 ;0C33: 28 0A      
  CALL L_0C05                     ;0C35: CD 05 0C   
  CALL L_0BD5                     ;0C38: CD D5 0B   
- JUMP EQ,L_0C30                  ;0C3B: 28 F3      
+ JUMP. EQ,L_0C30                 ;0C3B: 28 F3      
 L_0C3D:  SETC                    ;0C3D: 37         
  RET                             ;0C3E: C9         
 L_0C3F:  CALL L_0BD5             ;0C3F: CD D5 0B   
- JUMP NE,L_0C3D                  ;0C42: 20 F9      
+ JUMP. NE,L_0C3D                 ;0C42: 20 F9      
  LOAD A,L                        ;0C44: 7D         
  DEC A                           ;0C45: 3D         
  OR A,H                          ;0C46: B4         
@@ -1947,17 +1984,17 @@ L_0C4D:  CALL L_0BDC             ;0C4D: CD DC 0B
  LOAD L,C                        ;0C56: 69         
 L_0C57:  CALL L_0C05             ;0C57: CD 05 0C   
  CALL L_0BD5                     ;0C5A: CD D5 0B   
- JUMP NE,L_0C6E                  ;0C5D: 20 0F      
+ JUMP. NE,L_0C6E                 ;0C5D: 20 0F      
  CALL L_0BDC                     ;0C5F: CD DC 0B   
- JUMP EQ,L_0C6B                  ;0C62: 28 07      
+ JUMP. EQ,L_0C6B                 ;0C62: 28 07      
  POP BC                          ;0C64: C1         
  PUSH BC                         ;0C65: C5         
  OR A,A                          ;0C66: B7         
  SUBC HL,BC                      ;0C67: ED 42      
- JUMP L_0C57                     ;0C69: 18 EC      
+ JUMP. L_0C57                    ;0C69: 18 EC      
 L_0C6B:  CALL L_0BD5             ;0C6B: CD D5 0B   
 L_0C6E:  POP HL                  ;0C6E: E1         
- JUMP NE,L_0C3D                  ;0C6F: 20 CC      
+ JUMP. NE,L_0C3D                 ;0C6F: 20 CC      
  OR A,A                          ;0C71: B7         
  RET                             ;0C72: C9         
 L_0C73:  LOAD A,E                ;0C73: 7B         
@@ -1998,7 +2035,7 @@ L_0CAA:  LOAD C,#0               ;0CAA: 0E 00
  LOAD DE,#RST28H                 ;0CB2: 11 28 00   
  OR A,A                          ;0CB5: B7         
  SUBC HL,DE                      ;0CB6: ED 52      
- JUMP CC,L_0CBF                  ;0CB8: 30 05      
+ JUMP. CC,L_0CBF                 ;0CB8: 30 05      
  ADD HL,DE                       ;0CBA: 19         
  LOAD DE,#RST00                  ;0CBB: 11 00 00   
  EX HL,DE                        ;0CBE: EB         
@@ -2013,7 +2050,7 @@ L_0CBF:  PUSH HL                 ;0CBF: E5
  INC B                           ;0CCB: 04         
  POP HL                          ;0CCC: E1         
  POP DE                          ;0CCD: D1         
- JUMP EQ,L_0CED                  ;0CCE: 28 1D      
+ JUMP. EQ,L_0CED                 ;0CCE: 28 1D      
  PUSH HL                         ;0CD0: E5         
  PUSH DE                         ;0CD1: D5         
  PUSH IY                         ;0CD2: FD E5      
@@ -2029,18 +2066,18 @@ L_0CDF:  LOAD A,(DE)             ;0CDF: 1A
  INC DE                          ;0CE0: 13         
  CALL L_0C78                     ;0CE1: CD 78 0C   
  DEC B                           ;0CE4: 05         
- JUMP NE,L_0CDF                  ;0CE5: 20 F8      
+ JUMP. NE,L_0CDF                 ;0CE5: 20 F8      
  PUSH DE                         ;0CE7: D5         
  CALL L_0C8B                     ;0CE8: CD 8B 0C   
- JUMP L_0CAA                     ;0CEB: 18 BD      
+ JUMP. L_0CAA                    ;0CEB: 18 BD      
 L_0CED:  LOAD HL,SAVLGO          ;0CED: 2A 46 45   
  EX HL,DE                        ;0CF0: EB         
  CALL L_0C73                     ;0CF1: CD 73 0C   
- JUMP L_0C8B                     ;0CF4: 18 95      
+ JUMP. L_0C8B                    ;0CF4: 18 95      
 L_0CF6:  PUSH BC                 ;0CF6: C5         
  LOAD B,A                        ;0CF7: 47         
  LOAD A,H'454A                   ;0CF8: 3A 4A 45   
- RLC A                           ;0CFB: CB 07      
+ ZRL A                           ;0CFB: CB 07      
  LOAD A,B                        ;0CFD: 78         
  POP BC                          ;0CFE: C1         
  RET                             ;0CFF: C9         
@@ -2065,17 +2102,17 @@ L_0D24:  LOAD B,A                ;0D24: 47
  LOAD A,B                        ;0D27: 78         
  RET                             ;0D28: C9         
 L_0D29:  .W ?INOC                ;0D29: E7 37
- JUMP L_0D24                     ;0D2B: 18 F7      
+ JUMP. L_0D24                    ;0D2B: 18 F7      
  LOAD A,(HL)                     ;0D2D: 7E         
  ADD A,#2                        ;0D2E: C6 02      
- DAA                             ;0D30: 27         
+ DAA A                           ;0D30: 27         
  LOAD (HL),A                     ;0D31: 77         
  INC HL                          ;0D32: 23         
 L_0D33:  LOAD A,(HL)             ;0D33: 7E         
  ADDC A,#0                       ;0D34: CE 00      
- DAA                             ;0D36: 27         
+ DAA A                           ;0D36: 27         
  COMP A,#H'60                    ;0D37: FE 60      
-L_0D39:  JUMP CS,L_0D3C          ;0D39: 38 01      
+L_0D39:  JUMP. CS,L_0D3C         ;0D39: 38 01      
  XOR A,A                         ;0D3B: AF         
 L_0D3C:  .B H'3F                 ;0D3C: 3F           CCF (toggle CF) - mnémonique 1re gen ?
  LOAD (HL),A                     ;0D3D: 77         
@@ -2084,12 +2121,12 @@ L_0D3C:  .B H'3F                 ;0D3C: 3F           CCF (toggle CF) - mnémoniq
  CALL L_0D33                     ;0D40: CD 33 0D   
  LOAD A,(HL)                     ;0D43: 7E         
  ADDC A,#0                       ;0D44: CE 00      
- DAA                             ;0D46: 27         
+ DAA A                           ;0D46: 27         
  COMP A,#44                      ;0D47: FE 24      
- JUMP L_0D39                     ;0D49: 18 EE      
+ JUMP. L_0D39                    ;0D49: 18 EE      
  LOAD A,(HL)                     ;0D4B: 7E         
  ADDC A,#0                       ;0D4C: CE 00      
- DAA                             ;0D4E: 27         
+ DAA A                           ;0D4E: 27         
  PUSH BC                         ;0D4F: C5         
  PUSH HL                         ;0D50: E5         
  INC HL                          ;0D51: 23         
@@ -2103,11 +2140,11 @@ L_0D3C:  .B H'3F                 ;0D3C: 3F           CCF (toggle CF) - mnémoniq
  CALL L_0D65                     ;0D5C: CD 65 0D   
  LOAD A,(HL)                     ;0D5F: 7E         
  ADDC A,#0                       ;0D60: CE 00      
- DAA                             ;0D62: 27         
+ DAA A                           ;0D62: 27         
  COMP A,#23                      ;0D63: FE 13      
-L_0D65:  JUMP CS,L_0D3C          ;0D65: 38 D5      
+L_0D65:  JUMP. CS,L_0D3C         ;0D65: 38 D5      
  LOAD A,#1                       ;0D67: 3E 01      
- JUMP L_0D3C                     ;0D69: 18 D1      
+ JUMP. L_0D3C                    ;0D69: 18 D1      
  LOAD H'3229,A                   ;0D6B: 32 29 32   
  LOAD SP,#H'3132                 ;0D6E: 31 32 31   
  LOAD H'3132,A                   ;0D71: 32 32 31   
@@ -2120,23 +2157,25 @@ L_0D65:  JUMP CS,L_0D3C          ;0D65: 38 D5
  LOAD H'3231,A                   ;0D7A: 32 31 32   
  LOAD A,(HL)                     ;0D7D: 7E         
  ADDC A,#0                       ;0D7E: CE 00      
- DAA                             ;0D80: 27         
+ DAA A                           ;0D80: 27         
  LOAD (HL),A                     ;0D81: 77         
  INC HL                          ;0D82: 23         
  RET                             ;0D83: C9         
  PUSH AF                         ;0D84: F5         
  PUSH BC                         ;0D85: C5         
  LOAD B,A                        ;0D86: 47         
-L_0D87:  SL B                    ;0D87: CB 20      
- JUMP CC,L_0D9C                  ;0D89: 30 11      
+L_0D87:  .B H'CB                 ;0D87: CB  SLA B (Zilog) — pas de mnémonique 1re gen
+ .B H'20                         ;0D88: 20
+ JUMP. CC,L_0D9C                 ;0D89: 30 11      
  LOAD A,#72                      ;0D8B: 3E 3A      
  .W ?DICAR                       ;0D8D: E7 00
 L_0D8F:  LOAD A,(HL)             ;0D8F: 7E         
  DEC HL                          ;0D90: 2B         
  .W ?AFHEX                       ;0D91: E7 39
  .W ?SPACE                       ;0D93: E7 22
- SL B                            ;0D95: CB 20      
- JUMP CS,L_0D8F                  ;0D97: 38 F6      
+ .B H'CB                         ;0D95: CB  SLA B (Zilog) — pas de mnémonique 1re gen
+ .B H'20                         ;0D96: 20
+ JUMP. CS,L_0D8F                 ;0D97: 38 F6      
  POP BC                          ;0D99: C1         
  POP AF                          ;0D9A: F1         
  RET                             ;0D9B: C9         
@@ -2144,7 +2183,7 @@ L_0D9C:  LOAD A,(HL)             ;0D9C: 7E
  DEC HL                          ;0D9D: 2B         
  .W ?SPACE                       ;0D9E: E7 22
  .W ?AFHEX                       ;0DA0: E7 39
- JUMP L_0D87                     ;0DA2: 18 E3      
+ JUMP. L_0D87                    ;0DA2: 18 E3      
  PUSH BC                         ;0DA4: C5         
  PUSH DE                         ;0DA5: D5         
  EX HL,DE                        ;0DA6: EB         
@@ -2158,9 +2197,11 @@ L_0DAC:  PUSH HL                 ;0DAC: E5
  LOAD A,L                        ;0DB6: 7D         
  POP BC                          ;0DB7: C1         
  POP HL                          ;0DB8: E1         
- RRD                             ;0DB9: ED 67      
- ;TODO BIT 0,B                   ;0DBB: CB 40        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
- JUMP EQ,L_0DC0                  ;0DBD: 28 01      
+ .B H'ED                         ;0DB9: ED  RRD (rotation nibble BCD A↔(HL)) — mnémonique 1re gen ?
+ .B H'67                         ;0DBA: 67
+ .B H'CB                         ;0DBB: CB  BIT 0,B (Zilog) — pas d'équivalent direct 1re gen
+ .B H'40                         ;0DBC: 40
+ JUMP. EQ,L_0DC0                 ;0DBD: 28 01      
  INC HL                          ;0DBF: 23         
 L_0DC0:  DECJ,NE B,L_0DAC        ;0DC0: 10 EA      
  LOAD HL,H'45BA                  ;0DC2: 2A BA 45   
@@ -2176,7 +2217,8 @@ L_0DC0:  DECJ,NE B,L_0DAC        ;0DC0: 10 EA
  LOAD DE,#RST00                  ;0DD2: 11 00 00   
  LOAD B,#4                       ;0DD5: 06 04      
 L_0DD7:  XOR A,A                 ;0DD7: AF         
- RLD                             ;0DD8: ED 6F      
+ .B H'ED                         ;0DD8: ED  RLD (rotation nibble BCD A↔(HL)) — mnémonique 1re gen ?
+ .B H'6F                         ;0DD9: 6F
  PUSH HL                         ;0DDA: E5         
  PUSH BC                         ;0DDB: C5         
  LOAD BC,#H'000A                 ;0DDC: 01 0A 00   
@@ -2185,8 +2227,9 @@ L_0DD7:  XOR A,A                 ;0DD7: AF
  .W ?MUL                         ;0DE1: E7 2F
  POP BC                          ;0DE3: C1         
  POP HL                          ;0DE4: E1         
- ;TODO BIT 0,B                   ;0DE5: CB 40        tester bit sans modifier r (équivalent : AND avec mask sur copie A)
- JUMP EQ,L_0DEA                  ;0DE7: 28 01      
+ .B H'CB                         ;0DE5: CB  BIT 0,B (Zilog) — pas d'équivalent direct 1re gen
+ .B H'40                         ;0DE6: 40
+ JUMP. EQ,L_0DEA                 ;0DE7: 28 01      
  DEC HL                          ;0DE9: 2B         
 L_0DEA:  DECJ,NE B,L_0DD7        ;0DEA: 10 EB      
  EX HL,DE                        ;0DEC: EB         
@@ -2195,7 +2238,7 @@ L_0DEE:  POP BC                  ;0DEE: C1
  POP AF                          ;0DEF: F1         
  RET                             ;0DF0: C9         
  LOAD H'45BA,HL                  ;0DF1: 22 BA 45   
- JUMP L_0DFD                     ;0DF4: 18 07      
+ JUMP. L_0DFD                    ;0DF4: 18 07      
  LOAD H'45BA,HL                  ;0DF6: 22 BA 45   
  EX HL,DE                        ;0DF9: EB         
  .W ?GETAR                       ;0DFA: E7 4F
@@ -2207,17 +2250,17 @@ L_0E01:  DECJ,NE B,L_0E01        ;0E01: 10 FE
  DEC HL                          ;0E03: 2B         
  LOAD A,L                        ;0E04: 7D         
  OR A,H                          ;0E05: B4         
- JUMP NE,L_0DFF                  ;0E06: 20 F7      
+ JUMP. NE,L_0DFF                 ;0E06: 20 F7      
  LOAD HL,H'45BA                  ;0E08: 2A BA 45   
- JUMP L_0DEE                     ;0E0B: 18 E1      
+ JUMP. L_0DEE                    ;0E0B: 18 E1      
  LOAD D,E                        ;0E0D: 53         
  LOAD E,C                        ;0E0E: 59         
  LOAD D,E                        ;0E0F: 53         
- JUMP NE,L_0E44                  ;0E10: 20 32      
+ JUMP. NE,L_0E44                 ;0E10: 20 32      
  DEC L                           ;0E12: 2D         
  LOAD H'2A20,A                   ;0E13: 32 20 2A   
- JUMP NE,L_0E18                  ;0E16: 20 00      
-L_0E18:  JUMP NE,L_0E65          ;0E18: 20 4B      
+ JUMP. NE,L_0E18                 ;0E16: 20 00      
+L_0E18:  JUMP. NE,L_0E65         ;0E18: 20 4B      
  DEC C                           ;0E1A: 0D         
  NOP                             ;0E1B: 00         
  PUSH AF                         ;0E1C: F5         
@@ -2227,24 +2270,24 @@ L_0E1F:  .W ?DICAR               ;0E1F: E7 00
  RET                             ;0E22: C9         
  PUSH AF                         ;0E23: F5         
  LOAD A,#15                      ;0E24: 3E 0D      
- JUMP L_0E1F                     ;0E26: 18 F7      
+ JUMP. L_0E1F                    ;0E26: 18 F7      
  PUSH AF                         ;0E28: F5         
  LOAD A,#11                      ;0E29: 3E 09      
- JUMP L_0E1F                     ;0E2B: 18 F2      
+ JUMP. L_0E1F                    ;0E2B: 18 F2      
  PUSH AF                         ;0E2D: F5         
  LOAD A,#10                      ;0E2E: 3E 08      
- JUMP L_0E1F                     ;0E30: 18 ED      
+ JUMP. L_0E1F                    ;0E30: 18 ED      
  PUSH AF                         ;0E32: F5         
  .B 76                           ;0E33: 3E          ;orphelin avant L_0E34
 L_0E34:  LOAD (BC),A             ;0E34: 02         
- JUMP L_0E1F                     ;0E35: 18 E8      
+ JUMP. L_0E1F                    ;0E35: 18 E8      
  PUSH HL                         ;0E37: E5         
  PUSH DE                         ;0E38: D5         
  LOAD HL,H'4574                  ;0E39: 2A 74 45   
  DEC HL                          ;0E3C: 2B         
  LOAD DE,#SALPHA                 ;0E3D: 11 00 40   
  .W ?COMPH                       ;0E40: E7 2E
- JUMP CC,H'0E45                  ;0E42: 30 01      
+ JUMP. CC,H'0E45                 ;0E42: 30 01      
 L_0E44:  INC HL                  ;0E44: 23         
  LOAD A,L                        ;0E45: 7D         
  AND A,#77                       ;0E46: E6 3F      
@@ -2266,21 +2309,26 @@ RDCLK_PRIM: PUSH DE              ;0E55: D5
  LOAD $10,A                      ;0E5A: D3 08      
  LOAD B,#4                       ;0E5C: 06 04      
  LOAD C,#17                      ;0E5E: 0E 0F      
- OR  A,#B'00000100               ;0E60: CB D7        = SET 2,A
- OR  A,#B'00000010               ;0E62: CB CF        = SET 1,A
-L_0E64:  RR A                    ;0E64: 1F         
-L_0E65:  RR C                    ;0E65: CB 19      
- RL A                            ;0E67: 17         
+ .B H'CB                         ;0E60: CB  SET 2,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'D7                         ;0E61: D7
+ .B H'CB                         ;0E62: CB  SET 1,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'CF                         ;0E63: CF
+L_0E64:  RRC A                   ;0E64: 1F         
+L_0E65:  RRC C                   ;0E65: CB 19      
+ RLC A                           ;0E67: 17         
  LOAD $10,A                      ;0E68: D3 08      
  EX (SP),HL                      ;0E6A: E3         
  EX (SP),HL                      ;0E6B: E3         
- OR  A,#B'00001000               ;0E6C: CB DF        = SET 3,A
+ .B H'CB                         ;0E6C: CB  SET 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'DF                         ;0E6D: DF
  LOAD $10,A                      ;0E6E: D3 08      
  EX (SP),HL                      ;0E70: E3         
  EX (SP),HL                      ;0E71: E3         
- AND A,#B'11110111               ;0E72: CB 9F        = RES 3,A
+ .B H'CB                         ;0E72: CB  RES 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'9F                         ;0E73: 9F
  DECJ,NE B,L_0E64                ;0E74: 10 EE      
- AND A,#B'11111101               ;0E76: CB 8F        = RES 1,A
+ .B H'CB                         ;0E76: CB  RES 1,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'8F                         ;0E77: 8F
  LOAD C,#7                       ;0E78: 0E 07      
 L_0E7A:  LOAD B,#10              ;0E7A: 06 08      
 L_0E7C:  LOAD $10,A              ;0E7C: D3 08      
@@ -2288,18 +2336,20 @@ L_0E7C:  LOAD $10,A              ;0E7C: D3 08
  EX (SP),HL                      ;0E7F: E3         
  PUSH AF                         ;0E80: F5         
  LOAD A,$10                      ;0E81: DB 08      
- RR A                            ;0E83: 1F         
- RR (HL)                         ;0E84: CB 1E      
+ RRC A                           ;0E83: 1F         
+ RRC (HL)                        ;0E84: CB 1E      
  POP AF                          ;0E86: F1         
- OR  A,#B'00001000               ;0E87: CB DF        = SET 3,A
+ .B H'CB                         ;0E87: CB  SET 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'DF                         ;0E88: DF
  LOAD $10,A                      ;0E89: D3 08      
  EX (SP),HL                      ;0E8B: E3         
  EX (SP),HL                      ;0E8C: E3         
- AND A,#B'11110111               ;0E8D: CB 9F        = RES 3,A
+ .B H'CB                         ;0E8D: CB  RES 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'9F                         ;0E8E: 9F
  DECJ,NE B,L_0E7C                ;0E8F: 10 EB      
  INC HL                          ;0E91: 23         
  DEC C                           ;0E92: 0D         
- JUMP NE,L_0E7A                  ;0E93: 20 E5      
+ JUMP. NE,L_0E7A                 ;0E93: 20 E5      
 L_0E95:  XOR A,A                 ;0E95: AF         
  LOAD $10,A                      ;0E96: D3 08      
  EX HL,DE                        ;0E98: EB         
@@ -2315,50 +2365,56 @@ WRCLK_PRIM: PUSH DE              ;0E9D: D5
  LOAD $10,A                      ;0EA2: D3 08      
  LOAD B,#4                       ;0EA4: 06 04      
  LOAD C,#7                       ;0EA6: 0E 07      
- OR  A,#B'00000100               ;0EA8: CB D7        = SET 2,A
- OR  A,#B'00000010               ;0EAA: CB CF        = SET 1,A
-L_0EAC:  RR A                    ;0EAC: 1F         
- RR C                            ;0EAD: CB 19      
- RL A                            ;0EAF: 17         
+ .B H'CB                         ;0EA8: CB  SET 2,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'D7                         ;0EA9: D7
+ .B H'CB                         ;0EAA: CB  SET 1,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'CF                         ;0EAB: CF
+L_0EAC:  RRC A                   ;0EAC: 1F         
+ RRC C                           ;0EAD: CB 19      
+ RLC A                           ;0EAF: 17         
  LOAD $10,A                      ;0EB0: D3 08      
  EX (SP),HL                      ;0EB2: E3         
  EX (SP),HL                      ;0EB3: E3         
- OR  A,#B'00001000               ;0EB4: CB DF        = SET 3,A
+ .B H'CB                         ;0EB4: CB  SET 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'DF                         ;0EB5: DF
  LOAD $10,A                      ;0EB6: D3 08      
  EX (SP),HL                      ;0EB8: E3         
  EX (SP),HL                      ;0EB9: E3         
- AND A,#B'11110111               ;0EBA: CB 9F        = RES 3,A
+ .B H'CB                         ;0EBA: CB  RES 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'9F                         ;0EBB: 9F
  DECJ,NE B,L_0EAC                ;0EBC: 10 EE      
  LOAD C,#7                       ;0EBE: 0E 07      
 L_0EC0:  LOAD B,#10              ;0EC0: 06 08      
-L_0EC2:  RR A                    ;0EC2: 1F         
- RL (HL)                         ;0EC3: CB 16      
- RL A                            ;0EC5: 17         
+L_0EC2:  RRC A                   ;0EC2: 1F         
+ RLC (HL)                        ;0EC3: CB 16      
+ RLC A                           ;0EC5: 17         
  LOAD $10,A                      ;0EC6: D3 08      
  EX (SP),HL                      ;0EC8: E3         
  EX (SP),HL                      ;0EC9: E3         
- OR  A,#B'00001000               ;0ECA: CB DF        = SET 3,A
+ .B H'CB                         ;0ECA: CB  SET 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'DF                         ;0ECB: DF
  LOAD $10,A                      ;0ECC: D3 08      
  EX (SP),HL                      ;0ECE: E3         
  EX (SP),HL                      ;0ECF: E3         
- AND A,#B'11110111               ;0ED0: CB 9F        = RES 3,A
+ .B H'CB                         ;0ED0: CB  RES 3,A (Zilog) — pas d'équivalent direct 1re gen
+ .B H'9F                         ;0ED1: 9F
  DECJ,NE B,L_0EC2                ;0ED2: 10 EE      
  INC HL                          ;0ED4: 23         
  DEC C                           ;0ED5: 0D         
- JUMP NE,L_0EC0                  ;0ED6: 20 E8      
- JUMP L_0E95                     ;0ED8: 18 BB      
+ JUMP. NE,L_0EC0                 ;0ED6: 20 E8      
+ JUMP. L_0E95                    ;0ED8: 18 BB      
 SJOUR_HND: LOAD HL,#H'0005       ;0EDA: 21 05 00   
  OR A,A                          ;0EDD: B7         
- JUMP L_0EEF                     ;0EDE: 18 0F      
+ JUMP. L_0EEF                    ;0EDE: 18 0F      
 SDAY_HND: LOAD HL,#H'0002        ;0EE0: 21 02 00   
  LOAD DE,#H'0001                 ;0EE3: 11 01 00   
- JUMP L_0EEE                     ;0EE6: 18 06      
+ JUMP. L_0EEE                    ;0EE6: 18 06      
 STOD_HND: LOAD HL,#RST00         ;0EE8: 21 00 00   
  LOAD DE,#H'0005                 ;0EEB: 11 05 00   
 L_0EEE:  SETC                    ;0EEE: 37         
 L_0EEF:  CALL HRBUF_OFS          ;0EEF: CD 1E 0F   
  LOAD (HL),A                     ;0EF2: 77         
- JUMP CC,L_0EF9                  ;0EF3: 30 04      
+ JUMP. CC,L_0EF9                 ;0EF3: 30 04      
  INC HL                          ;0EF5: 23         
  LOAD (HL),B                     ;0EF6: 70         
  ADD HL,DE                       ;0EF7: 19         
@@ -2368,10 +2424,10 @@ L_0EF9:  LOAD DE,#ENDALP         ;0EF9: 11 00 45
  RET                             ;0EFE: C9         
 GJOUR_HND: LOAD HL,#H'0005       ;0EFF: 21 05 00   
  OR A,A                          ;0F02: B7         
- JUMP L_0F14                     ;0F03: 18 0F      
+ JUMP. L_0F14                    ;0F03: 18 0F      
 GDAY_HND: LOAD HL,#H'0002        ;0F05: 21 02 00   
  LOAD DE,#H'0001                 ;0F08: 11 01 00   
- JUMP L_0F13                     ;0F0B: 18 06      
+ JUMP. L_0F13                    ;0F0B: 18 06      
 GTOD_HND: LOAD HL,#RST00         ;0F0D: 21 00 00   
  LOAD DE,#H'0005                 ;0F10: 11 05 00   
 L_0F13:  SETC                    ;0F13: 37         
@@ -2391,12 +2447,13 @@ HRBUF_OFS: PUSH DE               ;0F1E: D5
  POP AF                          ;0F26: F1         
  POP DE                          ;0F27: D1         
  RET                             ;0F28: C9         
- LOAD B,H                        ;0F29: 44         
- ADD HL,BC                       ;0F2A: 09         
- LOAD B,E                        ;0F2B: 43         
- INC L                           ;0F2C: 2C         
- JUMP EQ,L_0F77                  ;0F2D: 28 48      
- LOAD C,H                        ;0F2F: 4C         
+ .B H'44                         ;0F29: 44
+ .B H'09                         ;0F2A: 09
+ .B H'43                         ;0F2B: 43
+ .B H'2C                         ;0F2C: 2C
+ .B H'28                         ;0F2D: 28
+ .B H'48                         ;0F2E: 48
+ .B H'4C                         ;0F2F: 4C
 
 ;TABLE DE DISPATCH RST 20H : 104 ENTREES (CODES 00..67)
 ;CHAQUE .W EST L'ADRESSE DU HANDLER POUR LE CODE CORRESPONDANT

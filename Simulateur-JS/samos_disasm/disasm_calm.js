@@ -60,15 +60,40 @@ const COND_MAP = {
 // ─── Transcodeur principal ─────────────────────────────────────────
 
 /** Transcode une ligne Zilog en CALM 1re gen.
- *  Retourne { calm, extraComment } où extraComment ∈ string|null. */
+ *  Retourne { calm, extraComment, rawBytes? } où :
+ *   - extraComment ∈ string|null
+ *   - rawBytes : true → l'appelant doit émettre des .B à la place de calm
+ *     (utilisé pour les mnémoniques 1re gen non encore élucidés). */
 function transcodeLine(zilogText, labels) {
+    const r = transcodeLineImpl(zilogText, labels);
+    if (r.calm) {
+        // CALM 1re gen : déplacement nul s'écrit (IX) et non (IX+0)
+        r.calm = r.calm.replace(/\((IX|IY)\+0\)/g, '($1)');
+        // CALM 1re gen : déplacement non-nul s'écrit (IX)+xx et non (IX+xx)
+        // ET le nombre est en octal par défaut (sinon mettre suffixe ".").
+        // Le désassembleur Zilog produit le déplacement en décimal, on
+        // convertit donc en octal.
+        r.calm = r.calm.replace(/\((IX|IY)([+-])(\d+)\)/g,
+            (_, reg, sign, num) => `(${reg})${sign}${parseInt(num, 10).toString(8)}`);
+    }
+    return r;
+}
+
+function transcodeLineImpl(zilogText, labels) {
     const t = zilogText.trim();
 
     // Pseudo-instructions sans opérande
     if (t === 'NOP')   return { calm: 'NOP', extraComment: null };
     if (t === 'HALT')  return { calm: 'HALT', extraComment: null };
-    if (t === 'EXX')   return { calm: 'EXX', extraComment: null };
-    if (t === 'DAA')   return { calm: 'DAA', extraComment: null };
+    if (t === 'EXX')   return { calm: 'EX BL', extraComment: null };
+    if (t === 'DAA')   return { calm: 'DAA A', extraComment: null };
+    // Rotations BCD nibble (ED 6F / ED 67) : pas de mnémonique 1re gen
+    // connu. Émis en .B brut en attendant la documentation.
+    if (t === 'RLD')   return { calm: null, rawBytes: true, extraComment: 'RLD (rotation nibble BCD A↔(HL)) — mnémonique 1re gen ?' };
+    if (t === 'RRD')   return { calm: null, rawBytes: true, extraComment: 'RRD (rotation nibble BCD A↔(HL)) — mnémonique 1re gen ?' };
+    // OTIR : opcode block-out répété (ED B3) — mnémonique 1re gen confirmé OUTIR
+    if (t === 'OTIR')  return { calm: 'OUTIR', extraComment: null };
+    if (t === 'OTDR')  return { calm: 'OUTDR', extraComment: '?? mnémonique 1re gen à confirmer' };
     // Mnémoniques 1re gen confirmés
     if (t === 'DI')    return { calm: 'IOF', extraComment: null };   // disable interrupts
     if (t === 'EI')    return { calm: 'ION', extraComment: null };   // enable interrupts
@@ -81,22 +106,29 @@ function transcodeLine(zilogText, labels) {
     if (t === 'CPL')   return { calm: 'CPL A', extraComment: null };
     if (t === 'NEG')   return { calm: 'NEG A', extraComment: null };
     if (t === 'RET')   return { calm: 'RET', extraComment: null };
-    if (t === "EX AF,AF'") return { calm: "EX AF,AF'", extraComment: null };
+    if (t === "EX AF,AF'") return { calm: 'EX AF', extraComment: null };
     if (t === 'EX DE,HL')  return { calm: 'EX HL,DE', extraComment: null };
     if (t === 'EX (SP),HL') return { calm: 'EX (SP),HL', extraComment: null };
     if (t === 'JP (HL)') return { calm: 'JUMP (HL)', extraComment: null };
     if (t === 'LD SP,HL') return { calm: 'LOAD SP,HL', extraComment: null };
 
-    // Rotations sans opérande (8080-style) → forme CALM avec opérande
-    if (t === 'RLCA') return { calm: 'RLC A', extraComment: null };
-    if (t === 'RRCA') return { calm: 'RRC A', extraComment: null };
-    if (t === 'RLA')  return { calm: 'RL A', extraComment: null };
-    if (t === 'RRA')  return { calm: 'RR A', extraComment: null };
+    // Rotations 8080 (1 byte) — ATTENTION : la convention CALM est inversée
+    // par rapport à Zilog. En CALM le "C" final = "through Carry" (avec
+    // retenue) ; en Zilog le "C" = "Circular" (sans retenue).
+    //   Zilog RLCA (07, circular) → CALM RL A  (sans C)
+    //   Zilog RRCA (0F, circular) → CALM RR A  (sans C)
+    //   Zilog RLA  (17, w/carry)  → CALM RLC A (avec C)
+    //   Zilog RRA  (1F, w/carry)  → CALM RRC A (avec C)
+    if (t === 'RLCA') return { calm: 'RL A',  extraComment: null };
+    if (t === 'RRCA') return { calm: 'RR A',  extraComment: null };
+    if (t === 'RLA')  return { calm: 'RLC A', extraComment: null };
+    if (t === 'RRA')  return { calm: 'RRC A', extraComment: null };
 
-    // Block ops (Z80 ED-prefixed) — gardés tels quels
+    // Block ops (Z80 ED-prefixed) — gardés tels quels (OTIR/OTDR/RLD/RRD
+    // sont traités plus haut)
     if (['LDIR','LDDR','LDI','LDD','CPIR','CPDR','CPI','CPD',
-         'INIR','INDR','INI','IND','OTIR','OTDR','OUTI','OUTD',
-         'RRD','RLD','RETI','RETN'].includes(t)) {
+         'INIR','INDR','INI','IND','OUTI','OUTD',
+         'RETI','RETN'].includes(t)) {
         return { calm: t, extraComment: null };
     }
     if (/^IM \d$/.test(t)) return { calm: t, extraComment: null };
@@ -112,8 +144,13 @@ function transcodeLine(zilogText, labels) {
         return { calm: `RET ${COND_MAP[args]}`, extraComment: null };
     }
 
-    // RST n → garde tel quel pour l'instant (peut être reconnu comme syscall en amont)
+    // RST n → conversion du suffixe Zilog "h" vers la forme CALM H'XX
     if (mnem === 'RST') {
+        const m = args.match(/^([0-9A-F]+)h$/i);
+        if (m) {
+            const n = parseInt(m[1], 16) & 0xFF;
+            return { calm: `RST H'${n.toString(16).toUpperCase().padStart(2, '0')}`, extraComment: null };
+        }
         return { calm: `RST ${args}`, extraComment: null };
     }
 
@@ -127,14 +164,19 @@ function transcodeLine(zilogText, labels) {
         if (m3) return { calm: `CALL ${fmtWord(m3[1], labels)}`, extraComment: null };
     }
 
-    // JP/JR [cond,]addr → JUMP [cond,]addr
+    // JP  → JUMP  [cond,]addr   (absolu, 3 octets)
+    // JR  → JUMP. [cond,]addr   (relatif court, 2 octets — le "." force la
+    // forme courte sur sauts en avant ; sur sauts en arrière l'assembleur
+    // CALM 1re gen choisit déjà le relatif automatiquement, mais le "."
+    // ne nuit pas et garde le mapping 1:1 avec le binaire source.)
     if (mnem === 'JP' || mnem === 'JR') {
+        const suffix = (mnem === 'JR') ? '.' : '';
         const m2 = args.match(/^(NZ|Z|NC|C|PO|PE|P|M),([0-9A-F]+h)$/i);
         if (m2) {
-            return { calm: `JUMP ${COND_MAP[m2[1]]},${fmtWord(m2[2], labels)}`, extraComment: null };
+            return { calm: `JUMP${suffix} ${COND_MAP[m2[1]]},${fmtWord(m2[2], labels)}`, extraComment: null };
         }
         const m3 = args.match(/^([0-9A-F]+h)$/i);
-        if (m3) return { calm: `JUMP ${fmtWord(m3[1], labels)}`, extraComment: null };
+        if (m3) return { calm: `JUMP${suffix} ${fmtWord(m3[1], labels)}`, extraComment: null };
     }
 
     // DJNZ addr → DECJ,NE B,addr
@@ -146,7 +188,13 @@ function transcodeLine(zilogText, labels) {
     if (mnem === 'IN') {
         const m2 = args.match(/^A,\(([0-9A-F]+h)\)$/i);
         if (m2) return { calm: `LOAD A,$${fmtByte(m2[1])}`, extraComment: null };
-        // IN r,(C) — Z80 ED-prefix
+        // IN (HL),(C) : forme non documentée Z80 (ED 70) qui ne stocke rien et
+        // n'affecte que les flags. Le désassembleur l'émet ainsi car (HL) est
+        // l'entrée R8[6] sans signification réelle. Pas de mnémonique CALM → .B brut.
+        if (args === '(HL),(C)') {
+            return { calm: null, rawBytes: true, extraComment: 'IN F,(C) (Z80 undoc., ED 70) — lit port C, n\'affecte que les flags' };
+        }
+        // IN r,(C) — Z80 ED-prefix (documenté)
         const m3 = args.match(/^(\w+),\(C\)$/);
         if (m3) return { calm: `LOAD ${m3[1]},$(C)`, extraComment: '?? IN r,(C) — vérifier syntaxe CALM' };
     }
@@ -158,36 +206,25 @@ function transcodeLine(zilogText, labels) {
         if (m3) return { calm: `LOAD $(C),${m3[1]}`, extraComment: '?? OUT (C),r — vérifier syntaxe CALM' };
     }
 
-    // SET n,A | RES n,A → OR/AND avec masque (équivalent fonctionnel)
-    // SET n,r autre que A : pas d'équivalent simple en 1re gen → TODO
+    // SET n,r / RES n,r : pas d'équivalent mnémonique direct en CALM 1re gen.
+    // On émet en .B brut pour préserver l'encodage exact (CB-prefixed, 2 octets).
+    // Un équivalent fonctionnel via OR/AND A,#mask existe pour A, mais l'encodage
+    // diffère (E6/F6 nn vs CB XX) — donc on garde .B même pour A.
     if (mnem === 'SET' || mnem === 'RES') {
         const m2 = args.match(/^(\d+),(.+)$/);
         if (m2) {
-            const n = parseInt(m2[1], 10);
-            const target = m2[2];
-            if (target === 'A') {
-                const mask = mnem === 'SET'
-                    ? (1 << n) & 0xFF
-                    : (~(1 << n)) & 0xFF;
-                const op = mnem === 'SET' ? 'OR ' : 'AND';
-                return {
-                    calm: `${op} A,#B'${mask.toString(2).padStart(8, '0')}`,
-                    extraComment: `= ${mnem} ${n},A`
-                };
-            }
-            // Pour (HL), B, C, etc. : pas de raccourci mnémonique CALM 1re gen.
-            // Forme habituelle : passage par A (3 instructions).
             return {
-                calm: `;TODO ${mnem} ${n},${target}`,
-                extraComment: `LOAD A,${target} ; OR/AND A,#mask ; LOAD ${target},A`
+                calm: null, rawBytes: true,
+                extraComment: `${mnem} ${m2[1]},${m2[2]} (Zilog) — pas d'équivalent direct 1re gen`
             };
         }
     }
     if (mnem === 'BIT') {
-        // BIT n,r teste le bit sans modifier r ; pas d'équivalent direct.
+        // BIT n,r teste le bit sans modifier r ; pas d'équivalent direct en
+        // CALM 1re gen pour r ≠ A. On émet en .B brut pour préserver la taille.
         return {
-            calm: `;TODO BIT ${args}`,
-            extraComment: 'tester bit sans modifier r (équivalent : AND avec mask sur copie A)'
+            calm: null, rawBytes: true,
+            extraComment: `BIT ${args} (Zilog) — pas d'équivalent direct 1re gen`
         };
     }
 
@@ -223,20 +260,30 @@ function transcodeLine(zilogText, labels) {
         return { calm: `${mnem} ${args}`, extraComment: null };
     }
 
-    // Rotations (Z80 CB-prefixed) : RLC, RRC, RL, RR
-    if (['RLC','RRC','RL','RR'].includes(mnem)) {
-        return { calm: `${mnem} ${args}`, extraComment: null };
+    // Rotations Z80 CB-prefixed : RLC/RRC/RL/RR
+    // Mapping CALM (rappel : "C" = through Carry en CALM, l'inverse de Zilog) :
+    //   Zilog RLC r → CALM RL r   (CB 0X, circular)
+    //   Zilog RRC r → CALM RR r   (CB 0X+8, circular)
+    //   Zilog RL r  → CALM RLC r  (CB 1X, through carry)
+    //   Zilog RR r  → CALM RRC r  (CB 1X+8, through carry)
+    // Pour A en forme CB-prefixed (Z80, 2 bytes), il faut préfixer Z, sinon
+    // CALM choisit la forme 8080 courte (1 byte). Note (4) de Z80.DOK.
+    const ROT_SWAP = { RLC: 'RL', RL: 'RLC', RRC: 'RR', RR: 'RRC' };
+    if (mnem in ROT_SWAP) {
+        const calmMnem = ROT_SWAP[mnem];
+        if (args === 'A') {
+            return { calm: `Z${calmMnem} A`, extraComment: null };
+        }
+        return { calm: `${calmMnem} ${args}`, extraComment: null };
     }
-    // Shift/rotate CALM 1re gen : SL, SLC, RL, RLC (et SR, SRC, RR, RRC).
-    // Mapping confirmé/déduit :
-    //   Zilog SLA → CALM SL  (shift left arithmétique, LSB := 0)
-    //   Zilog SLL → CALM SLC (undocumented, shift left "carry-fill" / circular)
-    //   Zilog SRA → CALM SR  (shift right arithmétique, MSB préservé)  — À CONFIRMER
-    //   Zilog SRL → CALM SRC (shift right logique, MSB := 0)            — À CONFIRMER
-    if (mnem === 'SLA') return { calm: `SL ${args}`,  extraComment: null };
-    if (mnem === 'SLL') return { calm: `SLC ${args}`, extraComment: null };
-    if (mnem === 'SRA') return { calm: `SR ${args}`,  extraComment: '?? CALM 1re gen à confirmer' };
-    if (mnem === 'SRL') return { calm: `SRC ${args}`, extraComment: '?? CALM 1re gen à confirmer' };
+    // Shifts : aucun mnémonique disponible en CALM 1re gen Smaky 6.
+    // ASCALM 1985 (Z80.DOK) introduit SL/SR/ASR ; SAMOS Smaky 6 les rejette
+    // tous → on émet les bytes bruts en .B. Seules les rotations (RR/RRC/
+    // RL/RLC, plus haut) sont disponibles en 1re gen.
+    if (mnem === 'SLA') return { calm: null, rawBytes: true, extraComment: `SLA ${args} (Zilog) — pas de mnémonique 1re gen` };
+    if (mnem === 'SRL') return { calm: null, rawBytes: true, extraComment: `SRL ${args} (Zilog) — pas de mnémonique 1re gen` };
+    if (mnem === 'SRA') return { calm: null, rawBytes: true, extraComment: `SRA ${args} (Zilog) — pas de mnémonique 1re gen` };
+    if (mnem === 'SLL') return { calm: null, rawBytes: true, extraComment: `SLL ${args} (Zilog, undoc.) — pas de mnémonique 1re gen` };
 
     // PUSH, POP : registre seul
     if (mnem === 'PUSH' || mnem === 'POP') {

@@ -1,0 +1,381 @@
+                                                                    Z80 - 1
+     Z80/HD64180
+     CALM REFERENCE CARD
+     
+     Z80/HD64160 Description
+     
+     Programming Model
+     
+        15                            8 7                             0
+       -----------------------------------------------------------------
+     A [          accumulator          | N . Z .   . H .   .P/V. D . C ]  F
+       -----------------------------------------------------------------
+     B [       counter register        |      peripheral address       ]  C
+       -----------------------------------------------------------------
+     D [                               |                               ]  E
+       -----------------------------------------------------------------
+     H [                               |                               ]  L
+       -----------------------------------------------------------------
+        15                                                            0
+       -----------------------------------------------------------------
+       [                                                               ] IX
+       -----------------------------------------------------------------
+       [                                                               ] IY
+       -----------------------------------------------------------------
+       --------------------------------- - - - - - - - - - - - - - - - -
+     I [   interrupt page register     |            vector             ]
+       --------------------------------- - - - - - - - - - - - - - - - -
+                                       ---------------------------------
+                                       [ 0 |     refresh counter       ]  R
+                                       ---------------------------------
+       -----------------------------------------------------------------
+       [                        stack pointer                          ] SP
+       -----------------------------------------------------------------
+       [                       program counter                         ] PC
+       -----------------------------------------------------------------
+     
+     General
+     Address:       Z80:       16 bit
+                    HD64180:   16 bit logical, 19 bit physical
+     Data:           8 bit
+     
+     Abbreviations used
+     b      3^VALUE        n'     A8^VALUE        n       8^VALUE
+     m      16^VALUE
+     v      16'0, 16'8, 16'10, 16'18, 16'20, 16'28, 16'30, 16'38
+     r8     A  E           s8      B  E           t8      I
+            B  H                   C  H                   R
+            C  L                   D  L
+     r16    BC  IX         s16     HL             t16     BC
+            DE  IY                 IX                     DE
+            HL  SP                 IY                     SP
+     i8     {HL}           j8      {BC}
+            {IX}+n'                {DE}
+            {IY}+n'
+     c1     EQ  NE  CS  CC  MI  PL  PO  PE
+     c2     EQ  NE  CS  CC
+     
+     Modifications versus CALM Standard
+     Flag D:   used by the DAA instruction to distinguish between add (D=0)
+               and subtract (D=1).
+     8 Bit:    All transfers are 8 bits wide, except those determined by
+               register names (1 letter = 8 bit, 2 letters = 16 bits).
+     Remarks
+     - a 2nd register bank exist (A'..L') but not accessible independently.
+     - the internal flags (interrupt control): IFF1, IFF2, IM0, IM1, IM2.
+     
+                                                                    Z80 - 2
+     - flags: EQ=ZS=BC, NE=ZC=BS, CS=LO, CC=HS, MI=NS, PL=NC, PO=VC, PE=VS.
+     - Reset: PC=0, IOFF, IM0, I=0, R=0.
+     - Interrupt: IFF1=0, IFF2=0 (hidden system flags).
+     - NMI: CALL 16'44, IFF1=0 (hidden system flag).
+     - CALM - Zilog/Hitachi register names: identical.
+     - CALM - Zilog/Hitachi flag names: identical except: N=S, D=N.
+     - HD64180: + software:                            (*)
+        * compatible with Z80 (7 new instructions)
+        * flag D is not modified in the same way as for the Z80 in the
+          instructions IND, INDR, INI, INIR, OUTD, OUTDR, OUTI, OUTIR: D is
+          MSB of the data (Z80: D=1).
+        * some I/O instructions have been added to control a 64K I/O space
+          correctly: $n: Z80: n: A0..A7, A: A8..A15; HD64180: n: A0..A7,
+          0: A8..A15 (new instruction!). New CALM notations (I/O space seen
+          as a 64K space): ${A}n, ${BC}.
+        * TRAP: interrupt when an undefined opcode fetch occurs (TRAP bit
+          in the I/O register ITC set). HD64180: JUMP 16'0. Saved PC points
+          to invalid opcode.
+       + hardware: additional functions on chip: MMU, DMA, Serial, Timer
+     
+     Transfer instructions
+     MOVE      #n   |,A []
+               m    |   []
+               r8   |   []
+               t8   |   [N,Z,H=0,P=IFF2,D=0]
+               i8   |   []
+               j8   |   []
+               $n   |   [], [N,Z,H=0,P,D=0](*)(28)
+               ${A}n|   []            (29)
+               ${C} |   [N,Z,H,P,D=0] (30)
+               ${BC}|   [N,Z,H,P,D=0] (31)
+     (LD IN IN0)
+     
+     MOVE      A,| m    []
+                 | r8   []
+                 | t8   []
+                 | i8   []
+                 | j8   []
+                 | $n   []            (28)(*)
+                 | ${A}n[]            (29)
+                 | ${C} []            (30)
+                 | ${BC}[]            (31)
+     (LD OUT OUT0)
+     
+     MOVE      #n  |,s8 []
+               s8  |    []
+               i8  |    []
+               $n  |    [N,Z,H=0,P,D=0](*)
+               ${C}|    [N,Z,H,P,D=0] (30)
+               ${BC}|   [N,Z,H,P,D=0] (31)
+     (LD IN IN0)
+     
+     MOVE      s8,| i8  []
+                  | $n  []            (*)
+                  | ${C}[]            (30)
+                  | ${BC}[]           (31)
+     (LD OUT OUT0)
+     
+     MOVE      #m |,r16 []
+               m  |     []
+               r16,m    []
+               s16,SP   []
+     (LD)
+     
+                                                                    Z80 - 3
+     PUSH|     r16      []
+     POP |     AF       [], [all] if POP AF
+     (PUSH POP)
+     
+     CLR|      r8 |:#b  []
+     SET|      i8 |     []
+     (RES SET)
+     
+     SETC                   [H=0,D=0,C=1]
+     (SCF)
+     
+     EX        DE,HL    []
+               {SP},s16 []
+               AF       []            (1)
+               BL       []            (2)
+     (EX EXX)
+     
+     Arithmetic instructions
+     ADD |     #n |,A   [N,Z,H,V,D=0,C]
+     ADDC|     r8 |     [N,Z,H,V,D=0,C]
+     SUB |     i8 |     [N,Z,H,V,D=1,C]
+     SUBC|              [N,Z,H,V,D=1,C]
+     COMP|              [N,Z,H,V,D=1,C]
+     (ADD ADC SUB SBC CP)
+     
+     ADD       t16,s16  [H,D=0,C]
+               HL,HL
+               IX,IX
+               IY,IY
+     (ADD)
+     
+     ADDC|     t16 |,HL [N,Z,H,V,D=0,C]
+     SUBC|     HL  |    [N,Z,H,V,D=1,C]
+     (ADC SBC)
+     
+     NEG       A        [N,Z,V,D=0,C]
+     (NEG)
+     
+     INC|      r8       [N,Z,H,V,D=0]
+     DEC|      i8       [N,Z,H,V,D=1]
+     (INC DEC)
+     
+     INC|      r16      []
+     DEC|  
+     (INC DEC)
+     
+     MUL       B,C,BC    []           (*)
+               D,E,DE
+               H,L,HL
+               S,P,SP
+     (MUL)
+     
+     Logical instructions
+     AND|      #n |,A   [N,Z,H=1,P,D=0,C=0]
+     OR |      r8 |     [N,Z,H=0,P,D=0,C=0]
+     XOR|      i8 |     [N,Z,H=0,P,D=0,C=0]
+     (AND OR XOR)
+     
+     NOT       A        [H=1,D=1]
+     (CPL)
+     
+     NOTC               [H=old C,D=0,C]
+     (CCF)
+     
+                                                                    Z80 - 4
+     Shift instructions
+     SR |      r8       [N,Z,H=0,P,D=0,C] (4)
+     ASR|      i8       [N,Z,H=0,P,D=0,C]
+     SL |               [N,Z,H=0,P,D=0,C]
+     RR |               [N,Z,H=0,P,D=0,C]
+     RRC|               [N,Z,H=0,P,D=0,C]
+     RL |               [N,Z,H=0,P,D=0,C]
+     RLC|               [N,Z,H=0,P,D=0,C]
+     (SRL SRA SLA RRC RR RLC RL)
+     
+     RRD|      A{HL}    [N,Z,H=0,P,D=0,C] (5)
+     RLD|
+     (RRD RLD)
+     
+     Test instructions
+     TEST      r8 |:#b  [N=?,Z,H=1,P=?,D=0]
+               i8 |
+     (BIT)
+     
+     TEST      $n  (*)  [N,Z,H=0,P,D=0]
+               ${C}     [N,Z,H,P,D=0]    (30)
+               ${BC}    [N,Z,H,P,D=0]    (31)
+     (IN IN0)
+     
+     TEST      #n   |,A [N,Z,H=1,P,D=0,C=0](*)
+               r8   |
+               {HL} |
+               #n,${C}
+     (TST TSTIO)
+     
+     Program flow instructions
+     JUMP,c1 | 16^m     []
+     JUMP    |
+     CALL,c1 |
+     CALL    |
+     (JP CALL)
+     
+     JUMP,c2 | R8^ADDRESS []
+     JUMP    |
+     (JR)
+     
+     JUMP      {HL}     []
+               {IX}
+               {IY}
+     (JP)
+     
+     DJ,NE     B,R8^ADDRESS []
+     (DJNZ)
+     
+     RST       v        []  (8)
+     (RST)
+     
+     RET,c1             []
+     RET                []
+     RETI               []   (6)
+     RETN               [IFF1=IFF2]  (7)
+     (RET RETI RETN)
+     
+     WAIT               []
+     (HALT)
+     
+     NOP                []
+     (NOP)
+     
+                                                                    Z80 - 5
+     ION                [IFF1=1,IFF2=1]
+     IOFF               [IFF1=0,IFF2=0]
+     (EI DI)
+     
+     IM0                []   (9)
+     IM1                []   (10)
+     IM2                []   (11)
+     (IM0)
+     
+     Special instructions
+     DAA       A        [N,Z,H,P,C]  (3)
+     (DAA)
+     
+     SLEEP              []           (32)(*)
+     (SLP)
+     
+     Special transfer instructions
+     LDI                [H=0,V,D=0]    (12)
+     LDIR               [H=0,V=0,D=0]  (13)
+     LDD                [H=0,V,D=0]    (14)
+     LDDR               [H=0,V=0,D=0]  (15)
+     (LDI LDIR LDD LDDR)
+     
+     CPI                [N,Z,H,V,D=1]  (16)
+     CPIR               [N,Z,H,V,D=1]  (17)
+     CPD                [N,Z,H,V,D=1]  (18)
+     CPDR               [N,Z,H,V,D=1]  (19)
+     (CPI CPIR CPD CPDR)
+     
+     INI                [N=?,Z,H=?,P=?,D=1/MSB(*)](20)
+     INIR               [N=?,Z=1,H=?,P=?,D=1/MSB(*)](21)
+     IND                [N=?,Z,H=?,P=?,D=1/MSB(*)](22)
+     INDR               [N=?,Z=1,H=?,P=?,D=1/MSB(*)](23)
+     (INI INIR IND INDR)
+     
+     OUTI               [N=?,Z,H=?,P=?,D=1/MSB(*)](24)
+     OUTIR              [N=?,Z=1,H=?,P=?,D=1/MSB(*)](25)
+     OUTD               [N=?,Z,H=?,P=?,D=1/MSB(*)](26)
+     OUTDR              [N=?,Z=1,H=?,P=?,D=1/MSB(*)](27)
+     (OUTI OTIR OUTD OTDR)
+     
+     OUTIM              [N,Z,H,P,D=MSB,C](33)(*)
+     OUTIMR             [N=0,Z=1,H=0,P=1,D=MSB,C=0](34)(*)
+     OUTDM              [N,Z,H,P,D=MSB,C](35)(*)
+     OUTDMR             [N=0,Z=1,H=0,P=1,D=MSB,C=0](36)(*)
+     (OTIM OTIMR OTDM OTDMR)
+     
+     Notes
+      (*)   only available in HD64180
+      (1)   equivalent to   EX.16   AF,A'F'
+      (2)   equivalent to   EX.48   BCDEHL,B'C'D'E'H'L'
+      (3)   Decimal Adjust A: valid after ADD and SUB
+      (4)   shorter instruction code for RR, RRC, RL and RLC with register
+            A, however the flags are changed differently: [H=0,D=0,C] (8080
+            compatible). To generate Z80 codes: ZRR, ZRRC, ZRL and ZRLC
+            with register A.
+     
+                                                                    Z80 - 6
+      (5)   equivalent to   RR.12 #4,A{HL}   (higher 4 bits of A unchanged)
+      (6)   = RET, specially decoded by Z80 peripherals (SIO, PIO, etc.)
+      (7)   return from NMI
+      (8)   one byte call (restart)
+      (9)   interrupt mode 0: identical to 8080
+     (10)   interrupt mode 1: CALL  16'38
+     (11)   interrupt mode 2: CALL  {{I}*256+VECTOR}  (VECTOR given by
+            peripheral)
+     (12)   equivalent to             MOVE    {HL+},{DE+}
+                                      DEC     BC             ; VS if BC<>0
+     (13)   equivalent to   LOOP$:    MOVE    {HL+},{DE+}
+                                      DJ,VS   BC,LOOP$
+     (14)   equivalent to             MOVE    {HL-},{DE-}
+                                      DEC     BC             ; VS if BC<>0
+     (15)   equivalent to   LOOP$:    MOVE    {HL-},{DE-}
+                                      DJ,VS   BC,LOOP$
+     (16)   equivalent to             COMP    {HL+},A        ; ZS if equal
+                                      DEC     BC             ; VS if BC<>0
+     (17)   equivalent to   LOOP$:    COMP    {HL+},A        ; ZS if equal
+                                      DEC     BC
+                                      JUMP,(NE.AND.VS) LOOP$ ; VC:not found
+     (18)   equivalent to             COMP    {HL-},A        ; ZS if equal
+                                      DEC     BC             ; VS if BC<>0
+     (19)   equivalent to   LOOP$:    COMP    {HL-},A        ; ZS if equal
+                                      DEC     BC
+                                      JUMP,(NE.AND.VS) LOOP$ ; VC:not found
+     (20)   equivalent to             MOVE    ${BC},{HL+}
+                                      DEC     B              ; ZS if B=0
+     (21)   equivalent to   LOOP$:    MOVE    ${BC},{HL+}
+                                      DJ,NE   B,LOOP$
+     (22)   equivalent to             MOVE    ${BC},{HL-}
+                                      DEC     B              ; ZS if B=0
+     (23)   equivalent to   LOOP$:    MOVE    ${BC},{HL-}
+                                      DJ,NE   B,LOOP$
+     (24)   equivalent to             MOVE    {HL+},${BC}
+                                      DEC     B              ; ZS if B=0
+     (25)   equivalent to   LOOP$:    MOVE    {HL+},${BC}
+                                      DJ,NE   B,LOOP$
+     (26)   equivalent to             MOVE    {HL-},${BC}
+                                      DEC     B              ; ZS if B=0
+     (27)   equivalent to   LOOP$:    MOVE    {HL-},${BC}
+                                      DJ,NE   B,LOOP$
+     (28)   Z80: n: A0..A7, A: A8..A15 (8 bit I/O space); HD64180: n:
+            A0..A7, 0: A8..A15 (16 bit I/O space).
+     (29)   explicit notation for $n (Z80, 8080, 8085). I/O seen as 64K
+            space.
+     (30)   C: A0..A7, B: A8..A15 (but the user assume an 8 bit I/O space).
+     (31)   C: A0..A7, B: A8..A15 (the I/O space is seen as a 64K space).
+     (32)   sleep mode (reduced power consumption). Exit by reset or
+            interrupt. DRAM refresh cycles stop, DMA stop, Address: high,
+            Data: 3-state, control signal output become inactive high.
+     (33)   equivalent to             MOVE    {HL+},${C+}
+                                      DEC     B              ; ZS if B=0
+     (34)   equivalent to   LOOP$:    MOVE    {HL+},${C+}
+                                      DJ,NE   B,LOOP$
+     (35)   equivalent to             MOVE    {HL-},${C-}
+                                      DEC     B              ; ZS if B=0
+     (36)   equivalent to   LOOP$:    MOVE    {HL-},${C-}
+                                      DJ,NE   B,LOOP$
+     
+     (c) Patrick Faeh, June 1985/June 1986.

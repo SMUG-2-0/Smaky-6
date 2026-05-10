@@ -1,0 +1,8 @@
+[
+  {
+    "from": 4096,
+    "to": 8960,
+    "kind": "code",
+    "_comment": "0x1000..0x22FF : zone SAMOS (4864 octets). Premier jet : tout en code, on ajustera après désassemblage."
+  }
+]

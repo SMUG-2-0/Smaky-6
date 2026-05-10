@@ -66,15 +66,20 @@ function disasmAt(memRead, pc) {
         if (op >= 0x40 && op <= 0x7F && op !== 0x76) {
             const y = (op>>3)&7, z = op&7;
             let dst = R8[y], src = R8[z], d = null, size = 1;
-            if (dst === '(HL)' || src === '(HL)') {
+            const indexed = (dst === '(HL)' || src === '(HL)');
+            if (indexed) {
+                // Documenté Z80 : (HL) → (IX+d) ou (IY+d), l'autre opérande
+                // reste H ou L (PAS IXH/IXL).
                 d = u8(base+1); size = 2;
                 if (dst === '(HL)') dst = `(${prefReg}${fmtD(d)})`;
                 if (src === '(HL)') src = `(${prefReg}${fmtD(d)})`;
+            } else {
+                // Non documenté Z80 : sans (HL), H/L deviennent IXH/IXL.
+                if (dst === 'H') dst = prefReg + 'H';
+                else if (dst === 'L') dst = prefReg + 'L';
+                if (src === 'H') src = prefReg + 'H';
+                else if (src === 'L') src = prefReg + 'L';
             }
-            if (dst === 'H') dst = prefReg + 'H';
-            else if (dst === 'L') dst = prefReg + 'L';
-            if (src === 'H') src = prefReg + 'H';
-            else if (src === 'L') src = prefReg + 'L';
             return [`LD ${dst},${src}`, size];
         }
         if ((op & 0xC7) === 0x46) { const y=(op>>3)&7, d=u8(base+1); return [`LD ${R8[y]},(${prefReg}${fmtD(d)})`, 2]; }
