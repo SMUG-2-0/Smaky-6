@@ -12,13 +12,16 @@
 //   ./SAMOS.SR             (source CALM 1re gen pour assembleur Smaky 6)
 //
 // Usage :
-//   node samos_disasm/build_samos_sr.js
+//   node samos_disasm/build_samos_sr.js          (sans trace addr/opcode)
+//   node samos_disasm/build_samos_sr.js --trace  (avec trace en commentaire)
 // ═══════════════════════════════════════════════════════════════════
 
 const fs   = require('fs');
 const path = require('path');
 const { disasmAt } = require('../disasm.js');
 const { transcodeLine, fmtByte } = require('./disasm_calm.js');
+
+const EMIT_TRACE = process.argv.includes('--trace');
 
 // ─── Configuration de la zone SAMOS ───────────────────────────────
 
@@ -42,11 +45,24 @@ for (const [k, v] of Object.entries(symRaw)) {
 }
 const labelAddrs = new Set(Object.keys(labels).map(Number));
 
+// ─── Helpers de base ───────────────────────────────────────────────
+
+const memRead = (a) => sysSy[a & 0xFFFF];
+function hex2(n) { return n.toString(16).padStart(2, '0').toUpperCase(); }
+function hex4(n) { return n.toString(16).padStart(4, '0').toUpperCase(); }
+
+function addLabel(addr, name) {
+    if (labelAddrs.has(addr)) return false;
+    labels[addr] = name;
+    labelAddrs.add(addr);
+    return true;
+}
+
 function trySyscallEarly(addr) {
     const op = sysSy[addr & 0xFFFF];
     if (op !== 0xE7 && op !== 0xD7) return null;
     const code = sysSy[(addr + 1) & 0xFFFF];
-    const key = op.toString(16).padStart(2,'0').toUpperCase() + code.toString(16).padStart(2,'0').toUpperCase();
+    const key = hex2(op) + hex2(code);
     return syscalls[key] ? 2 : null;
 }
 
@@ -56,13 +72,12 @@ function trySyscallEarly(addr) {
 // la marche linéaire se désaligne sur les data et rate des cibles JR.
 
 function collectJumpTargets() {
-    const mr = (a) => sysSy[a & 0xFFFF];
     const targets = new Set();
     let pc = SAMOS_FROM;
     while (pc < SAMOS_TO) {
         const scLen = trySyscallEarly(pc);
         if (scLen) { pc += scLen; continue; }
-        const r = disasmAt(mr, pc);
+        const r = disasmAt(memRead, pc);
         if (r.length === 0) break;
         const m = r.text.match(/^(JP|JR|CALL|DJNZ)\s+(?:[A-Z]+,)?([0-9A-F]+h)$/);
         if (m) {
@@ -74,12 +89,39 @@ function collectJumpTargets() {
     return targets;
 }
 
-for (const t of collectJumpTargets()) {
-    if (!labelAddrs.has(t)) {
-        labels[t] = `L_${t.toString(16).toUpperCase().padStart(4, '0')}`;
-        labelAddrs.add(t);
+// ─── Génération des labels DO_XXX pour les redirections SAMOS ───────
+// Un point d'entrée FLO.ST (RODWIB, BOOT, etc.) est typiquement un JP
+// vers le vrai handler. On ajoute un label DO_<NAME> à la cible.
+
+function addDoLabels() {
+    let added = 0;
+    for (const [addrStr, name] of Object.entries(labels)) {
+        const addr = Number(addrStr);
+        if (/^(L_|DO_|SAMOS_BASE)/.test(name)) continue;
+        if (addr < SAMOS_FROM || addr >= SAMOS_TO) continue;
+        if (memRead(addr) !== 0xC3) continue; // pas un JP nn
+        const target = memRead(addr + 1) | (memRead(addr + 2) << 8);
+        if (target < SAMOS_FROM || target >= SAMOS_TO) continue;
+        // Si la cible a déjà un label auto L_xxxx, on le remplace par DO_<NAME>.
+        // Le préfixe I_ (label interne, évite collision avec FLO.ST) est retiré
+        // côté destination : I_RODWIB → DO_RODWIB.
+        const existing = labels[target];
+        if (!existing || /^L_/.test(existing)) {
+            const baseName = name.replace(/^I_/, '');
+            labels[target] = `DO_${baseName}`;
+            labelAddrs.add(target);
+            added++;
+        }
     }
+    return added;
 }
+
+// ─── Application des pré-passages ───────────────────────────────────
+
+for (const t of collectJumpTargets()) {
+    addLabel(t, `L_${hex4(t)}`);
+}
+const nDo = addDoLabels();
 
 // Vue restreinte à la zone SAMOS pour la substitution des opérandes.
 const labelsLocal = {};
@@ -87,8 +129,9 @@ for (const [a, n] of Object.entries(labels)) {
     const addr = Number(a);
     if (addr >= SAMOS_FROM && addr < SAMOS_TO) labelsLocal[addr] = n;
 }
-console.log('Auto-labels ajoutés :', Object.keys(labels).length, 'au total,',
-            Object.keys(labelsLocal).length, 'dans la zone SAMOS');
+console.log('Labels :', Object.keys(labels).length, 'au total,',
+            Object.keys(labelsLocal).length, 'dans la zone SAMOS',
+            `(DO_xxx: ${nDo})`);
 
 function labelInRange(start, endExclusive) {
     for (let a = start; a < endExclusive; a++) {
@@ -97,24 +140,30 @@ function labelInRange(start, endExclusive) {
     return false;
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────
+// ─── Mise en forme des lignes ──────────────────────────────────────
+// Convention :
+//  - étiquette seule sur sa ligne (suivie de ':')
+//  - instruction indentée d'un tabulateur (tab fixe à 8 caractères)
+//  - commentaire d'information (orphelin, mnémonique, etc.) toujours émis
+//  - trace adresse/opcode optionnelle, contrôlée par --trace
 
-const memRead = (a) => sysSy[a & 0xFFFF];
-function hex2(n) { return n.toString(16).padStart(2, '0').toUpperCase(); }
-function hex4(n) { return n.toString(16).padStart(4, '0').toUpperCase(); }
+function pushLine(out, label, instr, info, trace) {
+    if (label) {
+        const lbl = label.replace(/:$/, '');
+        out.push(`${lbl}:`);
+    }
+    let line = `\t${instr}`;
+    const cmtParts = [];
+    if (EMIT_TRACE && trace) cmtParts.push(trace);
+    if (info) cmtParts.push(info);
+    if (cmtParts.length) line += `\t;${cmtParts.join('  ')}`;
+    out.push(line);
+}
 
-function fmtLine(label, instr, cmt) {
-    const labelPart = label ? label + (label.endsWith(':') ? '' : ':') : '';
-    let line;
-    if (labelPart) {
-        line = labelPart.padEnd(8, ' ') + ' ' + instr;
-    } else {
-        line = ' ' + instr;
+function maybeBlankAfter(out, instr) {
+    if (instr === 'RET' || instr === 'RETI' || instr === 'RETN') {
+        out.push('');
     }
-    if (cmt) {
-        line = line.padEnd(32, ' ') + ' ;' + cmt;
-    }
-    return line;
 }
 
 function trySyscall(addr) {
@@ -132,26 +181,27 @@ function trySyscall(addr) {
 function emitCode(out, from, to) {
     let pc = from;
     while (pc < to) {
-        const labelStr = labels[pc] ? labels[pc] : '';
+        const labelStr = labels[pc] || '';
 
         const sc = trySyscall(pc);
         if (sc && !labelInRange(pc + 1, pc + sc.length)) {
-            out.push(fmtLine(labelStr, `.W ${sc.name}`,
-                `${hex4(pc)}: ${hex2(memRead(pc))} ${hex2(memRead(pc+1))}`));
+            const trace = `${hex4(pc)}: ${hex2(memRead(pc))} ${hex2(memRead(pc+1))}`;
+            pushLine(out, labelStr, `.W ${sc.name}`, null, trace);
             pc += sc.length;
             continue;
         }
 
         const { text, length } = disasmAt(memRead, pc);
         if (length === 0) {
-            out.push(fmtLine(labelStr, `;ERREUR LENGTH=0 EN ${hex4(pc)}`, null));
+            pushLine(out, labelStr, `;ERREUR LENGTH=0 EN ${hex4(pc)}`, null, null);
             break;
         }
 
         if (labelInRange(pc + 1, pc + length)) {
             const b = memRead(pc);
-            out.push(fmtLine(labelStr, `.B ${fmtByte(hex2(b) + 'h')}`,
-                `${hex4(pc)}: ${hex2(b)}          ;orphelin avant ${labels[pc + 1] || hex4(pc+1)}`));
+            const trace = `${hex4(pc)}: ${hex2(b)}`;
+            const info = `orphelin avant ${labels[pc + 1] || hex4(pc+1)}`;
+            pushLine(out, labelStr, `.B ${fmtByte(hex2(b) + 'h')}`, info, trace);
             pc++;
             continue;
         }
@@ -165,49 +215,48 @@ function emitCode(out, from, to) {
                 const b = memRead(pc + i);
                 const lbl = (i === 0) ? labelStr : '';
                 const trace = `${hex4(pc + i)}: ${hex2(b)}`;
-                const cmt = (i === 0 && extraComment)
-                    ? `${trace}  ${extraComment}`
-                    : trace;
-                out.push(fmtLine(lbl, `.B H'${hex2(b)}`, cmt));
+                const info = (i === 0) ? extraComment : null;
+                pushLine(out, lbl, `.B H'${hex2(b)}`, info, trace);
             }
             pc += length;
             continue;
         }
 
-        const trace = `${hex4(pc)}: ${bytes.join(' ').padEnd(11, ' ')}`;
-        const cmt = extraComment ? `${trace}  ${extraComment}` : trace;
-        out.push(fmtLine(labelStr, calm, cmt));
+        const trace = `${hex4(pc)}: ${bytes.join(' ')}`;
+        pushLine(out, labelStr, calm, extraComment, trace);
+        maybeBlankAfter(out, calm);
         pc += length;
     }
 }
 
 function emitData(out, from, to) {
     for (let pc = from; pc < to; pc++) {
-        const labelStr = labels[pc] ? labels[pc] : '';
+        const labelStr = labels[pc] || '';
         const b = memRead(pc);
-        out.push(fmtLine(labelStr, `.B H'${hex2(b)}`, `${hex4(pc)}: ${hex2(b)}`));
+        const trace = `${hex4(pc)}: ${hex2(b)}`;
+        pushLine(out, labelStr, `.B H'${hex2(b)}`, null, trace);
     }
 }
 
 // ─── En-tête du fichier ────────────────────────────────────────────
 
-const HEADER = ` .TITLE SAMOS.SR
- .PROC Z80
- .REF  FLO
- .LOC  H'1000
+const HEADER = `\t.TITLE SAMOS.SR
+\t.PROC Z80
+\t.REF  FLO
+\t.LOC  H'1000
 
- ;SAMOS V2.2 — EXTENSION SYSTEME DU SMAKY 6
- ;ZONE 1000H..22FFH (~4.8 KO)
+\t;SAMOS V2.2 — EXTENSION SYSTEME DU SMAKY 6
+\t;ZONE 1000H..22FFH (~4.8 KO)
 
- ;SOURCE RECONSTITUE PAR REVERSE-ENGINEERING DU BINAIRE SYS.SY,
- ;DANS LE CADRE DU TRAVAIL DE CONSERVATION DES SMAKY
- ;FINANCE PAR EPSITEC SA.
+\t;SOURCE RECONSTITUE PAR REVERSE-ENGINEERING DU BINAIRE SYS.SY,
+\t;DANS LE CADRE DU TRAVAIL DE CONSERVATION DES SMAKY
+\t;FINANCE PAR EPSITEC SA.
 
- ;AUTEUR PRINCIPAL DE SAMOS : ALAIN CAPT (CONTROLEUR FLOPPY,
- ;FILE SYSTEM ET BEAUCOUP D'AUTRES PARTIES).
- ;D'AUTRES CONTRIBUTEURS QUE NOUS CHERCHONS A IDENTIFIER.
+\t;AUTEUR PRINCIPAL DE SAMOS : ALAIN CAPT (CONTROLEUR FLOPPY,
+\t;FILE SYSTEM ET BEAUCOUP D'AUTRES PARTIES).
+\t;D'AUTRES CONTRIBUTEURS QUE NOUS CHERCHONS A IDENTIFIER.
 
- ;COMPLEMENTE SYS.SR (ZONE 0000H..0FFFH).
+\t;COMPLEMENTE SYS.SR (ZONE 0000H..0FFFH).
 
 
 
@@ -231,9 +280,10 @@ for (const region of regions) {
 }
 
 out.push('');
-out.push(' .END');
+out.push('\t.END');
 out.push('');
 
 const dest = path.join(__dirname, 'SAMOS.SR');
 fs.writeFileSync(dest, out.join('\n'), { encoding: 'utf8' });
-console.log('Écrit', dest, ':', out.length, 'lignes,', fs.statSync(dest).size, 'octets');
+console.log('Écrit', dest, ':', out.length, 'lignes,', fs.statSync(dest).size, 'octets',
+            EMIT_TRACE ? '(avec trace)' : '(sans trace)');
