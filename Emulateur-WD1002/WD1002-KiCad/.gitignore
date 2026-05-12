@@ -1,0 +1,13 @@
+# Sauvegardes automatiques KiCad
+*-backups/
+*.kicad_sch-bak
+*.kicad_pcb-bak
+
+# Système de backup interne (contient son propre .git)
+.history/
+
+# Cache auto-régénéré
+fp-info-cache
+
+# Sauvegardes des fichiers de fabrication
+production/backups/
