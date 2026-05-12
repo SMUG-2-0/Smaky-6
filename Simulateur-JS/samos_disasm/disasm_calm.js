@@ -28,23 +28,17 @@ const { disasmAt } = require('../disasm.js');
 
 // ─── Conversions de littéraux ──────────────────────────────────────
 
-/** Convertit "XXh" Zilog en notation CALM 1re gen.
- *  Préfère l'octal pour les petites valeurs, hex H'XX pour les grandes.
- *  Si le contexte est immédiat (#), l'appelant ajoute le # devant. */
+/** Convertit "XXh" Zilog en notation CALM 1re gen (octal, base par défaut). */
 function fmtByte(zilogHex) {
     const n = parseInt(zilogHex.replace(/h$/i, ''), 16) & 0xFF;
-    if (n <= 7) return n.toString();                       // 0..7 = octal sans ambiguïté
-    if (n <= 63) return n.toString(8);                     // octal lisible
-    // Sinon hex pour clarté
-    return `H'${n.toString(16).toUpperCase().padStart(2, '0')}`;
+    return n.toString(8);
 }
 
-/** Convertit "XXXXh" 16-bit en notation CALM 1re gen.
- *  Tente la substitution par symbole (labels), sinon H'XXXX. */
+/** Convertit "XXXXh" 16-bit en notation CALM 1re gen (label si connu, sinon octal). */
 function fmtWord(zilogHex, labels) {
     const n = parseInt(zilogHex.replace(/h$/i, ''), 16) & 0xFFFF;
     if (labels && labels[n]) return labels[n];
-    return `H'${n.toString(16).toUpperCase().padStart(4, '0')}`;
+    return n.toString(8);
 }
 
 // ─── Mapping des conditions Zilog → CALM ───────────────────────────
@@ -102,7 +96,7 @@ function transcodeLineImpl(zilogText, labels) {
     // OR A,A pour CF:=0 (clear), pas pour toggle. Les 0x3F dans le
     // binaire sont peut-être de la donnée mal interprétée. Émis brut
     // pour permettre la compilation.
-    if (t === 'CCF')   return { calm: ".B H'3F", extraComment: 'CCF (toggle CF) - mnémonique 1re gen ?' };
+    if (t === 'CCF')   return { calm: '.B 77', extraComment: 'CCF (toggle CF) - mnémonique 1re gen ?' };
     if (t === 'CPL')   return { calm: 'CPL A', extraComment: null };
     if (t === 'NEG')   return { calm: 'NEG A', extraComment: null };
     if (t === 'RET')   return { calm: 'RET', extraComment: null };
@@ -144,12 +138,12 @@ function transcodeLineImpl(zilogText, labels) {
         return { calm: `RET ${COND_MAP[args]}`, extraComment: null };
     }
 
-    // RST n → conversion du suffixe Zilog "h" vers la forme CALM H'XX
+    // RST n → octal (base par défaut en CALM 1re gen)
     if (mnem === 'RST') {
         const m = args.match(/^([0-9A-F]+)h$/i);
         if (m) {
             const n = parseInt(m[1], 16) & 0xFF;
-            return { calm: `RST H'${n.toString(16).toUpperCase().padStart(2, '0')}`, extraComment: null };
+            return { calm: `RST ${n.toString(8)}`, extraComment: null };
         }
         return { calm: `RST ${args}`, extraComment: null };
     }

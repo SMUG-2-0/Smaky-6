@@ -1,7 +1,7 @@
 	.TITLE SAMOS.SR
 	.PROC Z80
 	.REF  FLO
-	.LOC  H'1000
+	.LOC  10000
 
 	;SAMOS V2.2 — EXTENSION SYSTEME DU SMAKY 6
 	;ZONE 1000H..22FFH (~4.8 KO)
@@ -53,13 +53,13 @@ I_NMIRTN:
 	ADD HL,DE
 	POP AF
 	DEC D
-	LOAD HL,#H'0517
+	LOAD HL,#2427
 	LOAD D,#45
 	RLC A
 	DEC (HL)
 	INC D
 L_1031:
-	CALL PL,H'E218
+	CALL PL,161030
 	RLC A
 	ION
 	ADD HL,DE
@@ -77,13 +77,13 @@ L_1031:
 	SUBC A,E
 	LOAD (DE),A
 	LOAD L,L
-	LOAD D,#H'80
-	LOAD D,#H'A2
+	LOAD D,#200
+	LOAD D,#242
 	DEC D
-	JUMP PO,H'B611
-	LOAD DE,#H'11C5
+	JUMP PO,133021
+	LOAD DE,#10705
 	RET NE
-	LOAD DE,#H'1238
+	LOAD DE,#11070
 	LOAD C,#22
 	XOR A,(HL)
 	JUMP. L_1031
@@ -93,25 +93,24 @@ L_105C:
 	INC DE
 	LOAD A,$21
 	OR A,C
-	LOAD DE,#H'11B1
-	LOAD H'2BD1,HL
+	LOAD DE,#10661
+	LOAD 25721,HL
 	POP HL
-	LOAD H'2BD6,SP
+	LOAD 25726,SP
 	INC HL
 	PUSH HL
-	LOAD H'2BD8,HL
+	LOAD 25730,HL
 	DEC HL
 	PUSH IX
 	PUSH HL
-	LOAD HL,H'2BD1
+	LOAD HL,25721
 	EX (SP),HL
 	PUSH DE
 	PUSH BC
 	PUSH AF
 	LOAD A,(HL)
-	.B H'CB	;SLA A (Zilog) — pas de mnémonique 1re gen
-	.B H'27
-	LOAD HL,#H'101B
+	.B 313, 47	;SLA A (Zilog) — pas de mnémonique 1re gen
+	LOAD HL,#10033
 	ADD A,L
 	LOAD L,A
 	LOAD A,(HL)
@@ -120,7 +119,7 @@ L_105C:
 	LOAD L,A
 	POP AF
 	PUSH HL
-	LOAD HL,H'2BD1
+	LOAD HL,25721
 	RET
 
 	XOR A,D
@@ -130,39 +129,31 @@ L_105C:
 	LOAD D,H
 	ADD A,B
 DO_BOOT:
-	.W ?TEXTI
-	LOAD D,E
-	LOAD B,C
-	LOAD C,L
-	LOAD C,A
-	LOAD D,E
-	JUMP. NE,L_10CE
-	DEC L
-	LOAD H'000D,A
+	.W ?TEXTIM
+	.ASCIZ /SAMOS 2-2<CR>/
 	CALL DO_INIFLO
-	LOAD DE,#H'10E8
+	LOAD DE,#10350
 	.W ?LGO
 DO_RTN:
-	LOAD HL,#H'FFFF
+	LOAD HL,#177777
 	LOAD SP,HL
-	LOAD H'4560,HL
-	LOAD DE,#H'10D5
+	LOAD 42540,HL
+	LOAD DE,#10325
 	.W ?LGO
 L_10B4:
 	.W ?ERROR
 	.W ?RETUR
-	JUMP H'0809
+	JUMP 4011
 DO_NMIRTN:
 	XOR A,A
 	LOAD $31,A
 	.W ?BUZZ
 	CALL L_1DDD
 	CALL L_11D2
-	LOAD HL,#H'454B
+	LOAD HL,#42513
 	LOAD A,(HL)
 	LOAD (HL),#0
 	.W ?CLOSE
-L_10CE:
 	JUMP. DO_RTN
 	LOAD B,H
 	LOAD E,B
@@ -171,22 +162,22 @@ L_10CE:
 	LOAD B,E
 	LOAD C,H
 	LOAD C,C
-	LOAD L,#H'53
+	LOAD L,#123
 	LOAD E,C
 	NOP
 	LOAD B,L
 	LOAD D,D
-	LOAD L,#H'53
+	LOAD L,#123
 	LOAD E,C
 	NOP
 	LOAD C,H
 	LOAD D,B
-	LOAD L,#H'53
+	LOAD L,#123
 	LOAD E,C
 	NOP
 	LOAD D,E
 	LOAD D,H
-	LOAD L,#H'53
+	LOAD L,#123
 	LOAD E,C
 	NOP
 	LOAD D,B
@@ -222,15 +213,15 @@ L_10CE:
 	ADD A,D
 	DAA A
 L_110E:
-	LOAD DE,#H'3481
-	LOAD DE,#H'7C86
-	LOAD DE,#H'8985
-	LOAD DE,#H'41A2
-	LOAD DE,#H'4FA1
-	LOAD DE,#H'5CC2
-	LOAD DE,#H'97E2
-	LOAD DE,#H'A4E1
-	LOAD DE,#H'9B3A
+	LOAD DE,#32201
+	LOAD DE,#76206
+	LOAD DE,#104605
+	LOAD DE,#40642
+	LOAD DE,#47641
+	LOAD DE,#56302
+	LOAD DE,#113742
+	LOAD DE,#122341
+	LOAD DE,#115472
 	DEC HL
 	RET CC
 L_112B:
@@ -240,7 +231,7 @@ L_112B:
 	JUMP. CS,L_112B
 	RET
 
-	LOAD A,H'2B9B
+	LOAD A,25633
 	RET CC
 L_1138:
 	CALL L_1171
@@ -249,7 +240,7 @@ L_1138:
 	LOAD (DE),A
 	RET
 
-	LOAD A,H'2B9B
+	LOAD A,25633
 	RET CC
 L_1145:
 	CALL L_1171
@@ -259,7 +250,7 @@ L_1145:
 	OR A,A
 	RET
 
-	LOAD A,H'2B9B
+	LOAD A,25633
 	RET CC
 L_1153:
 	CALL L_1171
@@ -271,14 +262,14 @@ L_1153:
 	PUSH AF
 	LOAD A,#1
 	PUSH DE
-	LOAD DE,#H'10E2
+	LOAD DE,#10342
 	CALL L_1EF6
 	POP DE
 	JUMP. CS,L_1179
-	LOAD A,H'2B9B
+	LOAD A,25633
 	LOAD B,A
 	POP AF
-	JUMP H'2300
+	JUMP 21400
 L_1171:
 	.W ?GETFO
 	RET EQ
@@ -290,7 +281,7 @@ L_1179:
 	SETC
 	RET
 
-	LOAD A,H'2B9B
+	LOAD A,25633
 	RET CC
 L_1180:
 	CALL L_1171
@@ -299,7 +290,7 @@ L_1180:
 	JUMP. CS,L_1180
 	RET
 
-	LOAD A,H'2B9B
+	LOAD A,25633
 	RET CC
 L_118D:
 	CALL L_1171
@@ -308,7 +299,7 @@ L_118D:
 	LOAD (DE),A
 	RET
 
-	LOAD A,H'2B9B
+	LOAD A,25633
 	RET CC
 L_119B:
 	CALL L_1171
@@ -317,7 +308,7 @@ L_119B:
 	JUMP. CS,L_119B
 	RET
 
-	LOAD A,H'2B9B
+	LOAD A,25633
 	RET CC
 L_11A8:
 	CALL L_1171
@@ -326,10 +317,10 @@ L_11A8:
 	LOAD (DE),A
 	RET
 
-	LOAD A,#H'48
+	LOAD A,#110
 	SETC
 	JUMP. L_11B9
-	LOAD A,H'2B97
+	LOAD A,25627
 L_11B9:
 	POP BC
 	POP DE
@@ -339,10 +330,10 @@ L_11B9:
 	CALL L_1D47
 	LOAD B,H
 	LOAD C,L
-	LOAD HL,H'2BDE
+	LOAD HL,25736
 	LOAD A,H
 	OR A,L
-	LOAD A,H'2BE2
+	LOAD A,25742
 L_11CD:
 	POP HL
 	POP DE
@@ -350,25 +341,24 @@ L_11CD:
 	POP IX
 L_11D2:
 	PUSH AF
-	LOAD A,H'457F
+	LOAD A,42577
 	LOAD $0,A
 	POP AF
 	ION
 	RET
 
-	LOAD BC,#H'3232
+	LOAD BC,#31062
 	LOAD A,#5
 	JUMP. L_11CD
 	PUSH AF
 	LOAD A,#2
-	LOAD DE,#H'10DC
+	LOAD DE,#10334
 	CALL L_1EF6
 	JUMP. CS,L_11FE
-	LOAD BC,#H'0300
-	LOAD HL,#H'2300
+	LOAD BC,#1400
+	LOAD HL,#21400
 	POP AF
-	.B H'CB	;SET 7,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'FF
+	.B 313, 377	;SET 7,A (Zilog) — pas d'équivalent direct 1re gen
 	CPIR
 	JUMP. NE,L_11FF
 	.W ?DITEX
@@ -376,28 +366,22 @@ L_11D2:
 L_11FE:
 	POP AF
 L_11FF:
-	.W ?TEXTI
-	LOAD B,L
-	LOAD D,D
-	LOAD D,D
-	LOAD C,A
-	LOAD D,D
-	JUMP. NE,L_1208
-L_1208:
-	AND A,#H'7F
+	.W ?TEXTIM
+	.ASCIZ /ERROR /
+	AND A,#177
 	.W ?AFOCA
 	JUMP. L_11B9
 	.W ?CREBL
 	JUMP. CS,L_11B9
 	CALL L_1E03
-	LOAD BC,#H'0300
+	LOAD BC,#1400
 	LOAD H,A
 	.W ?WRBLK
 	LOAD A,H
 	LOAD B,A
-	LOAD HL,#H'2A11
+	LOAD HL,#25021
 	CALL L_1BD0
-	LOAD DE,#H'000D
+	LOAD DE,#15
 	ADD HL,DE
 	LOAD D,(HL)
 	DEC HL
@@ -407,7 +391,7 @@ L_1208:
 	DEC HL
 	LOAD (HL),E
 	LOAD A,B
-	LOAD BC,#H'0000
+	LOAD BC,#0
 	LOAD D,B
 	LOAD E,C
 	.W ?CLOSE
@@ -430,16 +414,16 @@ L_124F:
 	RET
 
 L_1253:
-	LOAD A,H'2B88
-	LOAD H'2BE2,A
-	LOAD HL,#H'2BEC
-	LOAD DE,#H'2BE3
-	LOAD BC,#H'0009
+	LOAD A,25610
+	LOAD 25742,A
+	LOAD HL,#25754
+	LOAD DE,#25743
+	LOAD BC,#11
 	LDIR
-	LOAD HL,H'2B84
-	LOAD H'2BDE,HL
-	LOAD HL,H'2B86
-	LOAD H'2BE0,HL
+	LOAD HL,25604
+	LOAD 25736,HL
+	LOAD HL,25606
+	LOAD 25740,HL
 	OR A,A
 	RET
 
@@ -463,8 +447,7 @@ L_1284:
 	RET CS
 	.W ?CREBL
 	RET CS
-	.B H'CB	;SET 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'EF
+	.B 313, 357	;SET 5,A (Zilog) — pas d'équivalent direct 1re gen
 	LOAD (HL),A
 	LOAD B,#3
 L_1295:
@@ -491,8 +474,7 @@ L_12AD:
 	RET CS
 	.W ?OPEBL
 	RET CS
-	.B H'CB	;SET 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'EF
+	.B 313, 357	;SET 5,A (Zilog) — pas d'équivalent direct 1re gen
 	LOAD (HL),A
 	INC HL
 	LOAD B,#1
@@ -515,7 +497,7 @@ L_12C1:
 	RET CS
 	LOAD H,B
 	LOAD L,C
-	LOAD H'2BC5,HL
+	LOAD 25705,HL
 	LOAD A,H
 	OR A,L
 	JUMP. NE,L_1325
@@ -525,25 +507,24 @@ L_12DD:
 	INC DE
 	CALL L_1CBE
 	JUMP. CC,L_12DD
-	COMP A,#H'5B
+	COMP A,#133
 	JUMP. NE,L_1324
 	PUSH BC
 	LOAD C,#0
-	LOAD HL,#H'0000
+	LOAD HL,#0
 L_12EE:
 	LOAD A,(DE)
 	INC DE
-	COMP A,#H'5D
+	COMP A,#135
 	JUMP. EQ,L_130B
 	SUB A,#60
 	JUMP. CS,L_12C1
 	COMP A,#12
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	JUMP. CS,L_12C1
 	LOAD B,#4
 L_12FF:
-	.B H'CB	;SLA L (Zilog) — pas de mnémonique 1re gen
-	.B H'25
+	.B 313, 45	;SLA L (Zilog) — pas de mnémonique 1re gen
 	RLC H
 	RLC C
 	DECJ,NE B,L_12FF
@@ -556,16 +537,16 @@ L_130B:
 	AND A,C
 	LOAD C,A
 	LOAD B,#0
-	LOAD DE,#H'2710
+	LOAD DE,#23420
 	.W ?MUL
 	LOAD A,H
 	OR A,L
-	LOAD HL,#H'FFFF
+	LOAD HL,#177777
 	JUMP. NE,L_1320
 	EX HL,DE
 L_1320:
 	POP BC
-	LOAD H'2BC5,HL
+	LOAD 25705,HL
 L_1324:
 	POP DE
 L_1325:
@@ -590,8 +571,8 @@ L_133B:
 L_1343:
 	CALL L_1D47
 	CALL L_1D7F
-	LOAD DE,H'2BC5
-	LOAD HL,H'2B82
+	LOAD DE,25705
+	LOAD HL,25602
 	LOAD A,H
 	OR A,L
 	LOAD A,#26
@@ -602,37 +583,36 @@ L_1343:
 	LOAD A,E
 	OR A,D
 	JUMP. NE,L_1362
-	.B H'CB	;SRL H (Zilog) — pas de mnémonique 1re gen
-	.B H'3C
+	.B 313, 74	;SRL H (Zilog) — pas de mnémonique 1re gen
 	RRC L
 	EX HL,DE
 L_1362:
-	LOAD HL,H'2B80
+	LOAD HL,25600
 	CALL DO_ADBLK
 	RET CS
-	LOAD H'2B82,HL
-	LOAD HL,#H'2A11
+	LOAD 25602,HL
+	LOAD HL,#25021
 	CALL L_1C4D
 	RET CS
 	EX HL,DE
-	LOAD HL,#H'2B76
-	LOAD BC,#H'0013
+	LOAD HL,#25566
+	LOAD BC,#23
 	LDIR
-	LOAD HL,#H'25E7
+	LOAD HL,#22747
 	PUSH HL
-	LOAD DE,H'2B89
+	LOAD DE,25611
 	DEC DE
 	SUBC HL,DE
 	LOAD B,H
 	LOAD C,L
 	POP HL
-	LOAD DE,#H'25FF
+	LOAD DE,#22777
 	JUMP. EQ,L_1391
 	LDDR
 L_1391:
-	LOAD DE,H'2B89
-	LOAD HL,#H'2B76
-	LOAD BC,#H'000E
+	LOAD DE,25611
+	LOAD HL,#25566
+	LOAD BC,#16
 	LDIR
 	LOAD A,#10
 	LOAD (DE),A
@@ -655,25 +635,25 @@ L_13A5:
 	RET CS
 	CALL L_1D26
 	LOAD A,#12
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	RET CS
 	LOAD A,#12
 	CALL L_1C6B
 	RET CS
-	LOAD HL,#H'2AB1
+	LOAD HL,#25261
 	CALL L_1C4D
 	RET CS
 	EX HL,DE
 	PUSH IX
 	POP HL
-	LOAD BC,#H'000E
+	LOAD BC,#16
 	LDIR
 	PUSH HL
-	LOAD HL,#H'2B84
-	LOAD BC,#H'0004
+	LOAD HL,#25604
+	LOAD BC,#4
 	LDIR
 	POP HL
-	LOAD A,H'2B88
+	LOAD A,25610
 	LOAD (DE),A
 	INC DE
 	INC HL
@@ -701,16 +681,10 @@ L_13EE:
 	LOAD B,#30
 	CALL L_1E2C
 	RET CS
-	.B H'DD	;RES 2,(IX+14) (Zilog) — pas d'équivalent direct 1re gen
-	.B H'CB
-	.B H'0E
-	.B H'96
+	.B 335, 313, 16, 226	;RES 2,(IX+14) (Zilog) — pas d'équivalent direct 1re gen
 	OR A,A
 	JUMP. EQ,L_142D
-	.B H'DD	;SET 2,(IX+14) (Zilog) — pas d'équivalent direct 1re gen
-	.B H'CB
-	.B H'0E
-	.B H'D6
+	.B 335, 313, 16, 326	;SET 2,(IX+14) (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. L_142D
 	LOAD HL,#L_11B9
 	PUSH HL
@@ -721,7 +695,7 @@ L_13EE:
 L_142D:
 	CALL L_1A7B
 	RET CS
-	LOAD A,H'2B9B
+	LOAD A,25633
 	RET
 
 	LOAD HL,#L_11B9
@@ -737,20 +711,19 @@ L_1444:
 	XOR A,A
 	LOAD (HL),A
 	DEC HL
-	.B H'CB	;RES 3,(HL) (Zilog) — pas d'équivalent direct 1re gen
-	.B H'9E
+	.B 313, 236	;RES 3,(HL) (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. L_1444
 	LOAD HL,#L_11B9
 	PUSH HL
 	CALL L_1E13
 	JUMP. CS,L_14A2
-	LOAD HL,#H'2B76
+	LOAD HL,#25566
 	PUSH BC
 	CALL L_1AA2
 	POP DE
 	JUMP. CS,L_14A2
 	CALL L_1ED4
-	LOAD HL,#H'2B6C
+	LOAD HL,#25554
 L_1469:
 	CALL L_1BA8
 	JUMP. CC,L_1469
@@ -758,11 +731,11 @@ L_1469:
 	JUMP. CS,L_149E
 	CALL L_1A71
 	JUMP. CS,L_14A2
-	LOAD DE,#H'2B6C
+	LOAD DE,#25554
 	CALL L_1D26
 	LOAD A,#11
 	JUMP. CS,L_149E
-	LOAD DE,#H'2B76
+	LOAD DE,#25566
 	CALL L_1D26
 	LOAD A,#12
 	JUMP. CC,L_14A2
@@ -770,8 +743,8 @@ L_1469:
 	CALL L_1C6B
 	JUMP. CS,L_14A2
 	EX HL,DE
-	LOAD HL,#H'2B6C
-	LOAD BC,#H'000A
+	LOAD HL,#25554
+	LOAD BC,#12
 	LDIR
 L_149C:
 	JUMP. L_142D
@@ -791,12 +764,12 @@ L_14A3:
 	CALL L_1E2C
 	RET CS
 	PUSH HL
-	LOAD BC,#H'0018
+	LOAD BC,#30
 	ADD HL,BC
 	PUSH HL
 	PUSH HL
 	POP BC
-	LOAD HL,#H'2600
+	LOAD HL,#23000
 	SUBC HL,BC
 	PUSH HL
 	POP BC
@@ -805,7 +778,7 @@ L_14A3:
 	JUMP. EQ,L_14C5
 	LDIR
 L_14C5:
-	LOAD HL,#H'25FF
+	LOAD HL,#22777
 	LOAD B,#30
 	XOR A,A
 L_14CB:
@@ -820,37 +793,33 @@ L_14D5:
 	JUMP PL,L_14E7
 	CALL L_1CE4
 	RET CS
-	.B H'CB	;RES 4,(HL) (Zilog) — pas d'équivalent direct 1re gen
-	.B H'A6
-	.B H'CB	;RES 3,(HL) (Zilog) — pas d'équivalent direct 1re gen
-	.B H'9E
+	.B 313, 246	;RES 4,(HL) (Zilog) — pas d'équivalent direct 1re gen
+	.B 313, 236	;RES 3,(HL) (Zilog) — pas d'équivalent direct 1re gen
 	CALL L_1DE7
-	LOAD A,#H'FF
+	LOAD A,#377
 	JUMP (HL)
 L_14E7:
-	LOAD H'2B9B,A
-	.B H'CB	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'AF
-	LOAD H'2BCA,BC
-	LOAD H'2BCC,DE
-	LOAD HL,#H'2A11
+	LOAD 25633,A
+	.B 313, 257	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
+	LOAD 25712,BC
+	LOAD 25714,DE
+	LOAD HL,#25021
 	PUSH AF
 	CALL L_1BD0
 	JUMP. CC,L_1520
 	POP AF
-	LOAD HL,#H'2AB1
+	LOAD HL,#25261
 	CALL L_1BD0
 	RET CS
 	CALL L_1591
 	RET CS
-	LOAD DE,#H'000F
+	LOAD DE,#17
 	ADD HL,DE
 	DEC (HL)
 	XOR A,A
 	LOAD (IX),A
-	LOAD A,H'2B9B
-	.B H'CB	;BIT 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'6F
+	LOAD A,25633
+	.B 313, 157	;BIT 5,A (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. EQ,L_158E
 	CALL L_1C86
 	XOR A,A
@@ -860,15 +829,14 @@ L_1520:
 	POP AF
 	PUSH HL
 	.W ?GDAY
-	LOAD H'2BCE,A
+	LOAD 25716,A
 	LOAD A,B
 	LOAD B,C
 	LOAD C,A
-	LOAD H'2BCF,BC
+	LOAD 25717,BC
 	POP HL
-	LOAD A,H'2B9B
-	.B H'CB	;BIT 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'6F
+	LOAD A,25633
+	.B 313, 157	;BIT 5,A (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. EQ,L_1566
 	PUSH HL
 	PUSH HL
@@ -890,8 +858,7 @@ L_1520:
 	PUSH IX
 	POP DE
 	LOAD A,(DE)
-	.B H'CB	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'AF
+	.B 313, 257	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
 	INC DE
 	INC DE
 	INC DE
@@ -907,8 +874,8 @@ L_1566:
 	CALL L_1591
 	RET CS
 	LOAD A,(IX)+23
-	LOAD H'2BC9,A
-	LOAD DE,#H'000C
+	LOAD 25711,A
+	LOAD DE,#14
 	ADD HL,DE
 	XOR A,A
 	LOAD (IX),A
@@ -922,8 +889,8 @@ L_1566:
 	INC HL
 	INC HL
 	EX HL,DE
-	LOAD HL,#H'2BC9
-	LOAD BC,#H'0008
+	LOAD HL,#25711
+	LOAD BC,#10
 	LDIR
 L_158E:
 	JUMP L_142D
@@ -935,12 +902,12 @@ L_1591:
 	POP DE
 	CALL L_1D26
 	LOAD A,#12
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	RET
 
 	CALL L_15B2
 	PUSH AF
-	LOAD A,H'2B98
+	LOAD A,25630
 	OR A,A
 	JUMP. EQ,L_15AF
 	POP AF
@@ -949,21 +916,21 @@ L_15AF:
 	POP AF
 	JUMP. L_15FC
 L_15B2:
-	LOAD H'2BDA,BC
+	LOAD 25732,BC
 	LOAD B,H
 	LOAD C,L
 	PUSH AF
-	LOAD A,#H'FF
+	LOAD A,#377
 	JUMP. CS,L_15BE
 	XOR A,A
 L_15BE:
-	LOAD H'2B98,A
+	LOAD 25630,A
 	POP AF
-	LOAD HL,#H'2AB1
+	LOAD HL,#25261
 	CALL L_1BD0
 	RET CS
 	CALL L_1EE5
-	LOAD A,H'2B98
+	LOAD A,25630
 	OR A,A
 	JUMP. EQ,L_15D6
 	CALL L_1E17
@@ -976,13 +943,13 @@ L_15D6:
 	RET CS
 	PUSH DE
 	PUSH HL
-	LOAD BC,H'2BDA
+	LOAD BC,25732
 	CALL L_1E87
 	POP DE
 	EX HL,DE
 	CALL L_1EB9
 	POP DE
-	LOAD A,#H'FF
+	LOAD A,#377
 	JUMP. L_163E
 	OR A,A
 	JUMP PL,L_15F9
@@ -1020,14 +987,14 @@ L_1621:
 L_1624:
 	PUSH AF
 	XOR A,A
-	LOAD HL,#H'2AB1
+	LOAD HL,#25261
 	JUMP. L_1631
 L_162B:
 	PUSH AF
-	LOAD A,#H'FF
-	LOAD HL,#H'2A11
+	LOAD A,#377
+	LOAD HL,#25021
 L_1631:
-	LOAD H'2B98,A
+	LOAD 25630,A
 	POP AF
 	CALL L_1E77
 	RET CS
@@ -1052,7 +1019,7 @@ L_163E:
 	POP AF
 	RET CC
 	PUSH AF
-	LOAD A,H'2B98
+	LOAD A,25630
 	OR A,A
 	JUMP. NE,L_1667
 	LOAD A,B
@@ -1107,7 +1074,7 @@ L_1698:
 	JUMP. L_16B3
 L_16A4:
 	PUSH AF
-	LOAD A,#H'FF
+	LOAD A,#377
 	JUMP. L_16BE
 L_16A9:
 	OR A,A
@@ -1125,7 +1092,7 @@ L_16BC:
 	PUSH AF
 	XOR A,A
 L_16BE:
-	LOAD H'2B99,A
+	LOAD 25631,A
 	POP AF
 	CALL L_1CD5
 	RET CS
@@ -1145,16 +1112,15 @@ L_16D3:
 	PUSH IX
 	POP HL
 	LOAD A,(HL)
-	.B H'CB	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'AF
+	.B 313, 257	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
 	INC HL
 	INC HL
 	INC HL
 	INC HL
-	LOAD BC,#H'0100
+	LOAD BC,#400
 	EX HL,DE
 	PUSH AF
-	LOAD A,H'2B99
+	LOAD A,25631
 	OR A,A
 	JUMP. EQ,L_16F0
 	POP AF
@@ -1180,7 +1146,7 @@ L_16F3:
 L_1705:
 	LOAD B,C
 L_1706:
-	LOAD A,H'2B99
+	LOAD A,25631
 	OR A,A
 	JUMP. NE,L_170D
 	EX HL,DE
@@ -1196,22 +1162,19 @@ L_1715:
 	RET
 
 L_171C:
-	LOAD HL,#H'0000
+	LOAD HL,#0
 	JUMP. L_1715
-	.B H'CB	;SET 0,L (Zilog) — pas d'équivalent direct 1re gen
-	.B H'C5
+	.B 313, 305	;SET 0,L (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. L_1727
-	.B H'CB	;RES 0,L (Zilog) — pas d'équivalent direct 1re gen
-	.B H'85
+	.B 313, 205	;RES 0,L (Zilog) — pas d'équivalent direct 1re gen
 L_1727:
 	LOAD H,A
-	LOAD BC,#H'0000
+	LOAD BC,#0
 L_172B:
 	PUSH BC
-	LOAD BC,#H'0001
+	LOAD BC,#1
 	LOAD A,H
-	.B H'CB	;BIT 0,L (Zilog) — pas d'équivalent direct 1re gen
-	.B H'45
+	.B 313, 105	;BIT 0,L (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. EQ,L_1738
 	.W ?RDBYT
 	JUMP. L_173A
@@ -1229,8 +1192,7 @@ L_173A:
 	JUMP. EQ,L_1752
 	COMP A,#14
 	JUMP. EQ,L_1752
-	.B H'CB	;BIT 0,B (Zilog) — pas d'équivalent direct 1re gen
-	.B H'40
+	.B 313, 100	;BIT 0,B (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. EQ,L_172B
 	LOAD A,#5
 	SETC
@@ -1245,25 +1207,24 @@ L_1752:
 	POP DE
 	RET CS
 	CALL L_1D47
-	LOAD BC,#H'0003
+	LOAD BC,#3
 	SUBC HL,BC
-	LOAD H'2BC5,HL
-	LOAD HL,#H'2300
+	LOAD 25705,HL
+	LOAD HL,#21400
 L_1771:
 	LOAD A,(HL)
 	OR A,A
 	JUMP. EQ,L_17C9
 	PUSH HL
 	PUSH HL
-	LOAD BC,#H'000A
+	LOAD BC,#12
 	LDIR
 	POP HL
 	LOAD A,#17
 	CALL L_1C6B
 	PUSH AF
-	.B H'CB	;BIT 3,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'5F
-	LOAD A,#H'43
+	.B 313, 137	;BIT 3,A (Zilog) — pas d'équivalent direct 1re gen
+	LOAD A,#103
 	JUMP. NE,L_178E
 	LOAD A,(IX)+17
 	ADD A,#60
@@ -1273,19 +1234,19 @@ L_178E:
 	POP AF
 	LOAD (DE),A
 	INC DE
-	LOAD H'2BC3,DE
+	LOAD 25703,DE
 	CALL L_1E95
 	PUSH HL
 	PUSH DE
 	OR A,A
 	SUBC HL,DE
 	EX HL,DE
-	LOAD HL,H'2BC5
+	LOAD HL,25705
 	OR A,A
 	SUBC HL,DE
-	LOAD H'2BC5,HL
+	LOAD 25705,HL
 	EX HL,DE
-	LOAD DE,H'2BC3
+	LOAD DE,25703
 	CALL L_1EEF
 	LOAD A,(IX)+20
 	LOAD (DE),A
@@ -1295,7 +1256,7 @@ L_178E:
 	POP HL
 	CALL L_1EEF
 	POP HL
-	LOAD BC,#H'0015
+	LOAD BC,#25
 	ADD HL,BC
 	LOAD C,#3
 	LDIR
@@ -1303,29 +1264,29 @@ L_178E:
 L_17C9:
 	LOAD (DE),A
 	INC DE
-	LOAD HL,H'2BC5
+	LOAD HL,25705
 	CALL L_1EEF
-	LOAD HL,H'2B82
+	LOAD HL,25602
 	JUMP L_1EEF
-	LOAD HL,#H'2BE3
-	LOAD BC,#H'0012
+	LOAD HL,#25743
+	LOAD BC,#22
 	LDIR
 	JUMP L_11B9
 	LOAD HL,#L_11B9
 	PUSH HL
-	LOAD H'2BC7,BC
+	LOAD 25707,BC
 	LOAD C,A
 	LOAD B,#0
 	CALL L_1E13
 	RET CS
-	LOAD H'2BC5,BC
+	LOAD 25705,BC
 	LOAD A,B
 	OR A,C
 	JUMP. NE,L_1805
-	LOAD HL,#H'0003
-	LOAD H'2BC5,HL
-	LOAD HL,#H'2300
-	LOAD H'2BC7,HL
+	LOAD HL,#3
+	LOAD 25705,HL
+	LOAD HL,#21400
+	LOAD 25707,HL
 L_1805:
 	CALL L_1A71
 	RET CS
@@ -1344,15 +1305,15 @@ L_1815:
 	CALL L_1D14
 	PUSH DE
 	PUSH IX
-	LOAD IX,H'2B89
+	LOAD IX,25611
 	POP DE
 L_1826:
 	PUSH DE
-	LOAD BC,#H'0014
+	LOAD BC,#24
 	PUSH BC
 	LOAD B,#2
 L_182D:
-	LOAD DE,H'2B82
+	LOAD DE,25602
 	CALL L_1EAB
 	OR A,A
 	SUBC HL,DE
@@ -1370,13 +1331,13 @@ L_182D:
 	CALL L_1A7B
 	POP DE
 	RET CS
-	LOAD IX,#H'2BEB
-	LOAD HL,H'2B80
+	LOAD IX,#25753
+	LOAD HL,25600
 	CALL L_1EB2
-	LOAD IX,#H'2BEF
+	LOAD IX,#25757
 	CALL L_1EA4
 	PUSH DE
-	LOAD DE,H'2B82
+	LOAD DE,25602
 	PUSH DE
 	ADD HL,DE
 	CALL L_1EB2
@@ -1385,14 +1346,14 @@ L_182D:
 	OR A,A
 	SUBC HL,DE
 	EX HL,DE
-	LOAD IX,#H'2BEB
+	LOAD IX,#25753
 	CALL L_1EA4
 L_1878:
-	LOAD IX,#H'2BEF
-	LOAD DE,H'2BC7
-	LOAD HL,H'2BC5
+	LOAD IX,#25757
+	LOAD DE,25707
+	LOAD HL,25705
 	XOR A,A
-	LOAD H'2B98,A
+	LOAD 25630,A
 	CALL L_1639
 	JUMP. CC,L_1892
 	COMP A,#6
@@ -1401,11 +1362,11 @@ L_1878:
 	RET
 
 L_1892:
-	LOAD IX,#H'2BEB
-	LOAD DE,H'2BC7
-	LOAD HL,H'2BC5
-	LOAD A,#H'FF
-	LOAD H'2B98,A
+	LOAD IX,#25753
+	LOAD DE,25707
+	LOAD HL,25705
+	LOAD A,#377
+	LOAD 25630,A
 	CALL L_1639
 	JUMP. CC,L_1878
 	COMP A,#6
@@ -1433,7 +1394,7 @@ L_18C6:
 	PUSH DE
 	EX HL,DE
 	ADD HL,BC
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	JUMP. CC,L_18D4
 	.W ?COMPH
 	JUMP. CS,L_18D5
@@ -1464,10 +1425,10 @@ L_18D5:
 L_18EF:
 	POP HL
 L_18F0:
-	LOAD BC,#H'0000
+	LOAD BC,#0
 	RET
 
-	LOAD SP,#H'4528
+	LOAD SP,#42450
 	PUSH IX
 	PUSH DE
 	PUSH BC
@@ -1481,15 +1442,15 @@ L_18F0:
 	.W ?MEM
 	POP DE
 	LOAD SP,HL
-	LOAD HL,H'2BC7
+	LOAD HL,25707
 	EX HL,DE
 	JUMP. L_1919
 L_1912:
-	LOAD HL,H'2BD8
-	LOAD SP,H'2BD6
+	LOAD HL,25730
+	LOAD SP,25726
 L_1919:
 	PUSH HL
-	LOAD HL,H'2BD1
+	LOAD HL,25721
 	JUMP L_11D2
 L_1920:
 	CALL L_194C
@@ -1500,7 +1461,7 @@ L_1920:
 	LOAD D,(IX)+24
 	PUSH DE
 	EX HL,DE
-	LOAD BC,#H'FFFF
+	LOAD BC,#177777
 	CALL L_18C6
 	JUMP. CS,L_1940
 	POP HL
@@ -1514,7 +1475,7 @@ L_1920:
 	RET
 
 L_1940:
-	LOAD SP,#H'FFFF
+	LOAD SP,#177777
 	LOAD A,#1
 	LOAD $0,A
 	LOAD A,#35
@@ -1530,7 +1491,7 @@ L_194C:
 L_195D:
 	LOAD A,#40
 L_195F:
-	LOAD H'2B88,A
+	LOAD 25610,A
 	CALL L_1D54
 	PUSH DE
 	CALL L_1A71
@@ -1540,8 +1501,8 @@ L_195F:
 	CALL L_1D26
 	JUMP. CS,L_1981
 L_1974:
-	LOAD A,H'2B88
-	LOAD H,#H'40
+	LOAD A,25610
+	LOAD H,#100
 	AND A,H
 	LOAD A,H
 	JUMP. EQ,L_195F
@@ -1560,9 +1521,9 @@ L_1981:
 	LOAD A,#16
 	RET
 
-	LOAD HL,#H'2A11
-	LOAD DE,#H'0014
-	LOAD BC,#H'1041
+	LOAD HL,#25021
+	LOAD DE,#24
+	LOAD BC,#10101
 L_199B:
 	LOAD A,(HL)
 	OR A,A
@@ -1571,7 +1532,7 @@ L_199F:
 	ADD HL,DE
 	INC C
 	PUSH DE
-	LOAD DE,#H'2AB1
+	LOAD DE,#25261
 	.W ?COMPH
 	JUMP. NE,L_19AB
 	LOAD C,#1
@@ -1579,15 +1540,13 @@ L_19AB:
 	POP DE
 	DECJ,NE B,L_199B
 L_19AE:
-	LOAD HL,#H'2B51
+	LOAD HL,#25521
 	LOAD B,#11
 L_19B3:
 	LOAD A,(HL)
-	.B H'CB	;BIT 4,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'67
+	.B 313, 147	;BIT 4,A (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. NE,L_19C5
-	.B H'CB	;BIT 3,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'5F
+	.B 313, 137	;BIT 3,A (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. NE,L_19C5
 	INC HL
 	INC HL
@@ -1601,16 +1560,15 @@ L_19C5:
 L_19CA:
 	PUSH DE
 	PUSH HL
-	.B H'CB	;BIT 6,C (Zilog) — pas d'équivalent direct 1re gen
-	.B H'71
+	.B 313, 161	;BIT 6,C (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. NE,L_19E1
-	LOAD DE,#H'0008
+	LOAD DE,#10
 	ADD HL,DE
-	LOAD A,#H'4D
+	LOAD A,#115
 	COMP A,(HL)
 	JUMP. NE,L_19E1
 	INC HL
-	LOAD A,#H'43
+	LOAD A,#103
 	COMP A,(HL)
 	POP HL
 	JUMP. EQ,L_19F8
@@ -1618,14 +1576,12 @@ L_19CA:
 L_19E1:
 	PUSH BC
 	LOAD A,C
-	.B H'CB	;SET 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'EF
+	.B 313, 357	;SET 5,A (Zilog) — pas d'équivalent direct 1re gen
 	CALL L_1C86
 	JUMP. CC,L_19EC
-	.B H'CB	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'AF
+	.B 313, 257	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
 L_19EC:
-	LOAD BC,#H'0000
+	LOAD BC,#0
 	LOAD D,B
 	LOAD E,C
 	CALL L_14D5
@@ -1646,29 +1602,29 @@ L_19F8:
 	PUSH HL
 	CALL DO_TSTDRI
 	RET CS
-	LOAD H'2BCA,BC
-	LOAD H'2BCC,DE
+	LOAD 25712,BC
+	LOAD 25714,DE
 	CALL L_1DB4
 	RET CS
-	LOAD DE,H'2B82
-	LOAD HL,H'2BCA
+	LOAD DE,25602
+	LOAD HL,25712
 	LOAD (HL),E
 	INC HL
 	LOAD (HL),D
 	INC HL
-	LOAD H'2BCA,HL
-	LOAD DE,H'2BCC
-	LOAD HL,#H'2B76
+	LOAD 25712,HL
+	LOAD DE,25714
+	LOAD HL,#25566
 	CALL L_1AA2
 	JUMP. CS,L_1A6B
-	LOAD DE,#H'2B76
+	LOAD DE,#25566
 	CALL L_1D26
 	JUMP. CC,L_1A6B
 	LOAD A,#37
 	CALL L_1C6B
 	OR A,B
-	OR A,#H'80
-	LOAD HL,H'2BCA
+	OR A,#200
+	LOAD HL,25712
 	LOAD (HL),A
 	INC HL
 	PUSH HL
@@ -1685,14 +1641,14 @@ L_19F8:
 	LOAD E,L
 	PUSH IX
 	POP HL
-	LOAD BC,#H'0010
+	LOAD BC,#20
 	ADD HL,BC
-	LOAD BC,#H'0008
+	LOAD BC,#10
 	LDIR
 	RET
 
 L_1A6B:
-	LOAD HL,H'2BCA
+	LOAD HL,25712
 	XOR A,A
 	LOAD (HL),A
 	RET
@@ -1700,24 +1656,23 @@ L_1A6B:
 L_1A71:
 	CALL L_1A81
 	XOR A,A
-	LOAD H'2B9A,A
+	LOAD 25632,A
 	JUMP DO_RODWIB
 L_1A7B:
 	CALL L_1A81
 	JUMP DO_RIBWOD
 L_1A81:
-	LOAD BC,#H'0000
-	LOAD HL,#H'0003
-	LOAD DE,#H'2300
+	LOAD BC,#0
+	LOAD HL,#3
+	LOAD DE,#21400
 	RET
 
 L_1A8B:
-	LOAD HL,#H'230E
-	LOAD DE,#H'0017
+	LOAD HL,#21416
+	LOAD DE,#27
 	LOAD BC,#L_2013
 L_1A94:
-	.B H'CB	;BIT 3,(HL) (Zilog) — pas d'équivalent direct 1re gen
-	.B H'5E
+	.B 313, 136	;BIT 3,(HL) (Zilog) — pas d'équivalent direct 1re gen
 	INC HL
 	JUMP. NE,L_1A9B
 	LOAD A,(HL)
@@ -1784,15 +1739,13 @@ DO_TSTDRI:
 	LOAD B,#60
 	LOAD A,(HL)
 	INC HL
-	.B H'CB	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'AF
-	COMP A,#H'44
+	.B 313, 257	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
+	COMP A,#104
 	JUMP. NE,L_1B06
 	LOAD A,(HL)
 	INC HL
-	.B H'CB	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'AF
-	COMP A,#H'58
+	.B 313, 257	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
+	COMP A,#130
 	JUMP. NE,L_1B06
 	LOAD A,(HL)
 	INC HL
@@ -1806,10 +1759,10 @@ DO_TSTDRI:
 	LOAD E,L
 L_1B06:
 	PUSH AF
-	LOAD HL,#H'2BEC
-	LOAD (HL),#H'44
+	LOAD HL,#25754
+	LOAD (HL),#104
 	INC HL
-	LOAD (HL),#H'58
+	LOAD (HL),#130
 	INC HL
 	LOAD (HL),B
 	INC HL
@@ -1824,8 +1777,8 @@ L_1B06:
 	JUMP. NE,L_1B22
 	LOAD A,#40
 L_1B22:
-	LOAD H'2B88,A
-	LOAD HL,#H'2B90
+	LOAD 25610,A
+	LOAD HL,#25620
 	CALL L_2299
 	LOAD A,(HL)
 	OR A,A
@@ -1841,22 +1794,22 @@ L_1B35:
 	CALL L_1D54
 	JUMP. L_1B5C
 L_1B3D:
-	LOAD A,H'2BE2
-	LOAD H'2B88,A
-	LOAD HL,#H'2BE3
+	LOAD A,25742
+	LOAD 25610,A
+	LOAD HL,#25743
 	PUSH DE
-	LOAD DE,#H'2BEC
-	LOAD BC,#H'0009
+	LOAD DE,#25754
+	LOAD BC,#11
 	LDIR
 	POP DE
-	LOAD HL,H'2BDE
-	LOAD H'2B84,HL
-	LOAD HL,H'2BE0
-	LOAD H'2B86,HL
+	LOAD HL,25736
+	LOAD 25604,HL
+	LOAD HL,25740
+	LOAD 25606,HL
 L_1B5C:
-	LOAD HL,#H'2B76
+	LOAD HL,#25566
 	CALL L_1BA8
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	JUMP. CC,L_1BA6
 	PUSH DE
 	PUSH HL
@@ -1865,7 +1818,7 @@ L_1B5C:
 	JUMP. CS,L_1BA5
 	CALL L_1D26
 	LOAD A,#21
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	JUMP. CS,L_1BA5
 	LOAD A,#12
 	CALL L_1C6B
@@ -1875,14 +1828,14 @@ L_1B5C:
 	OR A,A
 	SUBC HL,DE
 	PUSH HL
-	LOAD HL,H'2B84
+	LOAD HL,25604
 	ADD HL,DE
-	LOAD H'2B84,HL
+	LOAD 25604,HL
 	POP DE
 	ADD HL,DE
-	LOAD H'2B86,HL
+	LOAD 25606,HL
 	POP DE
-	LOAD HL,#H'2BEC
+	LOAD HL,#25754
 	LOAD B,#10
 L_1B96:
 	LOAD A,(DE)
@@ -1928,9 +1881,9 @@ L_1BC2:
 
 L_1BC5:
 	CALL L_1EDE
-	LOAD (HL),#H'44
+	LOAD (HL),#104
 	INC HL
-	LOAD (HL),#H'52
+	LOAD (HL),#122
 	POP HL
 	POP HL
 	RET
@@ -1945,13 +1898,13 @@ L_1BD0:
 	COMP A,B
 	JUMP. CC,L_1BF8
 	LOAD A,C
-	LOAD DE,#H'2A11
+	LOAD DE,#25021
 	OR A,A
 	RLC A
 	RLC A
 	LOAD C,A
 	JUMP. CS,L_1BE8
-	LOAD DE,#H'2AB1
+	LOAD DE,#25261
 L_1BE8:
 	.W ?COMPH
 	JUMP. NE,L_1BF8
@@ -1971,10 +1924,10 @@ L_1BF8:
 	JUMP. L_1C0B
 L_1BFD:
 	PUSH HL
-	LOAD DE,#H'000E
+	LOAD DE,#16
 	ADD HL,DE
-	LOAD DE,#H'2B84
-	LOAD BC,#H'0004
+	LOAD DE,#25604
+	LOAD BC,#4
 	LDIR
 	POP HL
 L_1C0B:
@@ -1989,23 +1942,20 @@ L_1C0E:
 	RET
 
 L_1C15:
-	LOAD HL,#H'10EE
+	LOAD HL,#10356
 L_1C18:
 	PUSH DE
 L_1C19:
-	.B H'CB	;BIT 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
-	.B H'7E
+	.B 313, 176	;BIT 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. NE,L_1C33
 	LOAD A,(DE)
-	.B H'CB	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'AF
+	.B 313, 257	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
 	INC DE
 	COMP A,(HL)
 	INC HL
 	JUMP. EQ,L_1C19
 L_1C25:
-	.B H'CB	;BIT 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
-	.B H'7E
+	.B 313, 176	;BIT 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
 	INC HL
 	JUMP. EQ,L_1C25
 	LOAD A,(HL)
@@ -2019,10 +1969,9 @@ L_1C25:
 L_1C33:
 	POP DE
 	LOAD E,(HL)
-	.B H'CB	;RES 7,E (Zilog) — pas d'équivalent direct 1re gen
-	.B H'BB
+	.B 313, 273	;RES 7,E (Zilog) — pas d'équivalent direct 1re gen
 	LOAD D,#0
-	LOAD HL,#H'2B51
+	LOAD HL,#25521
 	ADD HL,DE
 	LOAD A,(HL)
 	AND A,C
@@ -2031,22 +1980,21 @@ L_1C33:
 	AND A,C
 	OR A,(HL)
 	LOAD (HL),A
-	LOAD H'2B9B,A
+	LOAD 25633,A
 	JUMP L_1DE7
 L_1C4D:
-	LOAD BC,#H'0801
-	LOAD DE,#H'2A11
+	LOAD BC,#4001
+	LOAD DE,#25021
 	.W ?COMPH
 	JUMP. NE,L_1C59
-	.B H'CB	;SET 6,C (Zilog) — pas d'équivalent direct 1re gen
-	.B H'F1
+	.B 313, 361	;SET 6,C (Zilog) — pas d'équivalent direct 1re gen
 L_1C59:
-	LOAD DE,#H'0014
+	LOAD DE,#24
 L_1C5C:
 	LOAD A,(HL)
 	OR A,A
 	LOAD A,C
-	LOAD H'2B9B,A
+	LOAD 25633,A
 	RET EQ
 	ADD HL,DE
 	INC C
@@ -2073,18 +2021,18 @@ L_1C77:
 L_1C7F:
 	COMP A,#10
 	RET CS
-	AND A,#H'F8
+	AND A,#370
 	SETC
 	RET
 
 L_1C86:
-	LOAD HL,#H'2601
+	LOAD HL,#23001
 	LOAD B,#4
 L_1C8B:
 	COMP A,(HL)
 	RET EQ
 	PUSH DE
-	LOAD DE,#H'0104
+	LOAD DE,#404
 	ADD HL,DE
 	POP DE
 	DECJ,NE B,L_1C8B
@@ -2093,9 +2041,9 @@ L_1C8B:
 
 L_1C97:
 	PUSH DE
-	LOAD DE,H'2BD4
+	LOAD DE,25724
 	.W ?COMPH
-	LOAD A,H'2BD3
+	LOAD A,25723
 	POP DE
 	RET
 
@@ -2103,33 +2051,31 @@ L_1CA3:
 	COMP A,#60
 	JUMP. CS,L_1CB5
 	COMP A,#72
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	RET CC
 L_1CAB:
-	.B H'CB	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'AF
-	COMP A,#H'41
+	.B 313, 257	;RES 5,A (Zilog) — pas d'équivalent direct 1re gen
+	COMP A,#101
 	JUMP. CS,L_1CB5
-	COMP A,#H'5B
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	COMP A,#133
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	RET CC
 L_1CB5:
 	LOAD A,#13
 	RET
 
 	PUSH HL
-	LOAD HL,#H'1CCF
+	LOAD HL,#16317
 	JUMP. L_1CC2
 L_1CBE:
 	PUSH HL
-	LOAD HL,#H'1CCE
+	LOAD HL,#16316
 L_1CC2:
 	COMP A,(HL)
 	SETC
 	JUMP. EQ,L_1CCC
 	INC HL
-	.B H'CB	;BIT 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
-	.B H'7E
+	.B 313, 176	;BIT 7,(HL) (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. EQ,L_1CC2
 	OR A,A
 L_1CCC:
@@ -2155,7 +2101,7 @@ L_1CDA:
 	RET
 
 L_1CE4:
-	LOAD HL,#H'2B51
+	LOAD HL,#25521
 	LOAD B,#11
 L_1CE9:
 	COMP A,(HL)
@@ -2169,13 +2115,13 @@ L_1CE9:
 	RET
 
 L_1CF4:
-	LOAD HL,#H'0000
-	LOAD H'2B82,HL
+	LOAD HL,#0
+	LOAD 25602,HL
 	DEC HL
-	LOAD H'2BDC,HL
-	LOAD IX,#H'2300
-	LOAD DE,#H'0003
-	LOAD BC,#H'0018
+	LOAD 25734,HL
+	LOAD IX,#21400
+	LOAD DE,#3
+	LOAD BC,#30
 L_1D08:
 	LOAD A,(IX)
 	OR A,A
@@ -2189,15 +2135,15 @@ L_1D14:
 	PUSH IX
 	POP DE
 	LOAD A,(DE)
-	LOAD HL,#H'25E8
+	LOAD HL,#22750
 	.W ?COMPH
 	CALL L_1E9D
 	JUMP. EQ,L_1D0C
 	ADD IX,BC
 	JUMP. L_1D08
 L_1D26:
-	LOAD HL,#H'2300
-	LOAD BC,#H'2018
+	LOAD HL,#21400
+	LOAD BC,#20030
 L_1D2C:
 	PUSH BC
 	PUSH DE
@@ -2227,23 +2173,23 @@ L_1D3B:
 
 L_1D47:
 	PUSH DE
-	LOAD HL,H'2B86
-	LOAD DE,H'2B84
+	LOAD HL,25606
+	LOAD DE,25604
 	OR A,A
 	SUBC HL,DE
 	POP DE
 	RET
 
 L_1D54:
-	LOAD HL,#H'0000
-	LOAD H'2B84,HL
-	LOAD HL,#H'F000
-	LOAD A,H'2B88
+	LOAD HL,#0
+	LOAD 25604,HL
+	LOAD HL,#170000
+	LOAD A,25610
 	AND A,#40
 	JUMP. NE,L_1D67
-	LOAD HL,#H'04D0
+	LOAD HL,#2320
 L_1D67:
-	LOAD H'2B86,HL
+	LOAD 25606,HL
 	RET
 
 DO_ADBLK:
@@ -2254,7 +2200,7 @@ DO_ADBLK:
 	INC HL
 	EX HL,DE
 	.W ?COMPH
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	RET CC
 L_1D78:
 	CALL L_1D47
@@ -2267,37 +2213,37 @@ L_1D7F:
 	SUBC HL,DE
 	PUSH HL
 	PUSH DE
-	LOAD DE,H'2BC5
+	LOAD DE,25705
 	LOAD A,D
 	OR A,E
 	JUMP. EQ,L_1D9F
 	OR A,A
 	SUBC HL,DE
 	JUMP. CS,L_1DA5
-	LOAD DE,H'2BDC
+	LOAD DE,25734
 	.W ?COMPH
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	JUMP. CS,L_1DA5
-	LOAD H'2BDC,HL
+	LOAD 25734,HL
 	JUMP. L_1DA5
 L_1D9F:
-	LOAD DE,H'2B82
+	LOAD DE,25602
 	.W ?COMPH
 L_1DA5:
 	POP DE
 	POP HL
 	RET CS
 L_1DA8:
-	LOAD H'2B82,HL
-	LOAD H'2B80,DE
-	LOAD H'2B89,IX
+	LOAD 25602,HL
+	LOAD 25600,DE
+	LOAD 25611,IX
 	RET
 
 L_1DB4:
 	CALL L_1A71
 	RET CS
-	LOAD HL,#H'0000
-	LOAD H'2BC5,HL
+	LOAD HL,#0
+	LOAD 25705,HL
 	CALL L_1CF4
 L_1DC1:
 	JUMP. CS,L_1DCB
@@ -2321,7 +2267,7 @@ L_1DD3:
 	RET
 
 L_1DDD:
-	LOAD HL,#H'0000
+	LOAD HL,#0
 	.W ?IRTC
 	.W ?ITIME
 	.W ?INTUS
@@ -2336,21 +2282,21 @@ L_1DE7:
 	RET
 
 L_1DED:
-	LOAD BC,#H'0850
-	LOAD HL,#H'2300
+	LOAD BC,#4120
+	LOAD HL,#21400
 	LOAD (HL),#0
-	LOAD DE,#H'2301
+	LOAD DE,#21401
 	LDIR
-	LOAD HL,#H'110C
-	LOAD BC,#H'001B
+	LOAD HL,#10414
+	LOAD BC,#33
 	LDIR
 	RET
 
 L_1E03:
-	LOAD HL,#H'2300
+	LOAD HL,#21400
 	PUSH HL
-	LOAD DE,#H'2301
-	LOAD BC,#H'02FF
+	LOAD DE,#21401
+	LOAD BC,#1377
 	LOAD (HL),#0
 	LDIR
 	POP DE
@@ -2360,13 +2306,12 @@ L_1E13:
 	CALL DO_TSTDRI
 	RET CS
 L_1E17:
-	LOAD A,H'2B88
+	LOAD A,25610
 	COMP A,#40
 	RET EQ
 	LOAD $31,A
 	LOAD A,$31
-	.B H'CB	;BIT 7,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'7F
+	.B 313, 177	;BIT 7,A (Zilog) — pas d'équivalent direct 1re gen
 	CALL L_20FC
 	LOAD A,#31
 	SETC
@@ -2376,7 +2321,7 @@ L_1E17:
 
 L_1E2C:
 	AND A,#3
-	LOAD H'2B9C,A
+	LOAD 25634,A
 	CALL L_1E13
 	RET CS
 	PUSH BC
@@ -2384,12 +2329,12 @@ L_1E2C:
 	JUMP. CS,L_1E4C
 	CALL L_1D26
 	LOAD A,#12
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	JUMP. CS,L_1E4C
 	POP AF
 	CALL L_1C6B
 	RET CS
-	LOAD A,H'2B9C
+	LOAD A,25634
 	RET
 
 L_1E4C:
@@ -2397,13 +2342,13 @@ L_1E4C:
 	RET
 
 L_1E4E:
-	LOAD HL,#H'2B76
+	LOAD HL,#25566
 	CALL L_1AA2
 	RET CS
 	CALL L_1ED4
-	LOAD H'2BC7,DE
+	LOAD 25707,DE
 	CALL L_1A71
-	LOAD DE,#H'2B76
+	LOAD DE,#25566
 	RET
 
 L_1E63:
@@ -2415,7 +2360,7 @@ L_1E63:
 	RET
 
 L_1E6D:
-	LOAD A,H'2B98
+	LOAD A,25630
 	OR A,A
 	JUMP EQ,DO_RODWIB
 	JUMP DO_RIBWOD
@@ -2423,7 +2368,7 @@ L_1E77:
 	CALL L_1BD0
 	RET CS
 	CALL L_1EE5
-	LOAD A,H'2B98
+	LOAD A,25630
 	OR A,A
 	JUMP. EQ,L_1E87
 	LOAD (IX)+23,C
@@ -2437,7 +2382,7 @@ L_1E87:
 L_1E8F:
 	LOAD H,B
 	LOAD L,C
-	LOAD H'2BC5,HL
+	LOAD 25705,HL
 	RET
 
 L_1E95:
@@ -2475,13 +2420,13 @@ L_1EB9:
 	JUMP. CS,L_1EC6
 	EX HL,DE
 L_1EC6:
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	RET
 
 L_1EC8:
-	LOAD H'2BD3,A
-	LOAD HL,#H'0000
-	LOAD H'2BD4,BC
+	LOAD 25723,A
+	LOAD HL,#0
+	LOAD 25724,BC
 	RET
 
 L_1ED3:
@@ -2504,7 +2449,7 @@ L_1EE5:
 	PUSH HL
 	POP IX
 	LOAD A,(IX)+22
-	LOAD H'2B88,A
+	LOAD 25610,A
 	RET
 
 L_1EEF:
@@ -2517,13 +2462,13 @@ L_1EEF:
 	RET
 
 L_1EF6:
-	LOAD HL,#H'2B9A
+	LOAD HL,#25632
 	COMP A,(HL)
 	RET EQ
 	PUSH HL
 	PUSH AF
-	LOAD HL,#H'2300
-	LOAD BC,#H'0300
+	LOAD HL,#21400
+	LOAD BC,#1400
 	.W ?LOAD
 	POP BC
 	POP HL
@@ -2532,10 +2477,10 @@ L_1EF6:
 	RET
 
 DO_INIFLO:
-	LOAD HL,#H'1063
+	LOAD HL,#10143
 	.W ?IRST2
 	CALL L_1DED
-	LOAD DE,#H'2B8E
+	LOAD DE,#25616
 	LOAD C,#40
 L_1F17:
 	IOF
@@ -2544,8 +2489,7 @@ L_1F17:
 	JUMP. EQ,L_1F75
 	LOAD $31,A
 	LOAD A,$31
-	.B H'CB	;BIT 6,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'77
+	.B 313, 167	;BIT 6,A (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. NE,L_1F2F
 	LOAD A,C
 	ADD A,#22
@@ -2556,7 +2500,7 @@ L_1F2F:
 	LOAD A,C
 	ADD A,#2
 	LOAD $31,A
-	LOAD B,#H'4F
+	LOAD B,#117
 L_1F36:
 	PUSH BC
 	LOAD B,#1
@@ -2564,12 +2508,8 @@ L_1F36:
 	POP BC
 	DECJ,NE B,L_1F64
 L_1F3F:
-	.W ?TEXTI
-	LOAD C,(HL)
-	LOAD C,A
-	JUMP. NE,L_1F89
-	LOAD E,B
-	NOP
+	.W ?TEXTIM
+	.ASCIZ /NO DX/
 	LOAD A,C
 	OR A,#6
 	RLC A
@@ -2580,25 +2520,23 @@ L_1F3F:
 L_1F51:
 	LOAD (DE),A
 	INC DE
-	.B H'CB	;SLA C (Zilog) — pas de mnémonique 1re gen
-	.B H'21
+	.B 313, 41	;SLA C (Zilog) — pas de mnémonique 1re gen
 	JUMP. CC,L_1F17
-	LOAD DE,#H'10D0
+	LOAD DE,#10320
 	.W ?DIR
 	XOR A,A
-	LOAD H'2B9A,A
+	LOAD 25632,A
 	LOAD $31,A
 	ION
 	RET
 
 L_1F64:
 	LOAD A,$31
-	.B H'CB	;BIT 6,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'77
+	.B 313, 167	;BIT 6,A (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. NE,L_1F36
 L_1F6A:
 	LOAD A,C
-	LOAD HL,#H'2B8D
+	LOAD HL,#25615
 	CALL L_2299
 	XOR A,A
 	LOAD (HL),A
@@ -2609,14 +2547,14 @@ L_1F75:
 	LOAD L,#26
 	CALL L_1F89
 	JUMP. CS,L_1F3F
-	LOAD L,#H'70
+	LOAD L,#160
 	CALL L_1F89
 	JUMP. CC,L_1F6A
 	JUMP. L_1F3F
 L_1F89:
 	PUSH BC
 	PUSH DE
-	LOAD DE,#H'0000
+	LOAD DE,#0
 	CALL L_2041
 	LOAD A,L
 	LOAD $47,A
@@ -2624,37 +2562,35 @@ L_1F94:
 	LOAD A,$47
 	OR A,A
 	JUMP MI,L_1F94
-	.B H'CB	;BIT 4,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'67
+	.B 313, 147	;BIT 4,A (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. EQ,L_1F94
-	.B H'CB	;SRL A (Zilog) — pas de mnémonique 1re gen
-	.B H'3F
+	.B 313, 77	;SRL A (Zilog) — pas de mnémonique 1re gen
 	POP DE
 	POP BC
 	RET
 
 DO_RODWIB:
-	LOAD A,H'2B88
+	LOAD A,25610
 	COMP A,#40
 	JUMP. EQ,L_1FD5
 	CALL L_2072
 	RET CS
-	LOAD HL,#H'2107
+	LOAD HL,#20407
 	.W ?IRST1
-	LOAD A,H'2B88
+	LOAD A,25610
 	ADD A,#14
 	LOAD $31,A
 L_1FBA:
 	JUMP. L_1FBA
 DO_RIBWOD:
-	LOAD A,H'2B88
+	LOAD A,25610
 	COMP A,#40
 	JUMP. EQ,L_1FE6
 	CALL L_2072
 	RET CS
-	LOAD HL,#H'21B8
+	LOAD HL,#20670
 	.W ?IRST1
-	LOAD A,H'2B88
+	LOAD A,25610
 	ADD A,#16
 	LOAD $31,A
 L_1FD3:
@@ -2689,21 +2625,20 @@ L_1FF7:
 	SUBC HL,BC
 	JUMP. EQ,L_2070
 	PUSH HL
-	LOAD HL,H'2B84
+	LOAD HL,25604
 	ADD HL,BC
 	POP BC
 	EX HL,DE
 L_2002:
 	XOR A,A
-	LOAD H'2B97,A
+	LOAD 25627,A
 	LOAD $0,A
 	RET
 
 L_2009:
 	LOAD B,A
 	LOAD A,$41
-	.B H'CB	;BIT 2,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'57
+	.B 313, 127	;BIT 2,A (Zilog) — pas d'équivalent direct 1re gen
 	LOAD A,B
 	RET EQ
 	LOAD A,#30
@@ -2718,11 +2653,10 @@ L_201B:
 	LOAD A,$47
 	OR A,A
 	JUMP MI,L_201B
-	LOAD BC,#H'0020
+	LOAD BC,#40
 	INIR
 	POP BC
-	.B H'CB	;SRL A (Zilog) — pas de mnémonique 1re gen
-	.B H'3F
+	.B 313, 77	;SRL A (Zilog) — pas de mnémonique 1re gen
 	RET
 
 L_202A:
@@ -2730,15 +2664,14 @@ L_202A:
 	CALL L_2041
 	LOAD A,#60
 	LOAD $47,A
-	LOAD BC,#H'0020
+	LOAD BC,#40
 	OUTIR
 L_2037:
 	LOAD A,$47
 	OR A,A
 	JUMP MI,L_2037
 	POP BC
-	.B H'CB	;SRL A (Zilog) — pas de mnémonique 1re gen
-	.B H'3F
+	.B 313, 77	;SRL A (Zilog) — pas de mnémonique 1re gen
 	RET
 
 L_2041:
@@ -2749,8 +2682,7 @@ L_2041:
 	LOAD B,#5
 	LOAD A,E
 L_204A:
-	.B H'CB	;SRL D (Zilog) — pas de mnémonique 1re gen
-	.B H'3A
+	.B 313, 72	;SRL D (Zilog) — pas de mnémonique 1re gen
 	RRC A
 	DECJ,NE B,L_204A
 	LOAD E,A
@@ -2763,15 +2695,13 @@ L_2055:
 	SUB A,C
 	JUMP. CS,L_205D
 	LOAD H,A
-	.B H'CB	;SET 0,L (Zilog) — pas d'équivalent direct 1re gen
-	.B H'C5
+	.B 313, 305	;SET 0,L (Zilog) — pas d'équivalent direct 1re gen
 L_205D:
 	DECJ,NE B,L_2055
 	EX HL,DE
 	LOAD A,D
 	LOAD D,B
-	.B H'CB	;SRL A (Zilog) — pas de mnémonique 1re gen
-	.B H'3F
+	.B 313, 77	;SRL A (Zilog) — pas de mnémonique 1re gen
 	RLC D
 	LOAD $46,A
 	LOAD A,E
@@ -2792,23 +2722,22 @@ L_2072:
 	POP HL
 	JUMP. EQ,L_2070
 	PUSH HL
-	LOAD HL,H'2B84
+	LOAD HL,25604
 	PUSH HL
 	ADD HL,BC
 	CALL L_2288
-	LOAD H'2B91,HL
+	LOAD 25621,HL
 	POP HL
 	POP BC
 	ADD HL,BC
 	CALL L_2288
-	LOAD H'2B9D,DE
-	LOAD H'2B94,HL
-	LOAD BC,#H'D000
+	LOAD 25635,DE
+	LOAD 25624,HL
+	LOAD BC,#150000
 L_2095:
 	CALL L_22AD
 	LOAD A,$31
-	.B H'CB	;BIT 5,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'6F
+	.B 313, 157	;BIT 5,A (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. EQ,L_20A8
 	DEC BC
 	LOAD A,B
@@ -2819,16 +2748,16 @@ L_2095:
 	JUMP. L_20FC
 L_20A8:
 	CALL L_2002
-	LOAD B,#H'A0
+	LOAD B,#240
 	CALL L_227F
 L_20B0:
 	CALL L_2257
-	LOAD HL,#H'0000
-	LOAD H'2B9F,HL
+	LOAD HL,#0
+	LOAD 25637,HL
 	XOR A,A
-	LOAD H'2B96,A
-	LOAD DE,H'2B91
-	LOAD HL,H'2B94
+	LOAD 25626,A
+	LOAD DE,25621
+	LOAD HL,25624
 	CALL L_22BC
 	RET EQ
 	LOAD C,L
@@ -2840,27 +2769,27 @@ L_20B0:
 	LOAD L,#0
 	LOAD C,#20
 L_20D3:
-	LOAD H'2B91,HL
+	LOAD 25621,HL
 L_20D6:
 	CALL L_223C
 	OR A,(HL)
 	LOAD (HL),A
 	CALL L_2231
 	PUSH DE
-	LOAD DE,H'2B9D
+	LOAD DE,25635
 	LOAD (HL),E
 	INC HL
 	LOAD (HL),D
-	LOAD HL,#H'0100
+	LOAD HL,#400
 	ADD HL,DE
-	LOAD H'2B9D,HL
+	LOAD 25635,HL
 	POP DE
 	INC E
 	LOAD A,C
 	COMP A,E
 	JUMP. NE,L_20D6
-	LOAD HL,H'2B9F
-	LOAD H'2BA1,HL
+	LOAD HL,25637
+	LOAD 25641,HL
 	INC A
 	COMP A,E
 	RET
@@ -2868,13 +2797,13 @@ L_20D6:
 L_20FC:
 	PUSH AF
 	CALL L_22AD
-	LOAD A,#H'64
-	LOAD H'45BF,A
+	LOAD A,#144
+	LOAD 42677,A
 	POP AF
 	RET
 
 	LOAD A,#22
-	LOAD H'21A0,A
+	LOAD 20640,A
 	CALL L_2169
 	JUMP. CC,L_211B
 	CALL L_2226
@@ -2884,7 +2813,7 @@ L_2118:
 	POP HL
 	JUMP. L_20FC
 L_211B:
-	LOAD HL,H'2B9F
+	LOAD HL,25637
 	LOAD A,L
 	OR A,H
 	CALL EQ,L_20B0
@@ -2895,17 +2824,17 @@ L_2128:
 	RET
 
 	CALL L_22B4
-	LOAD HL,#H'2135
-	LOAD H'4562,HL
+	LOAD HL,#20465
+	LOAD 42542,HL
 	ION
 	RET
 
 	XOR A,A
-	LOAD H'21A0,A
+	LOAD 20640,A
 	CALL L_2169
 	JUMP. CC,L_214E
-	LOAD HL,H'2BA1
-	LOAD H'2B9F,HL
+	LOAD HL,25641
+	LOAD 25637,HL
 	CALL L_2226
 	LOAD A,#32
 	JUMP. CC,L_215A
@@ -2913,18 +2842,18 @@ L_214B:
 	POP HL
 	JUMP. L_20FC
 L_214E:
-	LOAD HL,H'2B9F
+	LOAD HL,25637
 	LOAD A,L
 	OR A,H
 	JUMP. NE,L_2167
 	CALL L_20B0
 	JUMP. EQ,L_214B
 L_215A:
-	LOAD A,H'2B88
+	LOAD A,25610
 	ADD A,#16
 	LOAD $31,A
-	LOAD HL,#H'21B8
-	LOAD H'4562,HL
+	LOAD HL,#20670
+	LOAD 42542,HL
 L_2167:
 	ION
 	RET
@@ -2947,13 +2876,11 @@ L_2169:
 	LOAD C,#32
 L_2183:
 	LOAD A,$31
-	.B H'CB	;BIT 4,A (Zilog) — pas d'équivalent direct 1re gen
-	.B H'67
+	.B 313, 147	;BIT 4,A (Zilog) — pas d'équivalent direct 1re gen
 	JUMP. NE,L_2183
 	LOAD A,$33
 L_218B:
-	.B H'ED	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
-	.B H'70
+	.B 355, 160	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
 	JUMP PL,L_218B
 	LOAD A,$33
 	COMP A,(HL)
@@ -2964,8 +2891,7 @@ L_218B:
 	LOAD B,A
 	LOAD H,A
 L_2199:
-	.B H'ED	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
-	.B H'70
+	.B 355, 160	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
 	JUMP PL,L_2199
 	LOAD A,$33
 	LOAD B,(HL)
@@ -2974,8 +2900,7 @@ L_2199:
 	LOAD H,A
 	DECJ,NE B,L_2199
 L_21A6:
-	.B H'ED	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
-	.B H'70
+	.B 355, 160	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
 	JUMP PL,L_21A6
 	LOAD A,$33
 	COMP A,H
@@ -3010,64 +2935,58 @@ L_21A6:
 	LOAD B,#50
 	LOAD C,#30
 L_21DB:
-	.B H'ED	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
-	.B H'70
+	.B 355, 160	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
 	JUMP PL,L_21DB
 	LOAD $30,A
 	DECJ,NE B,L_21DB
-	LOAD A,#H'FF
+	LOAD A,#377
 L_21E6:
-	.B H'ED	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
-	.B H'70
+	.B 355, 160	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
 	JUMP PL,L_21E6
 	LOAD $30,A
 	LOAD A,D
 L_21EE:
-	.B H'ED	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
-	.B H'70
+	.B 355, 160	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
 	JUMP PL,L_21EE
 	LOAD $30,A
 	XOR A,A
 	LOAD B,A
 L_21F7:
-	.B H'ED	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
-	.B H'70
+	.B 355, 160	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
 	JUMP PL,L_21F7
 	ADD A,(HL)
 	OUTI
 	JUMP. NE,L_21F7
 L_2201:
-	.B H'ED	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
-	.B H'70
+	.B 355, 160	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
 	JUMP PL,L_2201
 	LOAD $30,A
 	LOAD A,#0
 L_220A:
-	.B H'ED	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
-	.B H'70
+	.B 355, 160	;IN F,(C) (Z80 undoc., ED 70) — lit port C, n'affecte que les flags
 	JUMP PL,L_220A
 	LOAD $30,A
 L_2211:
-	LOAD HL,H'2B9F
+	LOAD HL,25637
 	LOAD A,L
 	OR A,H
 	JUMP. NE,L_2224
-	LOAD HL,H'2BA1
-	LOAD H'2B9F,HL
-	LOAD HL,#H'212A
-	LOAD H'4562,HL
+	LOAD HL,25641
+	LOAD 25637,HL
+	LOAD HL,#20452
+	LOAD 42542,HL
 L_2224:
 	ION
 	RET
 
 L_2226:
-	LOAD HL,#H'2B96
+	LOAD HL,#25626
 	INC (HL)
 	LOAD A,(HL)
 	INC HL
 	INC (HL)
 	COMP A,#36
-	.B H'3F	;CCF (toggle CF) - mnémonique 1re gen ?
+	.B 77	;CCF (toggle CF) - mnémonique 1re gen ?
 	RET
 
 L_2231:
@@ -3075,35 +2994,33 @@ L_2231:
 	LOAD L,E
 	ADD HL,HL
 	PUSH DE
-	LOAD DE,#H'2BA3
+	LOAD DE,#25643
 	ADD HL,DE
 	POP DE
 	RET
 
 L_223C:
-	LOAD HL,#H'224F
+	LOAD HL,#21117
 	LOAD D,#0
 	LOAD A,E
-	.B H'CB	;RES 3,E (Zilog) — pas d'équivalent direct 1re gen
-	.B H'9B
+	.B 313, 233	;RES 3,E (Zilog) — pas d'équivalent direct 1re gen
 	ADD HL,DE
 	LOAD E,A
 	LOAD A,(HL)
-	LOAD HL,#H'2B9F
-	.B H'CB	;BIT 3,E (Zilog) — pas d'équivalent direct 1re gen
-	.B H'5B
+	LOAD HL,#25637
+	.B 313, 133	;BIT 3,E (Zilog) — pas d'équivalent direct 1re gen
 	RET EQ
 	INC HL
 	RET
 
-	LOAD BC,#H'0402
+	LOAD BC,#2002
 	EX AF
 	DECJ,NE B,L_2275
 	LOAD B,B
 	ADD A,B
 L_2257:
 	CALL L_2293
-	LOAD A,H'2B92
+	LOAD A,25622
 	LOAD C,#20
 	LOAD B,(HL)
 	LOAD (HL),A
@@ -3114,7 +3031,7 @@ L_2257:
 	NEG A
 L_2269:
 	LOAD B,A
-	LOAD A,H'2B88
+	LOAD A,25610
 	ADD A,#12
 	ADD A,C
 	LOAD $31,A
@@ -3151,8 +3068,8 @@ L_2292:
 	RET
 
 L_2293:
-	LOAD A,H'2B88
-	LOAD HL,#H'2B8D
+	LOAD A,25610
+	LOAD HL,#25615
 L_2299:
 	RLC A
 	JUMP. CS,L_22A1
@@ -3161,22 +3078,22 @@ L_2299:
 	JUMP. CS,L_22A1
 	DEC HL
 L_22A1:
-	LOAD A,H'2B88
+	LOAD A,25610
 	RET
 
-	LOAD HL,#H'2B93
-	LOAD A,H'2B88
+	LOAD HL,#25623
+	LOAD A,25610
 	AND A,(HL)
 	RET
 
 L_22AD:
-	LOAD A,H'2B88
-	.B H'C6	;orphelin avant L_22B1
+	LOAD A,25610
+	.B 306	;orphelin avant L_22B1
 L_22B1:
 	LOAD A,(BC)
 	JUMP. L_22B9
 L_22B4:
-	LOAD A,H'2B88
+	LOAD A,25610
 	ADD A,#14
 L_22B9:
 	LOAD $31,A
@@ -3185,7 +3102,7 @@ L_22B9:
 L_22BC:
 	PUSH HL
 	OR A,A
-	.B H'ED	;orphelin avant L_22BF
+	.B 355	;orphelin avant L_22BF
 L_22BF:
 	LOAD D,D
 	POP HL
@@ -3193,39 +3110,39 @@ L_22BF:
 
 	INC D
 	JUMP. NE,L_228D
-	JUMP H'D244
+	JUMP 151104
 	LOAD B,L
 	NOP
 	ADD HL,BC
 	JUMP. NE,L_2292
-	JUMP CC,H'D243
+	JUMP CC,151103
 	LOAD B,L
 	NOP
 	JUMP. EQ,L_22F4
-	LOAD $H'D4,A
+	LOAD $324,A
 	LOAD B,D
-	JUMP CC,H'0045
+	JUMP CC,105
 	LOAD E,#40
 	PUSH DE
-	ADD A,#H'42
-	JUMP CC,H'0045
+	ADD A,#102
+	JUMP CC,105
 	DEC E
 	JUMP. NE,L_22B1
-	CALL NE,H'D242
+	CALL NE,151102
 	LOAD B,L
 	NOP
 	INC B
 	JUMP. NE,L_22BF
 	RET CC
 	LOAD B,C
-	JUMP CC,H'0045
+	JUMP CC,105
 	LOAD C,#40
 L_22F4:
-	JUMP CC,H'41C4
-	JUMP CC,H'5545
+	JUMP CC,40704
+	JUMP CC,52505
 	NOP
 	LOAD B,C
-	JUMP CC,H'44C7
+	JUMP CC,42307
 	NOP
 
 	.END

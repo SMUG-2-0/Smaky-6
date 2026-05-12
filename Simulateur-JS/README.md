@@ -5,10 +5,10 @@ Pour permettre à toute personne curieuse de découvrir cette machine sans en po
 
 Le simulateur est écrit en JavaScript et empaqueté avec [Electron](https://www.electronjs.org/) pour fonctionner aussi bien sous Windows que sous Linux. Il charge la ROM 1.8 d'origine du Smaky 6 (libérée par Epsitec pour redistribution ouverte) et lit des images de disques au format Smaky.
 
-## Téléchargements (version 0.4.0)
+## Téléchargements (version 0.5.0)
 
-- **Windows** (installeur NSIS) : [Smaky 6 Simulator Setup 0.4.0.exe](https://github.com/SMUG-2-0/Smaky-6/releases/download/v0.4.0/Smaky.6.Simulator.Setup.0.4.0.exe)
-- **Linux** (archive autonome) : [smaky6-simulator-0.4.0.tar.gz](https://github.com/SMUG-2-0/Smaky-6/releases/download/v0.4.0/smaky6-simulator-0.4.0.tar.gz)
+- **Windows** (installeur NSIS) : [Smaky 6 Simulator Setup 0.5.0.exe](https://github.com/SMUG-2-0/Smaky-6/releases/download/v0.5.0/Smaky.6.Simulator.Setup.0.5.0.exe)
+- **Linux** (archive autonome) : [smaky6-simulator-0.5.0.tar.gz](https://github.com/SMUG-2-0/Smaky-6/releases/download/v0.5.0/smaky6-simulator-0.5.0.tar.gz)
 
 Toutes les versions sont disponibles sur la [page des releases](https://github.com/SMUG-2-0/Smaky-6/releases).
 

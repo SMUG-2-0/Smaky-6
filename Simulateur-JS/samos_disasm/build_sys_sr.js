@@ -200,6 +200,19 @@ function emitCode(out, from, to) {
             const trace = `${hex4(pc)}: ${hex2(memRead(pc))} ${hex2(memRead(pc+1))}`;
             pushLine(out, labelStr, `.W ${sc.name}`, null, trace);
             pc += sc.length;
+            // ?TEXTIM : texte inline terminé par un octet 0, émis en .ASCIZ
+            if (sc.name === '?TEXTIM') {
+                const ESCAPES = { 0x0D: '<CR>', 0x0A: '<LF>' };
+                let text = '';
+                while (pc < to && memRead(pc) !== 0) {
+                    const b = memRead(pc);
+                    text += ESCAPES[b] || (b >= 0x20 && b <= 0x7E ? String.fromCharCode(b) : `<${hex2(b)}>`);
+                    pc++;
+                }
+                if (pc < to) pc++; // consomme le terminateur 0
+                const delim = text.includes('/') ? '|' : '/';
+                pushLine(out, '', `.ASCIZ ${delim}${text}${delim}`, null, null);
+            }
             continue;
         }
 
@@ -226,17 +239,13 @@ function emitCode(out, from, to) {
         const bytes = [];
         for (let i = 0; i < length; i++) bytes.push(hex2(memRead(pc + i)));
 
-        // Mode "rawBytes" : le transcodeur n'a pas de mnémonique CALM 1re gen
-        // pour cette instruction. On émet une suite de .B (un par octet) en
-        // gardant le label sur la première ligne et la trace Zilog en commentaire.
+        // Mode "rawBytes" : le transcodeur n'a pas de mnémonique CALM 1re gen.
+        // On émet tous les octets de l'instruction sur une seule ligne .B.
         if (rawBytes) {
-            for (let i = 0; i < length; i++) {
-                const b = memRead(pc + i);
-                const lbl = (i === 0) ? labelStr : '';
-                const trace = `${hex4(pc + i)}: ${hex2(b)}`;
-                const info = (i === 0) ? extraComment : null;
-                pushLine(out, lbl, `.B H'${hex2(b)}`, info, trace);
-            }
+            const byteStrs = Array.from({ length }, (_, i) => fmtByte(hex2(memRead(pc + i)) + 'h'));
+            const hexBytes = Array.from({ length }, (_, i) => hex2(memRead(pc + i)));
+            const trace = `${hex4(pc)}: ${hexBytes.join(' ')}`;
+            pushLine(out, labelStr, `.B ${byteStrs.join(', ')}`, extraComment, trace);
             pc += length;
             continue;
         }
@@ -258,7 +267,7 @@ function emitDispatchRST20H(out, from, to) {
     let code = 0;
     for (let pc = from; pc < to; pc += 2, code++) {
         const target = memRead(pc) | (memRead(pc + 1) << 8);
-        const targetLabel = labels[target] || `H'${hex4(target)}`;
+        const targetLabel = labels[target] || target.toString(8);
         const labelStr = labels[pc] || '';
         const callName = syscalls['E7' + hex2(code)] || '';
         const info = callName
@@ -307,7 +316,7 @@ function emitData(out, from, to) {
         const labelStr = labels[pc] || '';
         const b = memRead(pc);
         const trace = `${hex4(pc)}: ${hex2(b)}`;
-        pushLine(out, labelStr, `.B H'${hex2(b)}`, null, trace);
+        pushLine(out, labelStr, `.B ${fmtByte(hex2(b) + 'h')}`, null, trace);
     }
 }
 

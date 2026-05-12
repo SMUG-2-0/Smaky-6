@@ -63,7 +63,14 @@ function trySyscallEarly(addr) {
     if (op !== 0xE7 && op !== 0xD7) return null;
     const code = sysSy[(addr + 1) & 0xFFFF];
     const key = hex2(op) + hex2(code);
-    return syscalls[key] ? 2 : null;
+    if (!syscalls[key]) return null;
+    // ?TEXTIM : inclure le texte inline + terminateur 0 dans la longueur
+    if (syscalls[key] === '?TEXTIM') {
+        let scan = addr + 2;
+        while (scan < SAMOS_TO && sysSy[scan & 0xFFFF] !== 0) scan++;
+        return scan - addr + 1; // +1 pour le terminateur
+    }
+    return 2;
 }
 
 // ─── Pré-passage : collecte des cibles de saut dans la zone SAMOS ──
@@ -188,6 +195,19 @@ function emitCode(out, from, to) {
             const trace = `${hex4(pc)}: ${hex2(memRead(pc))} ${hex2(memRead(pc+1))}`;
             pushLine(out, labelStr, `.W ${sc.name}`, null, trace);
             pc += sc.length;
+            // ?TEXTIM : texte inline terminé par un octet 0, émis en .ASCIZ
+            if (sc.name === '?TEXTIM') {
+                const ESCAPES = { 0x0D: '<CR>', 0x0A: '<LF>' };
+                let text = '';
+                while (pc < to && memRead(pc) !== 0) {
+                    const b = memRead(pc);
+                    text += ESCAPES[b] || (b >= 0x20 && b <= 0x7E ? String.fromCharCode(b) : `<${hex2(b)}>`);
+                    pc++;
+                }
+                if (pc < to) pc++; // consomme le terminateur 0
+                const delim = text.includes('/') ? '|' : '/';
+                pushLine(out, '', `.ASCIZ ${delim}${text}${delim}`, null, null);
+            }
             continue;
         }
 
@@ -211,13 +231,10 @@ function emitCode(out, from, to) {
         for (let i = 0; i < length; i++) bytes.push(hex2(memRead(pc + i)));
 
         if (rawBytes) {
-            for (let i = 0; i < length; i++) {
-                const b = memRead(pc + i);
-                const lbl = (i === 0) ? labelStr : '';
-                const trace = `${hex4(pc + i)}: ${hex2(b)}`;
-                const info = (i === 0) ? extraComment : null;
-                pushLine(out, lbl, `.B H'${hex2(b)}`, info, trace);
-            }
+            const byteStrs = Array.from({ length }, (_, i) => fmtByte(hex2(memRead(pc + i)) + 'h'));
+            const hexBytes = Array.from({ length }, (_, i) => hex2(memRead(pc + i)));
+            const trace = `${hex4(pc)}: ${hexBytes.join(' ')}`;
+            pushLine(out, labelStr, `.B ${byteStrs.join(', ')}`, extraComment, trace);
             pc += length;
             continue;
         }
@@ -234,7 +251,7 @@ function emitData(out, from, to) {
         const labelStr = labels[pc] || '';
         const b = memRead(pc);
         const trace = `${hex4(pc)}: ${hex2(b)}`;
-        pushLine(out, labelStr, `.B H'${hex2(b)}`, null, trace);
+        pushLine(out, labelStr, `.B ${fmtByte(hex2(b) + 'h')}`, null, trace);
     }
 }
 
@@ -243,7 +260,7 @@ function emitData(out, from, to) {
 const HEADER = `\t.TITLE SAMOS.SR
 \t.PROC Z80
 \t.REF  FLO
-\t.LOC  H'1000
+\t.LOC  10000
 
 \t;SAMOS V2.2 — EXTENSION SYSTEME DU SMAKY 6
 \t;ZONE 1000H..22FFH (~4.8 KO)

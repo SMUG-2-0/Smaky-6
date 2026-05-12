@@ -1,10 +1,10 @@
 # Smaky 6 Simulator — release et workflow Git
 
-## Liens de téléchargement (version 0.4.0)
+## Liens de téléchargement (version 0.5.0)
 
-- **Page de la release** : <https://github.com/SMUG-2-0/Smaky-6/releases/tag/v0.4.0>
-- **Windows (installeur NSIS)** : <https://github.com/SMUG-2-0/Smaky-6/releases/download/v0.4.0/Smaky.6.Simulator.Setup.0.4.0.exe>
-- **Linux (archive autonome)** : <https://github.com/SMUG-2-0/Smaky-6/releases/download/v0.4.0/smaky6-simulator-0.4.0.tar.gz>
+- **Page de la release** : <https://github.com/SMUG-2-0/Smaky-6/releases/tag/v0.5.0>
+- **Windows (installeur NSIS)** : <https://github.com/SMUG-2-0/Smaky-6/releases/download/v0.5.0/Smaky.6.Simulator.Setup.0.5.0.exe>
+- **Linux (archive autonome)** : <https://github.com/SMUG-2-0/Smaky-6/releases/download/v0.5.0/smaky6-simulator-0.5.0.tar.gz>
 
 Pour les futures versions, il suffit de remplacer `v0.4.0` (et la version dans le nom de fichier) par le nouveau numéro. Plus simple : faire pointer le bouton « Télécharger » de smaky6.pyr.ch vers la page **/releases/latest** qui redirige toujours vers la version la plus récente :
 <https://github.com/SMUG-2-0/Smaky-6/releases/latest>
