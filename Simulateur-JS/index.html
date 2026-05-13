@@ -1370,6 +1370,7 @@ function _decodeROM() {
 // ─── Disques : Map nom→ArrayBuffer chargée depuis le dossier ─────
 var diskFiles      = {};   // { 'SM6WIN0.DSK': ArrayBuffer, ... }
 var availableDisks = new Set(); // noms présents (ex: 'SM6WIN0.DSK')
+var floppyBuffer   = null;   // image DX1: (SM6WIN1.DSK), même format que disque dur
 
 // Correspondance numéro → touche F
 const DISK_FKEY = ['F8','F1','F2','F3','F4','F5','F6','F7'];
@@ -1467,8 +1468,9 @@ async function loadFromDirHandle(dirHandle) {
     document.getElementById('disk-dir-name').textContent = dirHandle.name;
     if (loaded.length) {
         status.textContent = 'OK — ' + loaded.length + ' image(s) : ' + loaded.join(', ');
-        diskBuffer = diskFiles['SM6WIN0.DSK'] || null;
-        if (sim) sim.loadDisk(diskBuffer);
+        diskBuffer   = diskFiles['SM6WIN0.DSK'] || null;
+        floppyBuffer = diskFiles['SM6WIN1.DSK'] || null;
+        if (sim) { sim.loadDisk(diskBuffer); sim.loadFloppy(0, floppyBuffer, 'SM6WIN1.DSK'); }
         return true;
     } else {
         status.textContent = 'Aucun fichier SM6WIN*.DSK trouvé dans ce dossier.';
@@ -1537,8 +1539,9 @@ function onDiskDirSelected(input) {
                     var loaded = Object.keys(diskFiles).sort().join(', ');
                     document.getElementById('disk-dir-name').textContent = dirName;
                     status.textContent = 'OK — ' + Object.keys(diskFiles).length + ' image(s) : ' + loaded;
-                    diskBuffer = diskFiles['SM6WIN0.DSK'] || null;
-                    if (sim) { sim.diskName = 'SM6WIN0.DSK'; sim.loadDisk(diskBuffer); }
+                    diskBuffer   = diskFiles['SM6WIN0.DSK'] || null;
+                    floppyBuffer = diskFiles['SM6WIN1.DSK'] || null;
+                    if (sim) { sim.diskName = 'SM6WIN0.DSK'; sim.loadDisk(diskBuffer); sim.loadFloppy(0, floppyBuffer, 'SM6WIN1.DSK'); }
                     availableDisks = new Set(Object.keys(diskFiles));
                     updateDiskPanel();
                 }
@@ -1560,6 +1563,7 @@ async function pickDiskDirElectron() {
     availableDisks = new Set(result.disks.map(d => d.toUpperCase()));
     updateDiskPanel();
     await loadDiskElectron('SM6WIN0.DSK');
+    if (availableDisks.has('SM6WIN1.DSK')) await loadFloppyElectron('SM6WIN1.DSK');
 }
 
 async function loadDiskElectron(name) {
@@ -1576,6 +1580,18 @@ async function loadDiskElectron(name) {
         sim.loadDisk(diskBuffer);
     }
     return diskBuffer;
+}
+
+async function loadFloppyElectron(name) {
+    var upper = name.toUpperCase();
+    var data  = await window.electronAPI.readDisk(upper);
+    if (data) {
+        floppyBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    } else {
+        floppyBuffer = null;
+    }
+    if (sim) sim.loadFloppy(0, floppyBuffer, upper);
+    return floppyBuffer;
 }
 
 // ─── Changement de disque (F1-F8) ────────────────────────────────
@@ -1666,6 +1682,7 @@ function startSimulation() {
     sim.speed = (isNaN(pct) ? 100 : pct) / 100 * 2.5;
     sim.loadROM(romBuffer);
     if (diskBuffer) sim.loadDisk(diskBuffer);
+    if (floppyBuffer) sim.loadFloppy(0, floppyBuffer, 'SM6WIN1.DSK');
 
     sim.diskName  = 'SM6WIN0.DSK';
     sim.onPpByte  = () => updatePpStatus();
@@ -1735,6 +1752,7 @@ if (window.electronAPI) {
                 availableDisks = new Set(result.disks.map(d => d.toUpperCase()));
                 updateDiskPanel();
                 await loadDiskElectron('SM6WIN0.DSK');
+                if (availableDisks.has('SM6WIN1.DSK')) await loadFloppyElectron('SM6WIN1.DSK');
                 return;
             }
         }

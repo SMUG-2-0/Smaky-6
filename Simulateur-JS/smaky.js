@@ -161,6 +161,26 @@ class Smaky {
         this._wdLastRead    = null;
         this._wdLastReadLba = null;
 
+        // ── FDC (Floppy Disk Controller, ports $18–$1B) ──────────
+        // $19 : contrôle (OUT) / statut (IN)
+        // $18 : données write
+        // $1A : statut bit7=prêt (IN) et données write (OUT)
+        // $1B : données read (IN)
+        this._fdcImages   = [null, null];  // ArrayBuffer DX1: DX2:
+        this._fdcNames    = [null, null];  // noms des images
+        this._fdcControl  = 0;             // dernier OUT $19
+        this._fdcLogCount = 0;
+        this._fdcLogMax   = 2000;
+        this._fdcLogLast  = '';            // pour compression des répétitions
+        this._fdcLogRepeat = 0;
+
+        // ── Détection JP 0 (bascule ROM18 → SYS.SY) ─────────────
+        // ROM18 et SYS.SY partagent le même premier octet (F3 = DI).
+        // On utilise un mot à l'offset 2 qui diffère : ROM18[2]=00, SYS.SY[2]=30.
+        // Dès que mem[2..3] change, LDIR a copié SYS.SY et JP 0 est imminent.
+        this._romWord2    = 0xFFFF;  // initialisé par loadROM()
+        this._sysSyActive = false;
+
         // ── E405 RTC (Micro Electronic Marin, port $8) ───────────
         // Bit-banging sériel : bit0=data, bit1=master OE, bit2=CS,
         // bit3=clk. Adresse 4 bits LSB-first ($0F=lecture, $07=écri-
@@ -203,6 +223,9 @@ class Smaky {
         const data = (buffer instanceof Uint8Array) ? buffer : new Uint8Array(buffer);
         const len  = Math.min(data.length, 65536);
         for (let i = 0; i < len; i++) this.cpu.mem[i] = data[i];
+        this._romWord2    = this.cpu.mem[2] | (this.cpu.mem[3] << 8);
+        this._sysSyActive = false;
+        this._fdcLogCount = 0;
     }
 
     /**
@@ -223,6 +246,21 @@ class Smaky {
         this._wdData    = new Uint8Array(0);
         this._wdDataIdx = 0;
         this._wdError   = 0;
+    }
+
+    /**
+     * Charge une image disquette (index 0 = DX1:, index 1 = DX2:).
+     * buffer = ArrayBuffer ou null pour éjecter.
+     */
+    loadFloppy(index, buffer, name) {
+        if (index < 0 || index > 1) return;
+        if (buffer) {
+            this._fdcImages[index] = buffer;
+            this._fdcNames[index]  = name || `DX${index + 1}:`;
+        } else {
+            this._fdcImages[index] = null;
+            this._fdcNames[index]  = null;
+        }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -629,7 +667,7 @@ class Smaky {
 
         if (p >= 0x20 && p <= 0x27) return this._wd1002In(p);
 
-        if (p === 0x19) return 0xFF;  // pas de FDC : timeout
+        if (p >= 0x18 && p <= 0x1B) return this._fdcIn(p);
 
         return 0;
     }
@@ -681,7 +719,7 @@ class Smaky {
 
         if (p >= 0x20 && p <= 0x27) { this._wd1002Out(p, v); return; }
 
-        if (p === 0x19) return;
+        if (p >= 0x18 && p <= 0x1B) { this._fdcOut(p, v); return; }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -781,6 +819,78 @@ class Smaky {
                 this._wdMode = null; this._wdData = new Uint8Array(0); this._wdDataIdx = 0;
             }
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // FDC — contrôleur disquette (ports $18–$1B)
+    // ─────────────────────────────────────────────────────────────
+
+    _fdcLog(msg) {
+        if (!this._sysSyActive) return;
+        if (this._fdcLogCount >= this._fdcLogMax) return;
+        if (msg === this._fdcLogLast) {
+            this._fdcLogRepeat++;
+            return;
+        }
+        if (this._fdcLogRepeat > 0) {
+            console.log(`FDC: … × ${this._fdcLogRepeat + 1} répétitions`);
+            this._fdcLogCount++;
+            this._fdcLogRepeat = 0;
+        }
+        this._fdcLogLast = msg;
+        console.log(msg);
+        this._fdcLogCount++;
+        if (this._fdcLogCount === this._fdcLogMax)
+            console.log('FDC: log plafonné (' + this._fdcLogMax + ' entrées)');
+    }
+
+    _fdcLogFlush() {
+        if (this._fdcLogRepeat > 0) {
+            console.log(`FDC: … × ${this._fdcLogRepeat + 1} répétitions`);
+            this._fdcLogRepeat = 0;
+        }
+    }
+
+    _fdcCheckHandoff() {
+        const w2 = this.cpu.mem[2] | (this.cpu.mem[3] << 8);
+        if (!this._sysSyActive && w2 !== this._romWord2) {
+            this._sysSyActive = true;
+            this._fdcLogCount = 0;   // repart de zéro pour voir la phase SAMOS
+            console.log('FDC: JP 0 détecté — SYS.SY actif, floppy visible');
+        }
+    }
+
+    _fdcIn(p) {
+        this._fdcCheckHandoff();
+        const hasImage = !!(this._fdcImages[0] || this._fdcImages[1]);
+        let val;
+        if (p === 0x19) {
+            // Statut principal : visible uniquement sous SYS.SY (pas ROM18).
+            // bit6=0 + bit4=0 → contrôleur prêt et lecteur présent.
+            val = (this._sysSyActive && hasImage) ? 0x00 : 0xFF;
+        } else if (p === 0x1A) {
+            // bit7=1 : octet prêt à transférer
+            val = (this._sysSyActive && hasImage) ? 0x80 : 0x00;
+        } else if (p === 0x1B) {
+            // Données lues depuis le floppy (non implémenté)
+            val = 0xFF;
+        } else {
+            val = 0xFF;
+        }
+        const name = ['$18','$19','$1A','$1B'][p - 0x18];
+        this._fdcLog(`FDC IN  ${name} → ${val.toString(16).toUpperCase().padStart(2,'0')}H`);
+        return val;
+    }
+
+    _fdcOut(p, v) {
+        this._fdcCheckHandoff();
+        const name = ['$18','$19','$1A','$1B'][p - 0x18];
+        const vh   = v.toString(16).toUpperCase().padStart(2,'0');
+        this._fdcLog(`FDC OUT ${name} ← ${vh}H`);
+        if (p === 0x19) {
+            this._fdcControl = v;
+        }
+        // $18 / $1A : données write — non implémenté
     }
 
     // ─────────────────────────────────────────────────────────────
