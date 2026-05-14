@@ -169,6 +169,7 @@ class Smaky {
         this._fdcImages   = [null, null];  // ArrayBuffer DX1: DX2:
         this._fdcNames    = [null, null];  // noms des images
         this._fdcControl  = 0;             // dernier OUT $19
+        this._fdcDrive    = -1;            // drive courant (0=FD1, 1=FD2, -1=aucun)
         this._fdcLogCount = 0;
         this._fdcLogMax   = 2000;
         this._fdcLogLast  = '';            // pour compression des répétitions
@@ -226,6 +227,8 @@ class Smaky {
         this._romWord2    = this.cpu.mem[2] | (this.cpu.mem[3] << 8);
         this._sysSyActive = false;
         this._fdcLogCount = 0;
+        this._fdcDrive    = -1;
+        this._fdcControl  = 0;
     }
 
     /**
@@ -852,28 +855,47 @@ class Smaky {
     }
 
     _fdcCheckHandoff() {
-        // Désactivé provisoirement : on ne signale jamais l'activation du FDC,
-        // pour que `_sysSyActive` reste à false, donc `_fdcIn($19)` retourne
-        // $FF (bit 6 = 1 → drive absent). SAMOS épuise alors ses 79 retries
-        // de polling et imprime "NO DX" puis poursuit le boot, ce qui rend
-        // le simulateur utilisable. L'émulation FDC complète viendra ensuite
-        // (voir samos_disasm/fdc_protocol.md et la branche feature/fdc-emulation).
-        return;
+        const w2 = this.cpu.mem[2] | (this.cpu.mem[3] << 8);
+        if (!this._sysSyActive && w2 !== this._romWord2) {
+            this._sysSyActive = true;
+            this._fdcLogCount = 0;
+            console.log('FDC: JP 0 détecté — SYS.SY actif, floppy visible');
+        }
+    }
+
+    /**
+     * Décodage de la commande écrite sur $19 (CONTR) :
+     *   bits 6-7 = drive_mask ($40 = FD1, $80 = FD2)
+     *   bits 0-4 = opcode (sélection seule, $02 wait, $0A seek, $0C read,
+     *              $0E write, $12 init/calibrate, $0F reset, etc.)
+     * Retourne l'index du drive (0 ou 1), ou -1 si masque invalide (ex. $00 ou
+     * masque HD $20 qui n'arrive pas ici, c'est le WD1002 qui le gère).
+     */
+    _fdcDriveFromMask(mask) {
+        switch (mask & 0xC0) {
+            case 0x40: return 0;  // FD1
+            case 0x80: return 1;  // FD2
+            default:   return -1;
+        }
     }
 
     _fdcIn(p) {
         this._fdcCheckHandoff();
-        const hasImage = !!(this._fdcImages[0] || this._fdcImages[1]);
         let val;
         if (p === 0x19) {
-            // Statut principal : visible uniquement sous SYS.SY (pas ROM18).
-            // bit6=0 + bit4=0 → contrôleur prêt et lecteur présent.
-            val = (this._sysSyActive && hasImage) ? 0x00 : 0xFF;
+            // CONTR en lecture = statut. Pour Lot 1 (DO_INIFLO en polling
+            // actif sans IT) il suffit de signaler bit 6 = 0 quand le drive
+            // sélectionné est présent. SAMOS sort alors de sa boucle d'attente.
+            //   bit 6 = 0 → drive prêt
+            //   bit 6 = 1 → drive absent ou occupé → SAMOS abandonne après 79 retries
+            const drive = this._fdcDrive;
+            const ready = drive >= 0 && this._fdcImages[drive];
+            val = ready ? 0x00 : 0xFF;
         } else if (p === 0x1A) {
-            // bit7=1 : octet prêt à transférer
-            val = (this._sysSyActive && hasImage) ? 0x80 : 0x00;
+            // RDREQ — bit 7 = DRQ. Pas de transfert en cours pour Lot 1.
+            val = 0x00;
         } else if (p === 0x1B) {
-            // Données lues depuis le floppy (non implémenté)
+            // RDBYT — pas de transfert en cours pour Lot 1.
             val = 0xFF;
         } else {
             val = 0xFF;
@@ -889,9 +911,16 @@ class Smaky {
         const vh   = v.toString(16).toUpperCase().padStart(2,'0');
         this._fdcLog(`FDC OUT ${name} ← ${vh}H`);
         if (p === 0x19) {
+            // CONTR — commande. Met à jour le drive courant à partir des
+            // bits 6-7. L'opcode (bits 0-4) sera décodé au Lot 2 quand on
+            // implémentera read/write sector.
             this._fdcControl = v;
+            this._fdcDrive   = this._fdcDriveFromMask(v);
         }
-        // $18 / $1A : données write — non implémenté
+        // $18 (WRBYT) : transfert d'écriture — Lot 3.
+        // $1A (STPCMD) : pulses de pas du moteur — ignorés (positionnement
+        //   simulé instantanément ; le contenu de l'image est lu en LBA brut
+        //   via le couple track/sector recalculés au Lot 2).
     }
 
     // ─────────────────────────────────────────────────────────────

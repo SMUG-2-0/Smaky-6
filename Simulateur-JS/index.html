@@ -1371,6 +1371,7 @@ function _decodeROM() {
 var diskFiles      = {};   // { 'SM6WIN0.DSK': ArrayBuffer, ... }
 var availableDisks = new Set(); // noms présents (ex: 'SM6WIN0.DSK')
 var floppyBuffer   = null;   // image DX1: (SM6WIN1.DSK), même format que disque dur
+var floppyBuffer2  = null;   // image DX2: (SM6WIN2.DSK), même format
 
 // Correspondance numéro → touche F
 const DISK_FKEY = ['F8','F1','F2','F3','F4','F5','F6','F7'];
@@ -1468,9 +1469,14 @@ async function loadFromDirHandle(dirHandle) {
     document.getElementById('disk-dir-name').textContent = dirHandle.name;
     if (loaded.length) {
         status.textContent = 'OK — ' + loaded.length + ' image(s) : ' + loaded.join(', ');
-        diskBuffer   = diskFiles['SM6WIN0.DSK'] || null;
-        floppyBuffer = diskFiles['SM6WIN1.DSK'] || null;
-        if (sim) { sim.loadDisk(diskBuffer); sim.loadFloppy(0, floppyBuffer, 'SM6WIN1.DSK'); }
+        diskBuffer    = diskFiles['SM6WIN0.DSK'] || null;
+        floppyBuffer  = diskFiles['SM6WIN1.DSK'] || null;
+        floppyBuffer2 = diskFiles['SM6WIN2.DSK'] || null;
+        if (sim) {
+            sim.loadDisk(diskBuffer);
+            sim.loadFloppy(0, floppyBuffer,  'SM6WIN1.DSK');
+            sim.loadFloppy(1, floppyBuffer2, 'SM6WIN2.DSK');
+        }
         return true;
     } else {
         status.textContent = 'Aucun fichier SM6WIN*.DSK trouvé dans ce dossier.';
@@ -1539,9 +1545,15 @@ function onDiskDirSelected(input) {
                     var loaded = Object.keys(diskFiles).sort().join(', ');
                     document.getElementById('disk-dir-name').textContent = dirName;
                     status.textContent = 'OK — ' + Object.keys(diskFiles).length + ' image(s) : ' + loaded;
-                    diskBuffer   = diskFiles['SM6WIN0.DSK'] || null;
-                    floppyBuffer = diskFiles['SM6WIN1.DSK'] || null;
-                    if (sim) { sim.diskName = 'SM6WIN0.DSK'; sim.loadDisk(diskBuffer); sim.loadFloppy(0, floppyBuffer, 'SM6WIN1.DSK'); }
+                    diskBuffer    = diskFiles['SM6WIN0.DSK'] || null;
+                    floppyBuffer  = diskFiles['SM6WIN1.DSK'] || null;
+                    floppyBuffer2 = diskFiles['SM6WIN2.DSK'] || null;
+                    if (sim) {
+                        sim.diskName = 'SM6WIN0.DSK';
+                        sim.loadDisk(diskBuffer);
+                        sim.loadFloppy(0, floppyBuffer,  'SM6WIN1.DSK');
+                        sim.loadFloppy(1, floppyBuffer2, 'SM6WIN2.DSK');
+                    }
                     availableDisks = new Set(Object.keys(diskFiles));
                     updateDiskPanel();
                 }
