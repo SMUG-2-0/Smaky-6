@@ -178,6 +178,10 @@ class Smaky {
         this._fdcXferActive = false;
         this._fdcSector     = [0, 0];      // n° secteur courant par drive (auto-incrémenté)
         this._fdcIntPending = false;       // IT FDC à délivrer dès que IFF1 = 1
+        // Position physique de la tête, par drive. Trackée via les pulses
+        // STPCMD ($1A). Reset à 0 sur opcode init/calibrate ($12), +1 par
+        // step pulse (opcode $1A = $12 | $08, bit 3 = 1 = direction in).
+        this._fdcStepPulses = [0, 0];      // pulses cumulés par drive
         this._fdcLogLast  = '';            // pour compression des répétitions
         this._fdcLogRepeat = 0;
 
@@ -239,6 +243,7 @@ class Smaky {
         this._fdcXferPos    = 0;
         this._fdcSector     = [0, 0];
         this._fdcIntPending = false;
+        this._fdcStepPulses = [0, 0];
     }
 
     /**
@@ -956,23 +961,7 @@ class Smaky {
                     // doit pas survivre au transfert. Si SAMOS veut le sector
                     // suivant, L_22B4 fera un OUT $19 ← 4C qui re-set pending.
                     this._fdcIntPending = false;
-                    // Dump RAM destination pour voir si les data atterrissent
-                    const m = this.cpu.mem;
-                    const dumpZone = (base, label) => {
-                        let dump = '';
-                        for (let row = 0; row < 4; row++) {
-                            let hex = '', ascii = '';
-                            for (let col = 0; col < 16; col++) {
-                                const b = m[base + row*16 + col];
-                                hex += b.toString(16).toUpperCase().padStart(2, '0') + ' ';
-                                ascii += (b >= 0x20 && b < 0x7F) ? String.fromCharCode(b) : '.';
-                            }
-                            dump += `\n  $${(base + row*16).toString(16).toUpperCase().padStart(4,'0')}: ${hex} ${ascii}`;
-                        }
-                        return `${label} = $${base.toString(16).toUpperCase().padStart(4,'0')}+64:${dump}`;
-                    };
-                    const baseDest = 0x2300 + this._fdcXferE * 0x100;
-                    console.log(`FDC: transfert fini (E=${this._fdcXferE}, ${this._fdcXferBuf.length} octets)\n${dumpZone(baseDest, 'RAM dest présumée')}\n${dumpZone(0x2600, 'RAM $2600 (DE backup)')}`);
+                    console.log(`FDC: transfert fini (E=${this._fdcXferE}, ${this._fdcXferBuf.length} octets)`);
                 }
             } else {
                 val = 0xFF;
@@ -1009,18 +998,36 @@ class Smaky {
             if (opcode === 0x0C && this._fdcDrive >= 0) {
                 const drive    = this._fdcDrive;
                 const img      = this._fdcImages[drive];
-                const wantMask = this.cpu.mem[0x2B9F];
+                // Masque 16-bit "sectors voulus" : mem[$2B9F] = bits 0-7,
+                // mem[$2BA0] = bits 8-15. L_223C utilise bit 3 de E pour
+                // choisir entre les deux octets, et les bits 0-2 indexent
+                // dans la table $244F (= 1<<n). Donc E ∈ {0..15} et chaque
+                // valeur de E correspond directement à un bit du masque
+                // 16-bit complet.
+                const wantMask = this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8);
                 if (img && wantMask !== 0) {
                     let E = 0;
-                    for (let i = 0; i < 8; i++) {
+                    for (let i = 0; i < 16; i++) {
                         if (wantMask & (1 << i)) { E = i; break; }
                     }
-                    const offset = E * 256;
+                    // Floppy Micropolis Smaky 6 : 1 pulse STPCMD = 1 track,
+                    // 16 secteurs par track (= 32 sec/track c'était pour le HD).
+                    // Confirmé par PYR : bloc 128 = 8 pulses = track 8.
+                    const SECTORS_PER_TRACK = 16;
+                    const track  = this._fdcStepPulses[drive];
+                    const offset = (track * SECTORS_PER_TRACK + E) * 256;
                     if (offset + 256 <= img.byteLength) {
-                        const data           = new Uint8Array(img, offset, 256);
-                        const markerAddr     = drive === 0 ? 0x2B8C : 0x2B8D;
-                        const expectedMarker = this.cpu.mem[markerAddr];
-                        const buf            = new Uint8Array(259);
+                        const data = new Uint8Array(img, offset, 256);
+                        // Marker physique sur la disquette = track.
+                        const expectedMarker = track & 0xFF;
+                        // Pour debug : comparer avec ce que SAMOS s'attend à
+                        // recevoir (mem[$2B8C+drive_offset]). Si ça diverge,
+                        // c'est qu'on a un bug de tracking.
+                        const samosExpected = drive === 0 ? this.cpu.mem[0x2B8C] : this.cpu.mem[0x2B8D];
+                        const markerWarning = (expectedMarker !== samosExpected)
+                            ? ` ⚠ SAMOS attend $${samosExpected.toString(16).toUpperCase().padStart(2,'0')}`
+                            : '';
+                        const buf = new Uint8Array(259);
                         buf[0] = 0x00;
                         buf[1] = expectedMarker;
                         buf.set(data, 2);
@@ -1031,31 +1038,68 @@ class Smaky {
                         this._fdcXferPos    = 0;
                         this._fdcXferActive = true;
                         this._fdcXferE      = E;
-                        // Dump hex + ASCII des 256 data bytes pour debug
+                        // Dump compact : 16 premiers bytes en hex+ASCII
                         const lines = [];
-                        for (let row = 0; row < 16; row++) {
-                            let hex = '', ascii = '';
-                            for (let col = 0; col < 16; col++) {
-                                const b = data[row*16 + col];
-                                hex += b.toString(16).toUpperCase().padStart(2, '0') + ' ';
-                                ascii += (b >= 0x20 && b < 0x7F) ? String.fromCharCode(b) : '.';
-                            }
-                            lines.push(`  ${(row*16).toString(16).toUpperCase().padStart(3,'0')}: ${hex} ${ascii}`);
+                        let hex = '', ascii = '';
+                        for (let col = 0; col < 16; col++) {
+                            const b = data[col];
+                            hex += b.toString(16).toUpperCase().padStart(2, '0') + ' ';
+                            ascii += (b >= 0x20 && b < 0x7F) ? String.fromCharCode(b) : '.';
                         }
-                        console.log(`FDC: read E=${E} (offset=$${offset.toString(16)}, masque=$${wantMask.toString(16).toUpperCase().padStart(2,'0')}, marker=$${expectedMarker.toString(16).toUpperCase().padStart(2,'0')}, chk=$${sum.toString(16).toUpperCase().padStart(2,'0')})\n${lines.join('\n')}`);
+                        lines.push(`  data: ${hex} ${ascii}`);
+                        console.log(`FDC: read track=${track} E=${E} (offset=$${offset.toString(16)}, bloc=${track * SECTORS_PER_TRACK + E}, masque=$${wantMask.toString(16).toUpperCase().padStart(2,'0')}, marker=$${expectedMarker.toString(16).toUpperCase().padStart(2,'0')}, chk=$${sum.toString(16).toUpperCase().padStart(2,'0')})${markerWarning}\n${lines.join('\n')}`);
                         this._fdcIntPending = true;
                     } else {
                         console.log(`FDC: read E=${E} hors image (taille ${img.byteLength})`);
                     }
                 } else if (wantMask === 0) {
-                    // Plus rien à lire — SAMOS sortira via L_211B (HL=0).
-                    // On ne déclenche pas d'IT.
+                    // wantMask = 0 mais SAMOS attend une IT : il y a peut-être
+                    // un autre mécanisme (autre cellule RAM, ou paramètre dans
+                    // les registres CPU). Dump pour analyse.
+                    const m   = this.cpu.mem;
+                    const cpu = this.cpu;
+                    const r8  = (n) => n.toString(16).toUpperCase().padStart(2,'0');
+                    const r16 = (h, l) => ((h<<8)|l).toString(16).toUpperCase().padStart(4,'0');
+                    let ramDump = '';
+                    for (let row = 0; row < 4; row++) {
+                        let hex = '';
+                        for (let col = 0; col < 16; col++) {
+                            const b = m[0x2B80 + row*16 + col];
+                            hex += b.toString(16).toUpperCase().padStart(2, '0') + ' ';
+                        }
+                        ramDump += `\n  $${(0x2B80 + row*16).toString(16).toUpperCase().padStart(4,'0')}: ${hex}`;
+                    }
+                    console.log(`FDC: read SKIPPED — wantMask=$00 (drive=${this._fdcDrive}, img=${img ? 'OK' : 'null'})\n  CPU: A=${r8(cpu.a)} F=${r8(cpu.f)} BC=${r16(cpu.b,cpu.c)} DE=${r16(cpu.d,cpu.e)} HL=${r16(cpu.h,cpu.l)} IX=${r16(cpu.ix>>8&0xFF,cpu.ix&0xFF)} IY=${r16(cpu.iy>>8&0xFF,cpu.iy&0xFF)} SP=${r16(cpu.sp>>8&0xFF,cpu.sp&0xFF)} PC=${r16(cpu.pc>>8&0xFF,cpu.pc&0xFF)}\n  RAM $2B80-$2BBF :${ramDump}`);
+                } else if (!img) {
+                    console.log(`FDC: read SKIPPED — pas d'image (drive=${this._fdcDrive}, wantMask=$${wantMask.toString(16).toUpperCase().padStart(2,'0')})`);
                 }
             }
         } else if (p === 0x1A) {
-            // STPCMD — impulsion de pas moteur. La valeur encode probablement
-            // drive + direction. À analyser quand on aura assez de traces.
-            this._fdcLog(`FDC OUT $1A ← ${vh}H  [STPCMD]`);
+            // STPCMD — impulsion moteur. Décodage de l'opcode :
+            //   $12 = init/calibrate → tête forcée à track 0 (reset compteur)
+            //   $1A = step pulse vers track haute (compteur += 1)
+            //   $02 = wait, pas de mouvement
+            // 3 pulses STPCMD ($1A) = 1 track (observé : bloc 32 = track 1
+            // = 3 pulses depuis l'init).
+            const stepDrive  = this._fdcDriveFromMask(v);
+            const stepOpcode = v & 0x1F;
+            let stepNote = '';
+            if (stepDrive >= 0) {
+                if (stepOpcode === 0x12) {
+                    // Calibrate / init : tête forcée à track 0
+                    this._fdcStepPulses[stepDrive] = 0;
+                    stepNote = ` [calibrate FD${stepDrive+1} → 0]`;
+                } else if (stepOpcode === 0x1A) {
+                    // Step in (vers track haute) : opcode $0A | $10
+                    this._fdcStepPulses[stepDrive]++;
+                    stepNote = ` [step in FD${stepDrive+1} → ${this._fdcStepPulses[stepDrive]}]`;
+                } else if (stepOpcode === 0x0A) {
+                    // Step out (vers track 0) : opcode $0A sans bit 4
+                    if (this._fdcStepPulses[stepDrive] > 0) this._fdcStepPulses[stepDrive]--;
+                    stepNote = ` [step out FD${stepDrive+1} → ${this._fdcStepPulses[stepDrive]}]`;
+                }
+            }
+            this._fdcLog(`FDC OUT $1A ← ${vh}H  [STPCMD]${stepNote}`);
         } else if (p === 0x18) {
             // WRBYT — données ou paramètre (n° de secteur ?).
             this._fdcLog(`FDC OUT $18 ← ${vh}H  [WRBYT]`);
