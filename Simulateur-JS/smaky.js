@@ -260,9 +260,11 @@ class Smaky {
         if (buffer) {
             this._fdcImages[index] = buffer;
             this._fdcNames[index]  = name || `DX${index + 1}:`;
+            console.log(`FDC: loadFloppy(${index}, ${name}) — ${buffer.byteLength} octets`);
         } else {
             this._fdcImages[index] = null;
             this._fdcNames[index]  = null;
+            console.log(`FDC: loadFloppy(${index}, ${name}) — buffer null, drive éjecté`);
         }
     }
 
@@ -387,6 +389,7 @@ class Smaky {
                 this.ticksSinceInt -= TICKS_PER_FRAME;
                 this._timer50Pending = true;
                 this._kbTick();
+                cpu.intVector = 0xFF;          // RST 7 → 0x38
                 cpu.handleActiveInt();
             }
         }

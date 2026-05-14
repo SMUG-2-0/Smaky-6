@@ -43,6 +43,10 @@ class Z80 {
         this.im = 0;
         this.halted = false;
         this._eiDelay = false;
+        // En mode 0, le périphérique pose ici l'opcode RST n (0xC7..0xFF)
+        // qu'il fournit sur le bus pendant l'INTACK. Par défaut RST 7
+        // (0xFF → adresse 0x38), comme le timer 50 Hz du Smaky 6.
+        this.intVector = 0xFF;
 
         // Breakpoints: Uint8Array for O(1) lookup
         this._bp = new Uint8Array(65536);
@@ -99,7 +103,14 @@ class Z80 {
         if (this.halted) { this.halted = false; }
         this.push(this.pc);
         switch (this.im) {
-            case 0: case 1: this.pc = 0x0038; break;
+            case 0:
+                // Mode 0 : le périphérique fournit un opcode sur le bus
+                // pendant l'INTACK. Sur Smaky 6 c'est toujours un RST n
+                // (0xC7..0xFF). On ne supporte que cette forme : adresse
+                // cible = (opcode & 0x38), équivalent au RST exécuté.
+                this.pc = this.intVector & 0x38;
+                break;
+            case 1: this.pc = 0x0038; break;
             case 2: this.pc = this.rw((this.i<<8)|0xFF); break;
         }
         return true;
