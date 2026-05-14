@@ -941,9 +941,15 @@ class Smaky {
                 // SAMOS l'utilise pour : (a) tester via mem[$244F+E] AND
                 // mem[$2B9F] qu'il veut bien ce bloc, (b) indexer la table
                 // par drive ($2BA3+2*E) pour choisir le buffer cible.
-                val = this._fdcXferE;
+                // Bit 7 = "drive non protégé en écriture" (cf L_1E17 dans
+                // SAMOS, samos.ls:2458). Toujours set dans notre simu (pas
+                // d'image en écriture seule pour l'instant).
+                val = 0x80 | this._fdcXferE;
             } else {
-                val = ready ? 0x00 : 0xFF;
+                // Bit 7 = 1 → drive NON protégé en écriture (= TAB WP non
+                // détecté). Si bit 7 = 0, SAMOS retourne "disque protégé".
+                // Bit 6 = 0 → drive prêt. Autres bits à 0.
+                val = ready ? 0x80 : 0xFF;
             }
         } else if (p === 0x1A) {
             // RDREQ — bit 7 = DRQ (octet prêt). Pas loggué : c'est juste
