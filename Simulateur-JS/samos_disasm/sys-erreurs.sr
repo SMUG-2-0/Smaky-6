@@ -237,7 +237,8 @@ INC HL
 EX (SP),HL
 PUSH HL
 PUSH AF
-.B 313, 47;SLA A (Zilog)  pas de mnémonique 1re gen
+SL A
+^ End of line ignored
 LOAD HL,TABEX
 JUMP. CS,L_013B
 LOAD HL,#DISP_RST20H
@@ -268,7 +269,7 @@ L_0155:
 LOAD HL,#42600
 LOAD (HL),#0
 LOAD A,$0
-.B 313, 177;BIT 7,A (Zilog)  pas d'équivalent direct 1re gen
+TEST A:7;= BIT 7,A
 JUMP. NE,L_0168
 LOAD 42576,A
 XOR A,A
@@ -329,7 +330,7 @@ JUMP. EQ,L_01C3
 COMP A,(HL)
 JUMP. NE,L_01AF
 L_01AA:
-.B 313, 376;SET 7,(HL) (Zilog)  pas d'équivalent direct 1re gen
+SET (HL):7;= SET 7,(HL)
 INC DE
 JUMP. L_0198
 L_01AF:
@@ -357,8 +358,8 @@ LOAD A,(HL)
 OR A,A
 LOAD (DE),A
 JUMP. EQ,L_01D9
-.B 313, 176;BIT 7,(HL) (Zilog)  pas d'équivalent direct 1re gen
-.B 313, 276;RES 7,(HL) (Zilog)  pas d'équivalent direct 1re gen
+TEST (HL):7;= BIT 7,(HL)
+CLR (HL):7;= RES 7,(HL)
 LOAD A,(HL)
 LOAD (DE),A
 JUMP. NE,L_01C8
@@ -366,7 +367,7 @@ JUMP. L_01C9
 L_01D9:
 LOAD HL,42574
 DEC HL
-.B 313, 176;BIT 7,(HL) (Zilog)  pas d'équivalent direct 1re gen
+TEST (HL):7;= BIT 7,(HL)
 RET EQ
 LOAD HL,#42530
 LOAD A,(HL)
@@ -395,7 +396,7 @@ MUL:
 LOAD A,#20
 L_0203:
 OR A,A
-.B 313, 103;BIT 0,E (Zilog)  pas d'équivalent direct 1re gen
+TEST E:0;= BIT 0,E
 JUMP. EQ,L_0209
 ADD HL,BC
 L_0209:
@@ -422,7 +423,7 @@ RLC L
 RLC H
 RLC A
 SUBC HL,BC
-.B 313, 107;BIT 0,A (Zilog)  pas d'équivalent direct 1re gen
+TEST A:0;= BIT 0,A
 JUMP. EQ,L_0232
 JUMP. CS,L_0237
 L_0230:
@@ -432,9 +433,9 @@ RET
 L_0232:
 JUMP. CC,L_0237
 ADD HL,BC
-.B 313, 203;RES 0,E (Zilog)  pas d'équivalent direct 1re gen
+CLR E:0;= RES 0,E
 L_0237:
-.B 313, 77;SRL A (Zilog)  pas de mnémonique 1re gen
+SRC A
 DEC A
 JUMP. NE,L_021E
 OR A,A
@@ -519,11 +520,11 @@ MEM:
 LOAD HL,MAXMEM
 RET
 
-ITIME:
+ITIMER:
 LOAD 42556,HL
 RET
 
-ITIMA:
+ITIMAD:
 LOAD 42560,HL
 RET
 
@@ -555,7 +556,7 @@ IRST6:
 LOAD 42552,HL
 RET
 
-IADNM:
+IADNMI:
 LOAD 42554,HL
 RET
 
@@ -563,16 +564,16 @@ ENI50:
 PUSH AF
 OR A,A
 LOAD A,LAMODI
-.B 313, 207;RES 0,A (Zilog)  pas d'équivalent direct 1re gen
+CLR A:0;= RES 0,A
 JUMP. EQ,L_02C4
-.B 313, 307;SET 0,A (Zilog)  pas d'équivalent direct 1re gen
+SET A:0;= SET 0,A
 L_02C4:
 LOAD LAMODI,A
 LOAD $0,A
 POP AF
 RET
 
-CALPH:
+CALPHA:
 LOAD HL,#42377
 L_02CE:
 LOAD (HL),#40
@@ -597,7 +598,7 @@ POP HL
 XOR A,A
 RET
 
-IALPH:
+IALPHA:
 PUSH AF
 LOAD A,LAMODI
 AND A,#363
@@ -605,17 +606,17 @@ JUMP. L_02C4
 IGRA:
 PUSH AF
 LOAD A,LAMODI
-.B 313, 337;SET 3,A (Zilog)  pas d'équivalent direct 1re gen
+SET A:3;= SET 3,A
 JUMP. L_02FF
 IAGRA:
 PUSH AF
 LOAD A,LAMODI
-.B 313, 237;RES 3,A (Zilog)  pas d'équivalent direct 1re gen
+CLR A:3;= RES 3,A
 L_02FF:
-.B 313, 327;SET 2,A (Zilog)  pas d'équivalent direct 1re gen
-.B 313, 317;SET 1,A (Zilog)  pas d'équivalent direct 1re gen
+SET A:2;= SET 2,A
+SET A:1;= SET 1,A
 JUMP. CS,L_02C4
-.B 313, 217;RES 1,A (Zilog)  pas d'équivalent direct 1re gen
+CLR A:1;= RES 1,A
 JUMP. L_02C4
 IDICA:
 PUSH AF
@@ -661,7 +662,7 @@ LOAD 42566,A
 LOAD B,#0
 .W ?IDICA
 .W ?CLEAR
-.W ?IALPH
+.W ?IALPHA
 POP AF
 RET
 
@@ -672,8 +673,10 @@ RET
 SETCU:
 PUSH AF
 PUSH HL
-.B 313, 45;SLA L (Zilog)  pas de mnémonique 1re gen
-.B 313, 45;SLA L (Zilog)  pas de mnémonique 1re gen
+SL L
+^ End of line ignored
+SL L
+^ End of line ignored
 LOAD A,H
 L_0350:
 COMP A,#24
@@ -681,9 +684,9 @@ JUMP. CS,L_0358
 SUB A,#24
 JUMP. L_0350
 L_0358:
-.B 313, 77;SRL A (Zilog)  pas de mnémonique 1re gen
+SRC A
 RRC L
-.B 313, 77;SRL A (Zilog)  pas de mnémonique 1re gen
+SRC A
 RRC L
 ADD A,#100
 LOAD H,A
@@ -1103,7 +1106,7 @@ IFRPR:
 PUSH BC
 LOAD C,#5
 JUMP. L_05A2
-IFRMO:
+IFRMOD:
 PUSH BC
 LOAD C,#7
 JUMP. L_05A2
@@ -1150,7 +1153,7 @@ IFWPP:
 PUSH BC
 LOAD C,#5
 JUMP. L_05D5
-IFWMO:
+IFWMOD:
 PUSH BC
 LOAD C,#7
 JUMP. L_05D5
@@ -1184,13 +1187,15 @@ LOAD A,(HL)
 PUSH AF
 LOAD A,H
 SUB A,#100
-.B 313, 45;SLA L (Zilog)  pas de mnémonique 1re gen
+SL L
+^ End of line ignored
 RLC A
-.B 313, 45;SLA L (Zilog)  pas de mnémonique 1re gen
+SL L
+^ End of line ignored
 RLC A
 LOAD H,A
-.B 313, 75;SRL L (Zilog)  pas de mnémonique 1re gen
-.B 313, 75;SRL L (Zilog)  pas de mnémonique 1re gen
+SRC L
+SRC L
 POP AF
 RET
 
@@ -1302,7 +1307,7 @@ LOAD L,A
 POP DE
 CALL L_06F4
 LOAD A,B
-.B 313, 77;SRL A (Zilog)  pas de mnémonique 1re gen
+SRC A
 ADD A,L
 JUMP. CS,L_06BC
 PUSH AF
@@ -1467,12 +1472,12 @@ LOAD D,#167
 L_079C:
 XOR A,A
 LOAD B,A
-.B 313, 72;SRL D (Zilog)  pas de mnémonique 1re gen
+SRC D
 RLC A
-.B 313, 72;SRL D (Zilog)  pas de mnémonique 1re gen
+SRC D
 RRC E
 RLC A
-.B 313, 72;SRL D (Zilog)  pas de mnémonique 1re gen
+SRC D
 RRC E
 RLC A
 LOAD C,A
@@ -1591,7 +1596,8 @@ L_0834:
 LOAD C,#100
 L_0836:
 DECJ,NE B,L_0828
-.B 313, 41;SLA C (Zilog)  pas de mnémonique 1re gen
+SL C
+^ End of line ignored
 EX HL,DE
 POP BC
 RET
@@ -1622,8 +1628,8 @@ LOAD H,B
 LOAD H,D
 POP DE
 LOAD L,E
-.B 313, 75;SRL L (Zilog)  pas de mnémonique 1re gen
-.B 313, 75;SRL L (Zilog)  pas de mnémonique 1re gen
+SRC L
+SRC L
 POP BC
 POP AF
 RET
@@ -1745,7 +1751,7 @@ INC C
 ADD HL,HL
 ADD HL,HL
 ADD HL,HL
-.B 313, 113;BIT 1,E (Zilog)  pas d'équivalent direct 1re gen
+TEST E:1;= BIT 1,E
 JUMP. EQ,L_08F3
 ADD HL,HL
 L_08F3:
@@ -1833,10 +1839,10 @@ LOAD C,#4
 RL A
 L_0957:
 LOAD HL,#42511
-.B 313, 306;SET 0,(HL) (Zilog)  pas d'équivalent direct 1re gen
+SET (HL):0;= SET 0,(HL)
 .W ?RETUR
 LOAD HL,#L_0A61
-.W ?IADNM
+.W ?IADNMI
 .W ?IRST6
 L_0965:
 .W ?INMON
@@ -1844,10 +1850,7 @@ LOAD DE,#4377
 .W ?JUMPC
 L_096C:
 .W ?TEXTIM
-.ASCIZ / ?
-   ^ Missing ")" or extra "("
-/
-^ End of line ignored
+.ASCIZ / ?<CR>/
 JUMP. L_0965
 PUSH HL
 L_0975:
@@ -2002,7 +2005,7 @@ LOAD HL,MAXMEM
 LOAD SP,HL
 .W ?PRSTA
 JUMP. L_0A49
-TRAPP:
+TRAPPE:
 CALL L_0A84
 POP DE
 POP HL
@@ -2190,12 +2193,12 @@ LOAD DE,#40400
 LOAD BC,#2000
 JUMP. L_0BA0
 L_0BB4:
-.B 313, 306;SET 0,(HL) (Zilog)  pas d'équivalent direct 1re gen
+SET (HL):0;= SET 0,(HL)
 XOR A,A
 RET
 
 L_0BB8:
-.B 313, 206;RES 0,(HL) (Zilog)  pas d'équivalent direct 1re gen
+CLR (HL):0;= RES 0,(HL)
 XOR A,A
 RET
 
@@ -2203,7 +2206,7 @@ LOAD HL,#42512
 LOAD A,#110
 XOR A,(HL)
 LOAD (HL),A
-.B 313, 167;BIT 6,A (Zilog)  pas d'équivalent direct 1re gen
+TEST A:6;= BIT 6,A
 JUMP. NE,L_0BD0
 LOAD HL,#6564
 L_0BCA:
@@ -2532,7 +2535,8 @@ PUSH AF
 PUSH BC
 LOAD B,A
 L_0D87:
-.B 313, 40;SLA B (Zilog)  pas de mnémonique 1re gen
+SL B
+^ End of line ignored
 JUMP. CC,L_0D9C
 LOAD A,#72
 .W ?DICAR
@@ -2541,7 +2545,8 @@ LOAD A,(HL)
 DEC HL
 .W ?AFHEX
 .W ?SPACE
-.B 313, 40;SLA B (Zilog)  pas de mnémonique 1re gen
+SL B
+^ End of line ignored
 JUMP. CS,L_0D8F
 POP BC
 POP AF
@@ -2569,7 +2574,7 @@ LOAD A,L
 POP BC
 POP HL
 .B 355, 147;RRD (rotation nibble BCD A(HL))  mnémonique 1re gen ?
-.B 313, 100;BIT 0,B (Zilog)  pas d'équivalent direct 1re gen
+TEST B:0;= BIT 0,B
 JUMP. EQ,L_0DC0
 INC HL
 L_0DC0:
@@ -2580,7 +2585,7 @@ POP DE
 POP BC
 RET
 
-BCDBI:
+BCDBIN:
 PUSH AF
 PUSH BC
 PUSH DE
@@ -2599,7 +2604,7 @@ LOAD L,A
 .W ?MUL
 POP BC
 POP HL
-.B 313, 100;BIT 0,B (Zilog)  pas d'équivalent direct 1re gen
+TEST B:0;= BIT 0,B
 JUMP. EQ,L_0DEA
 DEC HL
 L_0DEA:
@@ -2675,7 +2680,7 @@ PUSH DE
 LOAD HL,42564
 DEC HL
 LOAD DE,#SALPHA
-.W ?COMPH
+.W ?COMPHL
 JUMP. CC,7105
 L_0E44:
 INC HL
@@ -2703,8 +2708,8 @@ XOR A,A
 LOAD $10,A
 LOAD B,#4
 LOAD C,#17
-.B 313, 327;SET 2,A (Zilog)  pas d'équivalent direct 1re gen
-.B 313, 317;SET 1,A (Zilog)  pas d'équivalent direct 1re gen
+SET A:2;= SET 2,A
+SET A:1;= SET 1,A
 L_0E64:
 RRC A
 L_0E65:
@@ -2713,13 +2718,13 @@ RLC A
 LOAD $10,A
 EX (SP),HL
 EX (SP),HL
-.B 313, 337;SET 3,A (Zilog)  pas d'équivalent direct 1re gen
+SET A:3;= SET 3,A
 LOAD $10,A
 EX (SP),HL
 EX (SP),HL
-.B 313, 237;RES 3,A (Zilog)  pas d'équivalent direct 1re gen
+CLR A:3;= RES 3,A
 DECJ,NE B,L_0E64
-.B 313, 217;RES 1,A (Zilog)  pas d'équivalent direct 1re gen
+CLR A:1;= RES 1,A
 LOAD C,#7
 L_0E7A:
 LOAD B,#10
@@ -2732,11 +2737,11 @@ LOAD A,$10
 RRC A
 RRC (HL)
 POP AF
-.B 313, 337;SET 3,A (Zilog)  pas d'équivalent direct 1re gen
+SET A:3;= SET 3,A
 LOAD $10,A
 EX (SP),HL
 EX (SP),HL
-.B 313, 237;RES 3,A (Zilog)  pas d'équivalent direct 1re gen
+CLR A:3;= RES 3,A
 DECJ,NE B,L_0E7C
 INC HL
 DEC C
@@ -2759,8 +2764,8 @@ XOR A,A
 LOAD $10,A
 LOAD B,#4
 LOAD C,#7
-.B 313, 327;SET 2,A (Zilog)  pas d'équivalent direct 1re gen
-.B 313, 317;SET 1,A (Zilog)  pas d'équivalent direct 1re gen
+SET A:2;= SET 2,A
+SET A:1;= SET 1,A
 L_0EAC:
 RRC A
 RRC C
@@ -2768,11 +2773,11 @@ RLC A
 LOAD $10,A
 EX (SP),HL
 EX (SP),HL
-.B 313, 337;SET 3,A (Zilog)  pas d'équivalent direct 1re gen
+SET A:3;= SET 3,A
 LOAD $10,A
 EX (SP),HL
 EX (SP),HL
-.B 313, 237;RES 3,A (Zilog)  pas d'équivalent direct 1re gen
+CLR A:3;= RES 3,A
 DECJ,NE B,L_0EAC
 LOAD C,#7
 L_0EC0:
@@ -2784,11 +2789,11 @@ RLC A
 LOAD $10,A
 EX (SP),HL
 EX (SP),HL
-.B 313, 337;SET 3,A (Zilog)  pas d'équivalent direct 1re gen
+SET A:3;= SET 3,A
 LOAD $10,A
 EX (SP),HL
 EX (SP),HL
-.B 313, 237;RES 3,A (Zilog)  pas d'équivalent direct 1re gen
+CLR A:3;= RES 3,A
 DECJ,NE B,L_0EC2
 INC HL
 DEC C
@@ -2867,8 +2872,8 @@ RET
 DISP_RST20H:
 .W DICAR;CODE 00H = ?DICAR
 .W GETCAR;CODE 01H = ?GETCAR
-.W ITIME;CODE 02H = ?ITIME
-.W ITIMA;CODE 03H = ?ITIMA
+.W ITIMER;CODE 02H = ?ITIMER
+.W ITIMAD;CODE 03H = ?ITIMAD
 .W IRTC;CODE 04H = ?IRTC
 .W GETLINE;CODE 05H = ?GETLINE
 .W DITEX;CODE 06H = ?DITEX
@@ -2877,19 +2882,19 @@ DISP_RST20H:
 .W IRST7;CODE 09H = ?IRST7
 .W IRST5;CODE 0AH = ?IRST5
 .W IRST6;CODE 0BH = ?IRST6
-.W IADNM;CODE 0CH = ?IADNM
+.W IADNMI;CODE 0CH = ?IADNMI
 .W IFCAR;CODE 0DH = ?IFCAR
 .W GETFO;CODE 0EH = ?GETFO
 .W ENI50;CODE 0FH = ?ENI50
 .W IDICA;CODE 10H = ?IDICA
-.W IALPH;CODE 11H = ?IALPH
+.W IALPHA;CODE 11H = ?IALPHA
 .W IGRA;CODE 12H = ?IGRA
 .W IAGRA;CODE 13H = ?IAGRA
 .W RPR;CODE 14H = ?RPR
 .W RMOD;CODE 15H = ?RMOD
 .W WPP;CODE 16H = ?WPP
 .W WMOD;CODE 17H = ?WMOD
-.W CALPH;CODE 18H = ?CALPH
+.W CALPHA;CODE 18H = ?CALPHA
 .W CGRA;CODE 19H = ?CGRA
 .W L_0368;CODE 1AH = ?BUZZ
 .W MEM;CODE 1BH = ?MEM
@@ -2902,16 +2907,16 @@ DISP_RST20H:
 .W DOSPACE;CODE 22H = ?SPACE
 .W RETUR;CODE 23H = ?RETUR
 .W IFRPR;CODE 24H = ?IFRPR
-.W IFRMO;CODE 25H = ?IFRMO
+.W IFRMOD;CODE 25H = ?IFRMOD
 .W IFWPP;CODE 26H = ?IFWPP
-.W IFWMO;CODE 27H = ?IFWMO
+.W IFWMOD;CODE 27H = ?IFWMOD
 .W RPAR;CODE 28H = ?RPAR
 .W IFRPA;CODE 29H = ?IFRPA
 .W WPAR;CODE 2AH = ?WPAR
 .W IFWPA;CODE 2BH = ?IFWPA
 .W IPOIN;CODE 2CH = ?IPOIN
 .W L_05DF;CODE 2DH = ?JUMPI
-.W L_0E4F;CODE 2EH = ?COMPH
+.W L_0E4F;CODE 2EH = ?COMPHL
 .W MUL;CODE 2FH = ?MUL
 .W DIV;CODE 30H = ?DIV
 .W JUMPC;CODE 31H = ?JUMPC
@@ -2950,7 +2955,7 @@ DISP_RST20H:
 .W CLEAR;CODE 52H = ?CLEAR
 .W TEXT;CODE 53H = ?TEXT
 .W BINBC;CODE 54H = ?BINBC
-.W BCDBI;CODE 55H = ?BCDBI
+.W BCDBIN;CODE 55H = ?BCDBIN
 .W IDIS;CODE 56H = ?IDIS
 .W DELAY;CODE 57H = ?DELAY
 .W BACKD;CODE 58H = ?BACKD
@@ -2959,7 +2964,7 @@ L_0FE2:
 .W EFECR;CODE 5AH = ?EFECR
 .W HLDEL;CODE 5BH = ?HLDEL
 .W L_0941;CODE 5CH = ?MON
-.W TRAPP;CODE 5DH = ?TRAPP
+.W TRAPPE;CODE 5DH = ?TRAPPE
 .W TEXTIM;CODE 5EH = ?TEXTIM
 .W BACK;CODE 5FH = ?BACK
 .W RDCLK_PRIM;CODE 60H = ?RDCLK
