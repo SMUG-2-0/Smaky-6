@@ -15,15 +15,35 @@ désassembleur est régénéré, les numéros de ligne peuvent bouger ; les
 La carte FDC occupe les ports `$18`–`$1B` (hex). En octal CALM (base par
 défaut du source SAMOS) ce sont `$30`–`$33`.
 
-| Port hex | Port oct | Sens  | Rôle |
-|----------|----------|-------|------|
-| `$18`    | `$30`    | OUT   | Données vers le contrôleur (`LOAD $30,A`) |
-| `$19`    | `$31`    | IN/OUT | Registre de commande (OUT) / statut principal (IN) |
-| `$1A`    | `$32`    | IN/OUT | Commande secondaire (OUT) / statut DRQ (IN, bit 7) |
-| `$1B`    | `$33`    | IN    | Données depuis le contrôleur (`LOAD A,$33`) |
+Les noms officiels sont tirés de l'en-tête « CONTROLLER PERIPHERIC ADRESS »
+du source SAMOS 1-E (transcription par PYR dans
+`samos_disasm/extraits-samos-1-e.sr`). Le scan PDF est dans
+`Simulateur-JS/SAMOS-1-E-sr.pdf`.
+
+| Port hex | Port oct | Sens  | Symbole SAMOS | Rôle |
+|----------|----------|-------|---------------|------|
+| `$18`    | `$30`    | OUT   | `WRBYT`  | Bytes output (écriture des données vers le contrôleur) |
+| `$19`    | `$31`    | OUT   | `CONTR`  | Registre de commande |
+| `$19`    | `$31`    | IN    | (statut) | Statut principal |
+| `$1A`    | `$32`    | IN    | `RDREQ`  | Read request flag — bit 7 = DRQ (octet prêt) |
+| `$1A`    | `$32`    | OUT   | `STPCMD` | **Motor step command** (impulsion de pas du moteur) |
+| `$1B`    | `$33`    | IN    | `RDBYT`  | Byte input (lecture des données depuis le contrôleur) |
 
 Les ports `$1C`–`$1F` (`$34`–`$37` oct) ne sont touchés ni par SAMOS ni par
 SYS — probablement non décodés par la carte.
+
+**Important** : `$1A` n'est **pas** un miroir de `$19`. C'est un port à
+double fonction (typique des contrôleurs disque de l'époque) :
+- en lecture, on y trouve le flag DRQ (bit 7) ;
+- en écriture, c'est un registre séparé `STPCMD` qui pilote directement
+  les impulsions de pas du moteur du lecteur.
+
+Cela explique pourquoi `DO_INIFLO` écrit la même valeur sur `$19` puis
+sur `$1A` (souvent 6 fois sur `$1A`) : sur `$19` c'est la commande de
+sélection drive/opération, sur `$1A` ce sont des **impulsions de step
+moteur** pour positionner la tête. Les bits de la valeur écrite sur
+`STPCMD` codent probablement la direction du pas et le drive sélectionné
+(à confirmer par lecture du source 1-E).
 
 ## 2. Bits du registre $19 en lecture
 
@@ -38,9 +58,10 @@ mnémonique CALM 1re gen) qui suivent chaque `LOAD A,$31` :
 | 4   | `BIT 4,A` à `samos.ls:3072`                      | busy interne (SAMOS attend qu'il retombe à 0) |
 | 0–3 | `AND A,#17` à `samos.ls:3052` et `3110`         | code de cause IT / drive# / status post-opération |
 
-## 3. Bit 7 du registre $1A — DRQ
+## 3. Bit 7 du registre $1A en lecture — RDREQ / DRQ
 
-Bit 7 = « octet prêt à transférer » (Data Request).
+Le source 1-E nomme ce port `RDREQ` (Read REQuest). Bit 7 = « octet prêt
+à transférer » (Data Request, terminologie générique).
 
 SAMOS ne lit pas `$1A` avec un `LOAD A,$32` mais avec l'instruction Z80
 **undocumented `IN F,(C)`** (opcode `ED 70`, encodée en `.B 355, 160`) qui
@@ -80,10 +101,13 @@ Codes opération identifiés (lus dans le code à partir des `ADD A,#nn` puis `L
 | `+$0F` | `samos.ls:3119` (`ADD A,#17`)         | reset / ack IT |
 | `+$12` | `samos.ls:2660` (`ADD A,#22` — init)  | calibration / restore |
 
-Les commandes `init` envoyées dans `DO_INIFLO` sont systématiquement
-**doublées sur `$19` puis `$1A`**, parfois avec 6 répétitions sur `$1A` (via
-la routine `L_2272` à `samos.ls:3239` appelée avec `B=6`). C'est probablement
-un latch + pulse ou une protection contre les transitoires de bus.
+Les commandes `init` envoyées dans `DO_INIFLO` envoient une valeur sur `$19`
+(`CONTR`, sélection drive + opération) puis la même valeur **plusieurs fois
+sur `$1A`** (`STPCMD`, motor step command) — typiquement 6 répétitions via
+la routine `L_2272` à `samos.ls:3239` appelée avec `B=6`. Ces écritures sur
+`STPCMD` génèrent **6 impulsions de pas** au moteur du lecteur. Les bits de
+la valeur écrite codent vraisemblablement la direction et le drive
+sélectionné (à confirmer en lisant la section pilote moteur du source 1-E).
 
 ## 5. Mécanisme d'interruption
 
