@@ -58,7 +58,7 @@ app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) creat
 // ─── IPC : sélection du dossier disques ──────────────────────────
 ipcMain.handle('pick-disk-dir', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
-        title:       'Dossier des images disque (SM6WIN*.DSK)',
+        title:       'Dossier des images disque (SM6WIN*.DSK + SM6FLO*.DSK)',
         properties:  ['openDirectory'],
         buttonLabel: 'Sélectionner',
     });
@@ -66,7 +66,7 @@ ipcMain.handle('pick-disk-dir', async () => {
     diskDir = result.filePaths[0];
     // Lister les images présentes
     const found = fs.readdirSync(diskDir)
-        .filter(f => /^SM6WIN[0-9]\.DSK$/i.test(f))
+        .filter(f => /^SM6(WIN|FLO)[0-9]\.DSK$/i.test(f))
         .map(f => f.toUpperCase())
         .sort();
     return { dir: diskDir, disks: found };
@@ -77,7 +77,7 @@ ipcMain.handle('restore-disk-dir', (event, savedPath) => {
     if (!savedPath || !fs.existsSync(savedPath)) return null;
     diskDir = savedPath;
     const found = fs.readdirSync(diskDir)
-        .filter(f => /^SM6WIN[0-9]\.DSK$/i.test(f))
+        .filter(f => /^SM6(WIN|FLO)[0-9]\.DSK$/i.test(f))
         .map(f => f.toUpperCase())
         .sort();
     return { dir: diskDir, disks: found };

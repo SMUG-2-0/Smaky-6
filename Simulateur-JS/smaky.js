@@ -171,7 +171,13 @@ class Smaky {
         this._fdcControl  = 0;             // dernier OUT $19
         this._fdcDrive    = -1;            // drive courant (0=FD1, 1=FD2, -1=aucun)
         this._fdcLogCount = 0;
-        this._fdcLogMax   = 2000;
+        this._fdcLogMax   = 10000;         // étendu pour capturer une session de read complète
+        // Transfert FDC en cours (Lot 2b)
+        this._fdcXferBuf    = null;        // Uint8Array : header + data + checksum
+        this._fdcXferPos    = 0;
+        this._fdcXferActive = false;
+        this._fdcSector     = [0, 0];      // n° secteur courant par drive (auto-incrémenté)
+        this._fdcIntPending = false;       // IT FDC à délivrer dès que IFF1 = 1
         this._fdcLogLast  = '';            // pour compression des répétitions
         this._fdcLogRepeat = 0;
 
@@ -229,6 +235,10 @@ class Smaky {
         this._fdcLogCount = 0;
         this._fdcDrive    = -1;
         this._fdcControl  = 0;
+        this._fdcXferActive = false;
+        this._fdcXferPos    = 0;
+        this._fdcSector     = [0, 0];
+        this._fdcIntPending = false;
     }
 
     /**
@@ -381,6 +391,16 @@ class Smaky {
                 this._emitFrame();
                 if (this.onStopped) this.onStopped('breakpoint');
                 return;
+            }
+
+            // IT FDC pending (RST 1) : délivrée dès que IFF1 = 1 (= sortie
+            // d'un handler IT précédent + ION). On essaie à chaque chunk.
+            if (this._fdcIntPending) {
+                cpu.intVector = 0xCF;          // RST 1 → 0x08
+                if (cpu.handleActiveInt()) {
+                    this._fdcIntPending = false;
+                }
+                // sinon : reste pending jusqu'au prochain chunk
             }
 
             // Timer 50 Hz : déclenche une interruption toutes les 70000 T-states
@@ -882,24 +902,82 @@ class Smaky {
         }
     }
 
+    /** Décode une valeur écrite sur $19 en label lisible. */
+    _fdcDecodeCmd(v) {
+        const driveMask = v & 0xC0;
+        const opcode    = v & 0x1F;
+        const drive = driveMask === 0x40 ? 'FD1' :
+                      driveMask === 0x80 ? 'FD2' :
+                      driveMask === 0x00 ? '---' : `mask${driveMask.toString(16)}`;
+        const op = {
+            0x00: 'select',
+            0x02: 'wait_ready',
+            0x0A: 'seek?',
+            0x0C: 'read_sec',
+            0x0E: 'write_sec',
+            0x0F: 'reset/ack',
+            0x12: 'init/calib',
+        }[opcode] || `op_${opcode.toString(16).toUpperCase()}`;
+        return `${drive} ${op}`;
+    }
+
     _fdcIn(p) {
         this._fdcCheckHandoff();
         let val;
         if (p === 0x19) {
-            // CONTR en lecture = statut. Pour Lot 1 (DO_INIFLO en polling
-            // actif sans IT) il suffit de signaler bit 6 = 0 quand le drive
-            // sélectionné est présent. SAMOS sort alors de sa boucle d'attente.
-            //   bit 6 = 0 → drive prêt
-            //   bit 6 = 1 → drive absent ou occupé → SAMOS abandonne après 79 retries
+            // CONTR en lecture = statut.
+            //   bit 6 = 0 → drive prêt, 1 → absent/occupé
+            //   bit 4 = 0 → pas busy interne (sinon SAMOS attend dans L_2183)
+            //   bits 0-3 = code de cause IT (utilisé par L_2169 / L_223C)
             const drive = this._fdcDrive;
             const ready = drive >= 0 && this._fdcImages[drive];
-            val = ready ? 0x00 : 0xFF;
+            if (this._fdcXferActive) {
+                // Bits 0-3 = E mémorisé au moment du OUT $19 ← cmd_read.
+                // SAMOS l'utilise pour : (a) tester via mem[$244F+E] AND
+                // mem[$2B9F] qu'il veut bien ce bloc, (b) indexer la table
+                // par drive ($2BA3+2*E) pour choisir le buffer cible.
+                val = this._fdcXferE;
+            } else {
+                val = ready ? 0x00 : 0xFF;
+            }
         } else if (p === 0x1A) {
-            // RDREQ — bit 7 = DRQ. Pas de transfert en cours pour Lot 1.
-            val = 0x00;
+            // RDREQ — bit 7 = DRQ (octet prêt). Pas loggué : c'est juste
+            // du polling très bruyant.
+            val = (this._fdcXferActive && this._fdcXferPos < this._fdcXferBuf.length) ? 0x80 : 0x00;
+            return val;
         } else if (p === 0x1B) {
-            // RDBYT — pas de transfert en cours pour Lot 1.
-            val = 0xFF;
+            // RDBYT — sert l'octet courant du buffer de transfert.
+            if (this._fdcXferActive && this._fdcXferBuf && this._fdcXferPos < this._fdcXferBuf.length) {
+                val = this._fdcXferBuf[this._fdcXferPos++];
+                if (this._fdcXferPos >= this._fdcXferBuf.length) {
+                    this._fdcXferActive = false;
+                    // Annule toute IT fantôme : le pending éventuellement set
+                    // au re-issue intra-L_2169 (juste avant ce transfert) ne
+                    // doit pas survivre au transfert. Si SAMOS veut le sector
+                    // suivant, L_22B4 fera un OUT $19 ← 4C qui re-set pending.
+                    this._fdcIntPending = false;
+                    // Dump RAM destination pour voir si les data atterrissent
+                    const m = this.cpu.mem;
+                    const dumpZone = (base, label) => {
+                        let dump = '';
+                        for (let row = 0; row < 4; row++) {
+                            let hex = '', ascii = '';
+                            for (let col = 0; col < 16; col++) {
+                                const b = m[base + row*16 + col];
+                                hex += b.toString(16).toUpperCase().padStart(2, '0') + ' ';
+                                ascii += (b >= 0x20 && b < 0x7F) ? String.fromCharCode(b) : '.';
+                            }
+                            dump += `\n  $${(base + row*16).toString(16).toUpperCase().padStart(4,'0')}: ${hex} ${ascii}`;
+                        }
+                        return `${label} = $${base.toString(16).toUpperCase().padStart(4,'0')}+64:${dump}`;
+                    };
+                    const baseDest = 0x2300 + this._fdcXferE * 0x100;
+                    console.log(`FDC: transfert fini (E=${this._fdcXferE}, ${this._fdcXferBuf.length} octets)\n${dumpZone(baseDest, 'RAM dest présumée')}\n${dumpZone(0x2600, 'RAM $2600 (DE backup)')}`);
+                }
+            } else {
+                val = 0xFF;
+            }
+            return val;  // pas loggué non plus
         } else {
             val = 0xFF;
         }
@@ -912,18 +990,78 @@ class Smaky {
         this._fdcCheckHandoff();
         const name = ['$18','$19','$1A','$1B'][p - 0x18];
         const vh   = v.toString(16).toUpperCase().padStart(2,'0');
-        this._fdcLog(`FDC OUT ${name} ← ${vh}H`);
         if (p === 0x19) {
-            // CONTR — commande. Met à jour le drive courant à partir des
-            // bits 6-7. L'opcode (bits 0-4) sera décodé au Lot 2 quand on
-            // implémentera read/write sector.
+            this._fdcLog(`FDC OUT $19 ← ${vh}H  [${this._fdcDecodeCmd(v)}]`);
             this._fdcControl = v;
             this._fdcDrive   = this._fdcDriveFromMask(v);
+            // Lot 2b : exécution de la commande read sector ($0C).
+            // Format du transfert (déduit empiriquement) :
+            //   byte 0       : pré-data (lu mais non comparé)
+            //   byte 1       : marker (= mem[$2B8C+drive_offset], comparé)
+            //   bytes 2..257 : 256 octets de data
+            //   byte 258     : checksum (somme modulo 256 des 256 data)
+            // Choix de E : on lit le masque "sectors voulus" mem[$2B9F] et
+            // on prend le 1er bit set. SAMOS clear ce bit après chaque
+            // transfert. E est ensuite servi en bits 0-3 du statut $19, et
+            // sert aussi à indexer la table buffers $2BA3 + 2*E.
+            // L'offset physique sur l'image = E * 256 (= sector E).
+            const opcode = v & 0x1F;
+            if (opcode === 0x0C && this._fdcDrive >= 0) {
+                const drive    = this._fdcDrive;
+                const img      = this._fdcImages[drive];
+                const wantMask = this.cpu.mem[0x2B9F];
+                if (img && wantMask !== 0) {
+                    let E = 0;
+                    for (let i = 0; i < 8; i++) {
+                        if (wantMask & (1 << i)) { E = i; break; }
+                    }
+                    const offset = E * 256;
+                    if (offset + 256 <= img.byteLength) {
+                        const data           = new Uint8Array(img, offset, 256);
+                        const markerAddr     = drive === 0 ? 0x2B8C : 0x2B8D;
+                        const expectedMarker = this.cpu.mem[markerAddr];
+                        const buf            = new Uint8Array(259);
+                        buf[0] = 0x00;
+                        buf[1] = expectedMarker;
+                        buf.set(data, 2);
+                        let sum = 0;
+                        for (let i = 0; i < 256; i++) sum = (sum + data[i]) & 0xFF;
+                        buf[258] = sum;
+                        this._fdcXferBuf    = buf;
+                        this._fdcXferPos    = 0;
+                        this._fdcXferActive = true;
+                        this._fdcXferE      = E;
+                        // Dump hex + ASCII des 256 data bytes pour debug
+                        const lines = [];
+                        for (let row = 0; row < 16; row++) {
+                            let hex = '', ascii = '';
+                            for (let col = 0; col < 16; col++) {
+                                const b = data[row*16 + col];
+                                hex += b.toString(16).toUpperCase().padStart(2, '0') + ' ';
+                                ascii += (b >= 0x20 && b < 0x7F) ? String.fromCharCode(b) : '.';
+                            }
+                            lines.push(`  ${(row*16).toString(16).toUpperCase().padStart(3,'0')}: ${hex} ${ascii}`);
+                        }
+                        console.log(`FDC: read E=${E} (offset=$${offset.toString(16)}, masque=$${wantMask.toString(16).toUpperCase().padStart(2,'0')}, marker=$${expectedMarker.toString(16).toUpperCase().padStart(2,'0')}, chk=$${sum.toString(16).toUpperCase().padStart(2,'0')})\n${lines.join('\n')}`);
+                        this._fdcIntPending = true;
+                    } else {
+                        console.log(`FDC: read E=${E} hors image (taille ${img.byteLength})`);
+                    }
+                } else if (wantMask === 0) {
+                    // Plus rien à lire — SAMOS sortira via L_211B (HL=0).
+                    // On ne déclenche pas d'IT.
+                }
+            }
+        } else if (p === 0x1A) {
+            // STPCMD — impulsion de pas moteur. La valeur encode probablement
+            // drive + direction. À analyser quand on aura assez de traces.
+            this._fdcLog(`FDC OUT $1A ← ${vh}H  [STPCMD]`);
+        } else if (p === 0x18) {
+            // WRBYT — données ou paramètre (n° de secteur ?).
+            this._fdcLog(`FDC OUT $18 ← ${vh}H  [WRBYT]`);
+        } else {
+            this._fdcLog(`FDC OUT ${name} ← ${vh}H`);
         }
-        // $18 (WRBYT) : transfert d'écriture — Lot 3.
-        // $1A (STPCMD) : pulses de pas du moteur — ignorés (positionnement
-        //   simulé instantanément ; le contenu de l'image est lu en LBA brut
-        //   via le couple track/sector recalculés au Lot 2).
     }
 
     // ─────────────────────────────────────────────────────────────
