@@ -852,12 +852,13 @@ class Smaky {
     }
 
     _fdcCheckHandoff() {
-        const w2 = this.cpu.mem[2] | (this.cpu.mem[3] << 8);
-        if (!this._sysSyActive && w2 !== this._romWord2) {
-            this._sysSyActive = true;
-            this._fdcLogCount = 0;   // repart de zéro pour voir la phase SAMOS
-            console.log('FDC: JP 0 détecté — SYS.SY actif, floppy visible');
-        }
+        // Désactivé provisoirement : on ne signale jamais l'activation du FDC,
+        // pour que `_sysSyActive` reste à false, donc `_fdcIn($19)` retourne
+        // $FF (bit 6 = 1 → drive absent). SAMOS épuise alors ses 79 retries
+        // de polling et imprime "NO DX" puis poursuit le boot, ce qui rend
+        // le simulateur utilisable. L'émulation FDC complète viendra ensuite
+        // (voir samos_disasm/fdc_protocol.md et la branche feature/fdc-emulation).
+        return;
     }
 
     _fdcIn(p) {
