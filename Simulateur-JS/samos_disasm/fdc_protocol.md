@@ -226,28 +226,91 @@ OUT $19 ← 4CH     L_22B4 (samos.ls:3300) : 25610+$0C = $4C — read sector
 
 ## 7. Implémentation côté simulateur
 
-État actuel (`smaky.js:824–894`) : stub minimal qui retourne `00H` sur `$19`
-et `80H` sur `$1A` quand une image floppy est chargée. Ne génère aucune IT.
+### 7.1 État au 14/05/2026 — Lot 2b terminé
 
-Pour faire avancer l'émulation, il faut au minimum :
+Le simulateur (`smaky.js`) lit correctement les disquettes Micropolis. La
+disquette démo charge complètement, le CLI affiche le directory via
+`LIST DX1:`. Implémenté :
 
-1. **Modèle de commandes sur `$19`** : décoder la commande à chaque OUT
-   (drive# en bits 6-7, opération en bits 0-3) et maintenir un état
-   interne (drive sélectionné, position track/sector, opération en cours).
-2. **Statut cohérent sur lecture de `$19`** : bit 6 = 0 quand drive
-   présent et idle ; bits 0-3 = code de cause IT après une opération.
-3. **Génération d'IT FDC** : quand une opération (read/write/seek) est
-   « terminée » (immédiatement ou après quelques µs simulées), générer
-   une IT qui fournira `$CF` (RST 1) pendant l'INTACK.
-4. **Mécanisme INT ACK dans le CPU émulé** : le simulateur a déjà un
-   mécanisme d'IT (timer 50 Hz, `smaky.js:381`) — il faut vérifier qu'il
-   gère bien l'opcode mis sur le bus en mode 0, et l'étendre pour la
-   source FDC.
-5. **Transfert via `$1B` (read) et `$18` (write)** : le bit 7 de `$1A`
-   doit suivre le rythme du transfert. Pour un read sector :
-   - DRQ = 1 → SAMOS lit `$1B` (consomme un octet)
-   - quand SAMOS fait `IN F,(C)` avec C=$32 → on retourne DRQ
-   - après le dernier octet, IT pour signaler fin
+- **DO_INIFLO** (init des 2 drives floppy) : `_fdcCheckHandoff` détecte
+  le `JP 0`, `_fdcDrive` tracke le drive sélectionné via les bits 6-7
+  du registre `$19`. `_fdcIn($19)` retourne `$00` quand drive présent
+  (= image chargée), `$FF` sinon. Pulses `STPCMD` ignorés (positionnement
+  simulé instantané).
+- **IT mode 0 vraiment vectorisée** (`z80.js`) : `cpu.intVector` que le
+  périphérique pose avant `cpu.handleActiveInt()`. Adresse cible =
+  `intVector & 0x38`. Timer 50 Hz pose `$FF` (RST 7), FDC pose `$CF`
+  (RST 1). Modes 1 et 2 inchangés.
+- **IT pending FDC** (`_fdcIntPending`) : marquée au `OUT $19 ← cmd_read`
+  et délivrée par la run loop dès que IFF1 = 1 (= entre handlers, pas
+  pendant). Évite la perte d'IT quand le `_fdcOut` se produit dans un
+  autre handler IT.
+- **Read sector** : décodage commande `$0C`, choix de E = 1er bit set
+  dans le masque `mem[$2B9F]` (les "sectors voulus" que SAMOS clear
+  bit-à-bit dans L_2169), construction d'un buffer 259 octets servi
+  séquentiellement aux `IN $33`, IT RST 1 déclenchée.
+
+### 7.2 Format du transfert (259 octets, confirmé empiriquement)
+
+```
+buf[0]       : pré-data (lu sans test DRQ, ignoré par SAMOS)
+buf[1]       : marker — comparé via COMP A,(HL) où HL pointe sur
+                mem[$2B8C+drive_offset] (calculé par L_2293).
+                Tricherie temporaire actuelle : on lit cette mémoire
+                directement et on la sert. À remplacer par une vraie
+                logique (sector ID issu du format physique du disque).
+buf[2..257]  : 256 octets de data (atterrissent en RAM via LD (DE),A
+                à chaque itération, où DE est initialisé par L_2231 :
+                $2300 pour E=0, $2400 pour E=1, $2500 pour E=2).
+                Note : le désassembleur affiche cette instruction comme
+                LD B,(HL) à samos.ls:3090, mais c'est probablement une
+                mauvaise lecture — l'observation confirme LD (DE),A.
+buf[258]     : checksum = somme modulo 256 des 256 data bytes (la
+                running sum est accumulée dans H par ADD A,H ;
+                LD H,A à chaque tour, et comparée au byte final).
+```
+
+### 7.3 Sémantique de E (bits 0-3 de $19 en lecture)
+
+E sert à deux usages dans `L_2169` :
+1. **Validation** via `L_223C` : `mem[$244F+E] AND mem[$2B9F]`. La table
+   à `$244F` contient `[1, 2, 4, 8, 16, 32, 64, 128]` (= `1<<n`). SAMOS
+   clear `1<<E` du masque après chaque transfert.
+2. **Indexation buffer** via `L_2231` : `HL = $2BA3 + 2*E`, et SAMOS lit
+   le mot 16-bit à cette adresse pour DE. La table contient
+   `[$2300, $2400, $2500]` — soit 3 buffers de 256 octets en RAM, un
+   par bloc de directory (pas par drive comme on aurait pu le croire).
+
+Ces deux usages sont compatibles tant que E ∈ {0,1,2} et que SAMOS lit
+les blocs un par un. Pour le directory ça suffit ; pour des fichiers
+plus longs il faudra probablement un mécanisme différent (à investiguer
+quand on attaquera le run de programmes).
+
+### 7.4 Bug fix critique — IT fantômes
+
+Le re-issue intra-handler dans `L_2169` (`OUT $19 ← cmd` ligne 020577)
+marquait `_fdcIntPending = true`. Si le dernier sector lu vidait le
+masque, SAMOS sortait via `L_211B` → `L_2118` → `L_20FC` → `RET` **sans
+ION**, et le pending résiduel survivait. Plus tard, sur le premier `EI`
+quelconque, l'IT fantôme déclenchait un handler L_2169 qui faisait
+`POP HL` sur une stack non préparée → corruption → reboot.
+
+**Fix** : à la fin de chaque transfert (`xferActive` repasse à `false`),
+on force `_fdcIntPending = false`. Si SAMOS continue (masque ≠ 0), le
+`OUT $19 ← cmd` de `L_22B4` re-set le pending naturellement.
+
+## 8. Comportements observés (notes pour la suite)
+
+- **`LIST DX1:`** : OK, directory complet affiché.
+- **Copie d'un fichier vers DX1** : SAMOS répond « disquette protégée ».
+  Comportement gracieux (pas de crash) — l'écriture (`cmd $0E`) n'est
+  pas implémentée et SAMOS détecte qu'aucune IT ne signale la fin du
+  write. À implémenter dans le **Lot 3 (write)**.
+- **Exécution d'un programme depuis DX1** : pose problème (à investiguer).
+  Hypothèses : (a) la tricherie marker ne tient plus quand on lit autre
+  chose qu'un directory ; (b) les programmes occupent des sectors hors
+  des 3 premiers blocs et le mécanisme E ∈ {0,1,2} ne couvre pas ; (c)
+  besoin de gérer des seeks multi-tracks.
 
 ## 8. Références code
 
