@@ -382,6 +382,25 @@ Sélectionnez le dossier des images disques, puis cliquez <strong>▶ Démarrer<
   <li>Le champ accepte n'importe quelle valeur entre 1 et 9999 %.</li>
 </ul>
 <hr>
+<h2>Écran et phosphore</h2>
+<p>L'écran est composé en pixels élémentaires (512 × 240) à partir de la
+PROM du générateur de caractères TMS2716 et de la VRAM graphique du Smaky.
+Combinaison alpha + graphique en OR booléen, comme sur le hardware.</p>
+<ul>
+  <li><strong>Phosphore</strong> — couleur de la trace lumineuse :
+      <em>Vert P31</em> (le phosphore d'époque, par défaut),
+      <em>Gris</em> (rendu des prototypes avant l'arrivée du vert sur le marché),
+      <em>Ambre</em> (jamais utilisé sur Smaky 6, mais dans l'air du temps).</li>
+  <li><strong>Pixel Y/X</strong> — ratio de hauteur/largeur du pixel élémentaire.
+      Sur le Smaky 6 les pixels n'étaient pas carrés ; les écrans cathodiques
+      avaient des réglages de hauteur et de largeur. Valeur par défaut <code>1.6</code>
+      (= aspect 4:3 final). Range 0,5 à 3,0.</li>
+  <li><strong>Bordure</strong> — bande non-utilisée autour de la zone d'image,
+      caractéristique des CRT (les écrans plats vont jusqu'au bord).
+      En % de la largeur affichée. Par défaut <code>5%</code>. La bordure prend
+      la teinte douce du phosphore au repos.</li>
+</ul>
+<hr>
 <h2>Mode interactif — commandes</h2>
 <ul>
   <li><strong>Entrée</strong> — démarrer l'exécution (<code>run</code>)</li>
@@ -454,7 +473,7 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
       </div>
     </div>
     <div id="serial-panel">
-      <div class="sp-section" style="margin-bottom:0">
+      <div class="sp-section">
         <div class="sp-title">Vitesse</div>
         <div style="display:flex;align-items:center;gap:4px">
           <input type="number" id="speed-input" value="100" min="1" max="9999"
@@ -463,6 +482,37 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
           <span style="color:#666;font-size:10px">%</span>
           <button class="sp-btn" onclick="onSpeedChange(100)" title="Revenir à 100%">100%</button>
           <button class="sp-btn" onclick="onSpeedChange(1000)" title="Mode rapide (assemblage de gros fichiers)">1000%</button>
+        </div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-title">Phosphore</div>
+        <div style="display:flex;align-items:center;gap:4px">
+          <select id="palette-select" onchange="onPaletteChange(this.value)"
+                  style="background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px">
+            <option value="green">Vert P31</option>
+            <option value="gray">Gris (prototype)</option>
+            <option value="amber">Ambre</option>
+          </select>
+        </div>
+      </div>
+      <div class="sp-section" style="margin-bottom:0">
+        <div class="sp-title">Géométrie CRT</div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888">
+          <label title="Ratio Y/X du pixel élémentaire (1=carré, 1.6=CRT 4:3)">
+            Pixel Y/X
+            <input type="number" id="aspect-input" value="1.6" min="0.5" max="3.0" step="0.05"
+                   oninput="onAspectChange(this.value)"
+                   style="width:48px;background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px;text-align:right">
+          </label>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888;margin-top:3px">
+          <label title="Bordure noire autour de l'écran (% de la largeur)">
+            Bordure
+            <input type="number" id="border-input" value="5" min="0" max="20" step="1"
+                   oninput="onBorderChange(this.value)"
+                   style="width:42px;background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px;text-align:right">
+            <span style="color:#666">%</span>
+          </label>
         </div>
       </div>
     </div>
@@ -520,9 +570,11 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
 
 <!-- ─── Scripts ──────────────────────────────────────────────── -->
 <script src="rom18.js"></script>
+<script src="chargen_rom.js"></script>
 <script src="z80.js"></script>
 <script src="disasm.js"></script>
 <script src="smaky.js"></script>
+<script src="screenRenderer.js"></script>
 <script src="audio.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
@@ -569,39 +621,73 @@ const gfxCanvas  = document.getElementById('gfx-canvas');
 let textCtx = null;
 let gfxCtx  = null;
 
-// Mesures de caractère (calculées à l'init)
-let charW = 9, charH = 16;
+// Framebuffer pixels élémentaires (rempli par renderScreen, dessiné dans textCanvas)
+let screenImgData = null;
 
-// Cache rendu texte (évite redraws inutiles)
-let prevCells = Array.from({length: HEIGHT}, () => new Uint8Array(WIDTH).fill(255));
-let prevNox   = null;
-// Cache GFX
+// Détection de changement (pour skip frames identiques).
+let prevTextMem = null;
 let prevGfxMem  = null;
-let prevGfxGros = null;
-let prevGfxGra  = false;
+let prevFlagsKey = '';
+let prevPaletteName = '';
+
+// Palette courante. Persisté dans localStorage.
+let currentPalette = PALETTES.green;
+try {
+    const saved = localStorage.getItem('palette');
+    if (saved && PALETTES[saved]) currentPalette = PALETTES[saved];
+} catch (_) {}
+
+// Géométrie écran : ratio Y/X (étirement vertical du pixel élémentaire,
+// 1.0 = pixel carré) et bordure CRT en % de la largeur affichée.
+const BASE_SCALE = 1.5;             // pixels CSS par pixel élémentaire (X)
+let pixelAspectYX = 1.6;            // pixel plus haut que large (CRT 4:3 par défaut)
+let crtBorderPercent = 5;
+try {
+    const a = parseFloat(localStorage.getItem('aspectYX'));
+    if (!isNaN(a) && a > 0) pixelAspectYX = a;
+    const b = parseFloat(localStorage.getItem('borderPct'));
+    if (!isNaN(b) && b >= 0) crtBorderPercent = b;
+} catch (_) {}
 
 // ─── Initialisation du canvas ────────────────────────────────────
+// Le canvas a la résolution native du Smaky 6 (512×240 pixels élémentaires).
+// CSS l'agrandit avec un scale isotropique BASE_SCALE puis étirement
+// vertical pixelAspectYX. Bordure noire autour pour évoquer le CRT.
 function initCanvas() {
     textCtx = textCanvas.getContext('2d');
-    gfxCtx  = gfxCanvas.getContext('2d');
-    const FONT_SIZE = 14;
-    const FONT      = `${FONT_SIZE}px 'Courier New', monospace`;
-    textCtx.font    = FONT;
-    const m = textCtx.measureText('M');
-    charW = Math.ceil(m.width);
-    charH = Math.round(FONT_SIZE * 1.5);  // line height ≈ 1.5 × font-size
+    textCanvas.width  = SCREEN_W;
+    textCanvas.height = SCREEN_H;
+    textCanvas.style.imageRendering = 'pixelated';
 
-    const W = charW * WIDTH  + 8;
-    const H = charH * HEIGHT + 8;
+    // Le canvas graphique d'origine n'est plus utilisé : tout est composé
+    // dans textCanvas. On le cache définitivement.
+    if (gfxCanvas) gfxCanvas.style.display = 'none';
 
-    textCanvas.width  = W;
-    textCanvas.height = H;
-    gfxCanvas.width   = W;
-    gfxCanvas.height  = H;
+    screenImgData = textCtx.createImageData(SCREEN_W, SCREEN_H);
 
-    // Fond noir initial
-    textCtx.fillStyle = '#000';
-    textCtx.fillRect(0, 0, W, H);
+    applyScreenGeometry();
+
+    // Fond initial = phosphore éteint
+    const off = currentPalette.off;
+    textCtx.fillStyle = `rgb(${off[0]},${off[1]},${off[2]})`;
+    textCtx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+}
+
+// Applique la taille CSS du canvas et la bordure CRT au screen-wrap.
+// La bordure prend la couleur "off" du phosphore courant (pas de noir
+// franc : un CRT au repos a déjà la teinte du faisceau résiduel).
+function applyScreenGeometry() {
+    const cssW = SCREEN_W * BASE_SCALE;
+    const cssH = SCREEN_H * BASE_SCALE * pixelAspectYX;
+    textCanvas.style.width  = cssW + 'px';
+    textCanvas.style.height = cssH + 'px';
+    const wrap = document.getElementById('screen-wrap');
+    if (wrap) {
+        const off = currentPalette.off;
+        wrap.style.background = `rgb(${off[0]},${off[1]},${off[2]})`;
+        const pad = Math.round(cssW * crtBorderPercent / 100);
+        wrap.style.padding = pad + 'px';
+    }
 }
 
 // ─── Rendu texte ─────────────────────────────────────────────────
@@ -638,147 +724,74 @@ for (let i = 15; i < 128; i++) {
         UNICODE_TO_SMAKY.set(ch, String.fromCharCode(i));
 }
 
-function renderText(textMem, gfxMode) {
-    const FONT = `${Math.round(charH * 0.7)}px 'Courier New', monospace`;
-    textCtx.font = FONT;
-    const pad = 4;
-    const nox = gfxMode.nox;
-    const stateChanged = (nox !== prevNox);
-    prevNox = nox;
-
-    if (nox) {
-        // Masquer entièrement l'alpha : fond noir transparent
-        textCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
-        return;
-    }
-
-    for (let y = 0; y < HEIGHT; y++) {
-        for (let x = 0; x < WIDTH; x++) {
-            const b   = textMem[y * WIDTH + x] & 0xFF;
-            const old = prevCells[y][x];
-            if (b === old && !stateChanged) continue;
-            prevCells[y][x] = b;
-
-            const inv = !!(b & 0x80);
-            const ch  = SMAKY_CHARS_JS[b & 0x7F];
-            const px  = pad + x * charW;
-            const py  = pad + y * charH;
-
-            const fg = inv ? '#000'     : '#00cc00';
-            const bg = inv ? '#00cc00' : '#000';
-            textCtx.fillStyle = bg;
-            textCtx.fillRect(px, py, charW, charH);
-            textCtx.fillStyle = fg;
-            if (ch === '_') {
-                // Dessin manuel : barre en bas de la cellule, sans débordement
-                const lh = Math.max(1, Math.round(charH * 0.1));
-                textCtx.fillRect(px, py + charH - lh, charW, lh);
-            } else {
-                textCtx.save();
-                textCtx.beginPath();
-                textCtx.rect(px, py, charW, charH);
-                textCtx.clip();
-                textCtx.fillText(ch, px, py + charH - 3);
-                textCtx.restore();
-            }
-        }
-    }
-}
-
-// ─── Rendu GFX ───────────────────────────────────────────────────
-// Précalcul : nb de lignes/colonnes canvas par ligne/colonne GFX (Bresenham)
-function makeRowRepeats(canvasH) {
-    return Array.from({length: GFX_H}, (_, i) =>
-        Math.floor(canvasH * (i+1) / GFX_H) - Math.floor(canvasH * i / GFX_H));
-}
-function makeColRepeats(canvasW) {
-    return Array.from({length: GFX_W}, (_, i) =>
-        Math.floor(canvasW * (i+1) / GFX_W) - Math.floor(canvasW * i / GFX_W));
-}
-
-let gfxRowRepeats = null;
-let gfxColRepeats = null;
-let gfxImgData    = null;
-
-function renderGfx(gfxMem, gfxMode) {
-    if (!gfxMode.gra) {
-        if (prevGfxGra) {
-            gfxCanvas.style.display = 'none';
-            prevGfxGra = false;
-        }
-        return;
-    }
-    if (!prevGfxGra) {
-        gfxCanvas.style.display = 'block';
-        prevGfxGra = true;
-    }
-
-    const gros  = gfxMode.gros;
-    const canvasH = textCanvas.height;
-    const canvasW = textCanvas.width;
-
-    // Recompute si taille changée
-    if (!gfxRowRepeats || gfxCanvas.height !== canvasH || gfxCanvas.width !== canvasW) {
-        gfxRowRepeats = makeRowRepeats(canvasH);
-        gfxColRepeats = makeColRepeats(canvasW);
-        gfxImgData    = gfxCtx.createImageData(canvasW, canvasH);
-    }
-
-    // Skip si rien n'a changé
-    if (prevGfxMem && gros === prevGfxGros) {
-        let same = true;
-        for (let i = 0; i < gfxMem.length; i++) {
-            if (gfxMem[i] !== prevGfxMem[i]) { same = false; break; }
-        }
-        if (same) return;
-    }
-    if (!prevGfxMem) prevGfxMem = new Uint8Array(gfxMem.length);
-    prevGfxMem.set(gfxMem);
-    prevGfxGros = gros;
-
-    const data = gfxImgData.data;
-    let canvasRow = 0;
-
-    // Ligne transparente réutilisable (pixels éteints = transparents pour laisser passer le texte)
-    const blackRow = new Uint8Array(canvasW * 4);  // zéros = fully transparent
-
-    for (let gy = 0; gy < GFX_H; gy++) {
-        const base  = (gy >> 1) * GFX_BPR;
-        const isTop = (gy & 1) === 0;
-        const rep   = gfxRowRepeats[gy];
-
-        // Construire la ligne de pixels (canvasW pixels × RGBA) — scaling Bresenham
-        const rowBuf = new Uint8Array(canvasW * 4);
-        let cx = 0;
-        for (let gx = 0; gx < GFX_W; gx++) {
-            const b     = gfxMem[base + (gx >> 2)];
-            const pixel = isTop
-                ? (b >> (7 - (gx & 3))) & 1
-                : (b >> (3 - (gx & 3))) & 1;
-            const on = pixel === 1;
-            const rep = gfxColRepeats[gx];
-            for (let r = 0; r < rep; r++, cx++) {
-                const lit = on && (gros || r === 0);
-                rowBuf[cx*4+1] = lit ? 0xCC : 0;
-                rowBuf[cx*4+3] = lit ? 255 : 0;  // transparent si pixel éteint
-            }
-        }
-
-        for (let r = 0; r < rep; r++, canvasRow++) {
-            // En mode petit : lignes paires = pixels, lignes impaires = noires
-            const row = (gros || r === 0) ? rowBuf : blackRow;
-            data.set(row, canvasRow * canvasW * 4);
-        }
-    }
-
-    gfxCtx.putImageData(gfxImgData, 0, 0);
-}
-
 // ─── Callback onFrame ────────────────────────────────────────────
+// Compose un seul framebuffer 512×320 (pixels élémentaires) à partir des
+// VRAM texte/graphique, de la PROM TMS2716 et des flags vidéo. Le canvas
+// CSS-scaled donne le rendu final (image-rendering: pixelated → net).
 function onFrame(textMem, gfxMem, gfxMode) {
-    renderGfx(gfxMem, gfxMode);
-    renderText(textMem, gfxMode);
+    // Skip si rien n'a changé depuis la dernière frame.
+    const flagsKey = (gfxMode.gra?'1':'0') + (gfxMode.nox?'1':'0') + (gfxMode.gros?'1':'0');
+    if (prevTextMem && prevGfxMem && flagsKey === prevFlagsKey
+        && currentPalette.name === prevPaletteName) {
+        let same = true;
+        for (let i = 0; i < textMem.length; i++) {
+            if (textMem[i] !== prevTextMem[i]) { same = false; break; }
+        }
+        if (same && gfxMode.gra) {
+            for (let i = 0; i < gfxMem.length; i++) {
+                if (gfxMem[i] !== prevGfxMem[i]) { same = false; break; }
+            }
+        }
+        if (same) { syncFnCheckboxes(); return; }
+    }
+
+    renderScreen(screenImgData, textMem, gfxMem, CHARGEN_ROM, gfxMode, currentPalette);
+    textCtx.putImageData(screenImgData, 0, 0);
+
+    if (!prevTextMem) prevTextMem = new Uint8Array(textMem.length);
+    if (!prevGfxMem)  prevGfxMem  = new Uint8Array(gfxMem.length);
+    prevTextMem.set(textMem);
+    prevGfxMem.set(gfxMem);
+    prevFlagsKey    = flagsKey;
+    prevPaletteName = currentPalette.name;
+
     syncFnCheckboxes();
+}
+
+// ─── Géométrie écran (ratio + bordure) ───────────────────────────
+function onAspectChange(val) {
+    const v = parseFloat(val);
+    if (isNaN(v) || v <= 0) return;
+    pixelAspectYX = Math.max(0.5, Math.min(3.0, v));
+    document.getElementById('aspect-input').value = pixelAspectYX;
+    try { localStorage.setItem('aspectYX', String(pixelAspectYX)); } catch (_) {}
+    applyScreenGeometry();
+}
+
+function onBorderChange(val) {
+    const v = parseFloat(val);
+    if (isNaN(v) || v < 0) return;
+    crtBorderPercent = Math.max(0, Math.min(20, v));
+    document.getElementById('border-input').value = crtBorderPercent;
+    try { localStorage.setItem('borderPct', String(crtBorderPercent)); } catch (_) {}
+    applyScreenGeometry();
+}
+
+// ─── Choix de la palette de phosphore ────────────────────────────
+function onPaletteChange(name) {
+    if (!PALETTES[name]) return;
+    currentPalette = PALETTES[name];
+    try { localStorage.setItem('palette', name); } catch (_) {}
+    // Force un re-render au prochain onFrame (invalide le cache)
+    prevPaletteName = '';
+    // Mettre à jour la bordure CRT pour qu'elle suive la palette.
+    applyScreenGeometry();
+    // Si le simulateur n'est pas en train de tourner, repaint l'écran de fond
+    if (!sim || sim.mode !== 'running') {
+        const off = currentPalette.off;
+        textCtx.fillStyle = `rgb(${off[0]},${off[1]},${off[2]})`;
+        textCtx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    }
 }
 
 // ─── Mode label ──────────────────────────────────────────────────
@@ -901,8 +914,6 @@ function enterInteractive() {
 
 function doReset() {
     if (sim) sim.stop();
-    gfxCanvas.style.display = 'none';
-    prevGfxGra = false;
     startSimulation();
     textCanvas.focus();
 }
@@ -1879,14 +1890,10 @@ function startSimulation() {
     };
 
     // Réinitialiser le cache rendu
-    prevCells = Array.from({length: HEIGHT}, () => new Uint8Array(WIDTH).fill(255));
-    prevNox   = null;
-    prevGfxMem  = null;
-    prevGfxGros = null;
-    prevGfxGra  = false;
-    gfxRowRepeats = null;
-    gfxColRepeats = null;
-    gfxImgData    = null;
+    prevTextMem     = null;
+    prevGfxMem      = null;
+    prevFlagsKey    = '';
+    prevPaletteName = '';
     fnKeysKbd   = 0;
     fnKeysMouse = 0;
     altgrPending = false;
@@ -1911,6 +1918,21 @@ initCanvas();
 buildDiskPanel();
 buildFloppyPanel();
 updateFloppyPanel();
+
+// Sélecteur de palette : restaure le choix sauvegardé.
+{
+    const sel = document.getElementById('palette-select');
+    if (sel) {
+        const name = (currentPalette === PALETTES.gray) ? 'gray'
+                   : (currentPalette === PALETTES.amber) ? 'amber'
+                   : 'green';
+        sel.value = name;
+    }
+    const a = document.getElementById('aspect-input');
+    if (a) a.value = pixelAspectYX;
+    const b = document.getElementById('border-input');
+    if (b) b.value = crtBorderPercent;
+}
 
 // Adapter l'interface selon le contexte (Electron / navigateur)
 if (window.electronAPI) {

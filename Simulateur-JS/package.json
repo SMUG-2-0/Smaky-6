@@ -15,7 +15,8 @@
     "productName": "Smaky 6 Simulator",
     "files": [
       "index.html", "main.js", "preload.js",
-      "rom18.js", "z80.js", "disasm.js", "smaky.js", "audio.js"
+      "rom18.js", "chargen_rom.js", "z80.js", "disasm.js", "smaky.js",
+      "screenRenderer.js", "audio.js"
     ],
     "win": {
       "target": "nsis",
