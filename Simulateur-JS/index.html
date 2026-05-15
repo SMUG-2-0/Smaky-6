@@ -97,6 +97,29 @@ body {
 .dp-btn-take:hover { background: #005a2a; color: #44ffaa; }
 .dp-btn:disabled { opacity: 0.25; cursor: default; }
 .dp-fkey { color: #3a5a3a; font-size: 9px; width: 16px; text-align: center; }
+.dp-ejected { color: #886633; background: #221a00; }
+
+/* ─── Panneau floppies ─── */
+#floppy-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 3px 4px;
+    border: 1px solid #333;
+    background: #131313;
+    font-size: 10px;
+    font-family: 'Courier New', monospace;
+    min-width: 148px;
+}
+.fp-cb {
+    display: inline-flex; align-items: center; gap: 2px;
+    cursor: pointer; color: #888; font-size: 9px;
+    user-select: none;
+}
+.fp-cb input { accent-color: #00cc00; cursor: pointer; margin: 0; }
+.fp-cb:hover { color: #ccc; }
+.fp-cb input:disabled { cursor: default; }
+.fp-cb input:disabled + span { opacity: 0.4; }
 
 /* ─── Panneau série ─── */
 #serial-panel {
@@ -334,6 +357,29 @@ Sélectionnez le dossier des images disques, puis cliquez <strong>▶ Démarrer<
 <ul>
   <li><strong>F1–F7</strong> — charger <code>SM6WIN1.DSK</code> … <code>SM6WIN7.DSK</code></li>
   <li><strong>F8</strong> — charger <code>SM6WIN0.DSK</code> (disque principal, chargé au début)</li>
+  <li><strong>Prend</strong> — charger une image <code>.DSK</code> dans cet emplacement</li>
+  <li><strong>⬇</strong> — télécharger l'image actuellement présente</li>
+</ul>
+<hr>
+<h2>Disquettes Micropolis (DX1: et DX2:)</h2>
+<p>Le panneau <em>floppies</em> sous celui des disques durs gère les deux lecteurs de disquettes :</p>
+<ul>
+  <li><strong>SM6FLO0</strong> = <code>DX1:</code>, <strong>SM6FLO1</strong> = <code>DX2:</code></li>
+  <li><strong>Prend</strong> — charger une image <code>.DSK</code> dans le lecteur</li>
+  <li><strong>⬇</strong> — télécharger l'image actuelle</li>
+  <li><strong>Ins.</strong> — case « inséré ». Décocher = floppy retiré du lecteur :
+      le SAMOS verra <code>NO DX1</code> au prochain accès. L'image reste en mémoire,
+      il suffit de re-cocher pour ré-insérer.</li>
+  <li><strong>WP</strong> — Tab Write-Protect. Coché : SAMOS refuse l'écriture
+      (« <em>floppy hors service</em> » / « <em>disque protégé</em> »).</li>
+</ul>
+<hr>
+<h2>Vitesse</h2>
+<ul>
+  <li><strong>100%</strong> — vitesse réelle du Z80 (2,5 MHz)</li>
+  <li><strong>1000%</strong> — mode rapide, pratique pour les assemblages
+      de gros fichiers (SAMOS.SR, SYS.SR, …)</li>
+  <li>Le champ accepte n'importe quelle valeur entre 1 et 9999 %.</li>
 </ul>
 <hr>
 <h2>Mode interactif — commandes</h2>
@@ -386,6 +432,7 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
   </div>
   <div style="display:flex;flex-direction:column;gap:6px">
     <div id="disk-panel"><!-- généré par buildDiskPanel() --></div>
+    <div id="floppy-panel"><!-- généré par buildFloppyPanel() --></div>
     <div id="serial-panel">
       <div class="sp-section">
         <div class="sp-title">$PR — Lecteur de ruban</div>
@@ -415,6 +462,7 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
                  oninput="onSpeedChange(this.value)">
           <span style="color:#666;font-size:10px">%</span>
           <button class="sp-btn" onclick="onSpeedChange(100)" title="Revenir à 100%">100%</button>
+          <button class="sp-btn" onclick="onSpeedChange(1000)" title="Mode rapide (assemblage de gros fichiers)">1000%</button>
         </div>
       </div>
     </div>
@@ -1414,6 +1462,104 @@ function updateDiskPanel() {
     }
 }
 
+// ─── Panneau floppies ─────────────────────────────────────────────
+function buildFloppyPanel() {
+    const panel = document.getElementById('floppy-panel');
+    panel.innerHTML = '';
+    for (let i = 0; i <= 1; i++) {
+        const name = `SM6FLO${i}.DSK`;
+        const base = `SM6FLO${i}`;
+        const row  = document.createElement('div');
+        row.className   = 'dp-row';
+        row.dataset.disk = name;
+        row.innerHTML =
+            `<span class="dp-name">${base}</span>` +
+            `<span class="dp-badge dp-absent" id="fp-badge-${i}">absent</span>` +
+            `<button class="dp-btn dp-btn-take" onclick="floppyTake(${i})" title="Charger un fichier .DSK dans Flo${i}">Prend</button>` +
+            `<button class="dp-btn" id="fp-dl-${i}" onclick="floppyDownload(${i})" title="Télécharger l'image actuelle" disabled>⬇</button>` +
+            `<label class="fp-cb" title="Floppy inséré dans le lecteur"><input type="checkbox" id="fp-ins-${i}" checked onchange="floppyToggleInserted(${i}, this)"><span>Ins.</span></label>` +
+            `<label class="fp-cb" title="Tab Write-Protect"><input type="checkbox" id="fp-wp-${i}" onchange="floppyToggleWP(${i}, this)"><span>WP</span></label>`;
+        panel.appendChild(row);
+    }
+}
+
+function updateFloppyPanel() {
+    for (let i = 0; i <= 1; i++) {
+        const buf      = (i === 0 ? floppyBuffer : floppyBuffer2);
+        const present  = !!buf;
+        const inserted = document.getElementById(`fp-ins-${i}`);
+        const wp       = document.getElementById(`fp-wp-${i}`);
+        const isIns    = inserted ? inserted.checked : true;
+        const badge    = document.getElementById(`fp-badge-${i}`);
+        if (badge) {
+            if (!present) {
+                badge.className = 'dp-badge dp-absent';
+                badge.textContent = 'absent';
+            } else if (!isIns) {
+                badge.className = 'dp-badge dp-ejected';
+                badge.textContent = 'éjecté';
+            } else {
+                badge.className = 'dp-badge dp-present';
+                badge.textContent = 'inséré';
+            }
+        }
+        const dlBtn = document.getElementById(`fp-dl-${i}`);
+        if (dlBtn) dlBtn.disabled = !present;
+        // Inséré désactivé si pas d'image. WP désactivé si pas d'image (mais
+        // pas si éjecté : on peut préparer la TAB avant ré-insertion).
+        if (inserted) inserted.disabled = !present;
+        if (wp) wp.disabled = !present;
+    }
+}
+
+function floppyToggleInserted(idx, cb) {
+    if (sim) sim.setFloppyInserted(idx, cb.checked);
+    updateFloppyPanel();
+}
+
+function floppyToggleWP(idx, cb) {
+    if (sim) sim.setFloppyWriteProtect(idx, cb.checked);
+    updateFloppyPanel();
+}
+
+function floppyTake(idx) {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.DSK,.dsk';
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inp.onchange = () => {
+        document.body.removeChild(inp);
+        if (!inp.files.length) return;
+        const fname = inp.files[0].name.toUpperCase();
+        readFile(inp.files[0]).then(buf => {
+            const slotName = `SM6FLO${idx}.dsk`;
+            if (idx === 0) floppyBuffer  = buf;
+            else           floppyBuffer2 = buf;
+            diskFiles[`SM6FLO${idx}.DSK`] = buf;
+            if (sim) sim.loadFloppy(idx, buf, fname || slotName);
+            // Réinitialise les flags utilisateur sur insertion d'une nouvelle image
+            const insCb = document.getElementById(`fp-ins-${idx}`);
+            if (insCb) { insCb.checked = true; if (sim) sim.setFloppyInserted(idx, true); }
+            updateFloppyPanel();
+            textCanvas.focus();
+        });
+    };
+    inp.click();
+}
+
+function floppyDownload(idx) {
+    const buf = (idx === 0 ? floppyBuffer : floppyBuffer2);
+    if (!buf) return;
+    const fname = `SM6FLO${idx}.DSK`;
+    const blob  = new Blob([buf], { type: 'application/octet-stream' });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    a.href = url;  a.download = fname;  a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    textCanvas.focus();
+}
+
 // Lecture d'un File en ArrayBuffer
 function readFile(file) {
     return new Promise(function(res, rej) {
@@ -1477,6 +1623,7 @@ async function loadFromDirHandle(dirHandle) {
             sim.loadFloppy(0, floppyBuffer,  'SM6FLO0.dsk');
             sim.loadFloppy(1, floppyBuffer2, 'SM6FLO1.dsk');
         }
+        updateFloppyPanel();
         return true;
     } else {
         status.textContent = 'Aucun fichier SM6WIN*.DSK trouvé dans ce dossier.';
@@ -1556,6 +1703,7 @@ function onDiskDirSelected(input) {
                     }
                     availableDisks = new Set(Object.keys(diskFiles));
                     updateDiskPanel();
+                    updateFloppyPanel();
                 }
             }).catch(function(e) { status.textContent = 'Erreur : ' + e.message; });
         }
@@ -1607,6 +1755,7 @@ async function loadFloppyElectron(index, name) {
     if (index === 0) floppyBuffer  = buf;
     else             floppyBuffer2 = buf;
     if (sim) sim.loadFloppy(index, buf, name);
+    updateFloppyPanel();
     return buf;
 }
 
@@ -1700,10 +1849,18 @@ function startSimulation() {
     if (diskBuffer) sim.loadDisk(diskBuffer);
     if (floppyBuffer)  sim.loadFloppy(0, floppyBuffer,  'SM6FLO0.dsk');
     if (floppyBuffer2) sim.loadFloppy(1, floppyBuffer2, 'SM6FLO1.dsk');
+    // Réapplique les flags Inséré / Write-Protect saisis dans l'UI.
+    for (let i = 0; i <= 1; i++) {
+        const insCb = document.getElementById(`fp-ins-${i}`);
+        const wpCb  = document.getElementById(`fp-wp-${i}`);
+        if (insCb) sim.setFloppyInserted(i, insCb.checked);
+        if (wpCb)  sim.setFloppyWriteProtect(i, wpCb.checked);
+    }
 
     sim.diskName  = 'SM6WIN0.DSK';
     sim.onPpByte  = () => updatePpStatus();
     updateDiskPanel();
+    updateFloppyPanel();
     sim.onFrame   = onFrame;
     // Haut-parleur : ce démarrage est dans un handler de clic, donc
     // on peut débloquer l'AudioContext sans risque (politique autoplay).
@@ -1752,6 +1909,8 @@ function startSimulation() {
 romBuffer = _decodeROM();   // ROM embarquée, toujours disponible
 initCanvas();
 buildDiskPanel();
+buildFloppyPanel();
+updateFloppyPanel();
 
 // Adapter l'interface selon le contexte (Electron / navigateur)
 if (window.electronAPI) {

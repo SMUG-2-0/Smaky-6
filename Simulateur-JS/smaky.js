@@ -168,6 +168,9 @@ class Smaky {
         // $1B : données read (IN)
         this._fdcImages   = [null, null];  // ArrayBuffer DX1: DX2:
         this._fdcNames    = [null, null];  // noms des images
+        // Flags utilisateur par lecteur (contrôlés via UI)
+        this._fdcInserted = [true, true];  // false = drive vu comme vide même si image chargée
+        this._fdcWriteProtect = [false, false]; // true = bit 7 du statut $19 = 0 (TAB WP)
         this._fdcControl  = 0;             // dernier OUT $19
         this._fdcDrive    = -1;            // drive courant (0=FD1, 1=FD2, -1=aucun)
         this._fdcLogCount = 0;
@@ -298,6 +301,19 @@ class Smaky {
             this._fdcNames[index]  = null;
             console.log(`FDC: loadFloppy(${index}, ${name}) — buffer null, drive éjecté`);
         }
+    }
+
+    /** Bascule l'état "inséré" d'un floppy sans détruire le buffer.
+     *  Si false, le FDC répondra "absent" aux prochaines requêtes Smaky. */
+    setFloppyInserted(index, inserted) {
+        if (index < 0 || index > 1) return;
+        this._fdcInserted[index] = !!inserted;
+    }
+
+    /** Bascule la TAB Write-Protect d'un floppy. */
+    setFloppyWriteProtect(index, wp) {
+        if (index < 0 || index > 1) return;
+        this._fdcWriteProtect[index] = !!wp;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -952,7 +968,11 @@ class Smaky {
             //   bit 4 = 0 → pas busy interne (sinon SAMOS attend dans L_2183)
             //   bits 0-3 = code de cause IT (utilisé par L_2169 / L_223C)
             const drive = this._fdcDrive;
-            const ready = drive >= 0 && this._fdcImages[drive];
+            const ready = drive >= 0 && this._fdcImages[drive] && this._fdcInserted[drive];
+            const wp    = ready && this._fdcWriteProtect[drive];
+            // Statut de base : bit 7 = 1 si non protégé, 0 si WP. Bit 6 = 0
+            // si prêt. Drive absent → 0xFF (bit 6 et 7 à 1).
+            const baseStatus = ready ? (wp ? 0x00 : 0x80) : 0xFF;
             if (this._fdcXferActive) {
                 // Read en cours : E mémorisé au moment du OUT $19 ← cmd_read.
                 val = 0x80 | this._fdcXferE;
@@ -966,7 +986,7 @@ class Smaky {
                     // Plus rien à transférer — sortie du mode.
                     this._fdcWritePending   = false;
                     this._fdcReadVerifyMode = false;
-                    val = ready ? 0x80 : 0xFF;
+                    val = baseStatus;
                 } else {
                     let E = 0;
                     for (let i = 0; i < 16; i++) {
@@ -976,10 +996,7 @@ class Smaky {
                     val = 0x80 | E;
                 }
             } else {
-                // Bit 7 = 1 → drive NON protégé en écriture (= TAB WP non
-                // détecté). Si bit 7 = 0, SAMOS retourne "disque protégé".
-                // Bit 6 = 0 → drive prêt. Autres bits à 0.
-                val = ready ? 0x80 : 0xFF;
+                val = baseStatus;
             }
         } else if (p === 0x18) {
             // WRBYT en lecture = DRQ pour write. SAMOS fait TEST $(C) avec
