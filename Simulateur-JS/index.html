@@ -399,6 +399,12 @@ Combinaison alpha + graphique en OR booléen, comme sur le hardware.</p>
       caractéristique des CRT (les écrans plats vont jusqu'au bord).
       En % de la largeur affichée. Par défaut <code>5%</code>. La bordure prend
       la teinte douce du phosphore au repos.</li>
+  <li><strong>Boîtier 3D</strong> — bascule vers une vue 3D du Smaky 6 dans
+      son boîtier rectangulaire ; l'écran cathodique reste vivant en texture
+      sur la face avant (décalée à droite, comme sur le Smaky 6 dont les deux
+      lecteurs Micropolis s'empilaient à gauche).
+      <strong>Souris</strong> = orbiter, <strong>molette</strong> = zoom,
+      <strong>clic-droit</strong> = panoramique.</li>
 </ul>
 <hr>
 <h2>Mode interactif — commandes</h2>
@@ -449,6 +455,7 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
       <canvas id="gfx-canvas"></canvas>
       <canvas id="text-canvas" tabindex="0"></canvas>
   </div>
+  <div id="three-container" style="display:none;width:800px;height:600px;background:#1a1a1a"></div>
   <div style="display:flex;flex-direction:column;gap:6px">
     <div id="disk-panel"><!-- généré par buildDiskPanel() --></div>
     <div id="floppy-panel"><!-- généré par buildFloppyPanel() --></div>
@@ -495,7 +502,7 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
           </select>
         </div>
       </div>
-      <div class="sp-section" style="margin-bottom:0">
+      <div class="sp-section">
         <div class="sp-title">Géométrie CRT</div>
         <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888">
           <label title="Ratio Y/X du pixel élémentaire (1=carré, 1.6=CRT 4:3)">
@@ -506,7 +513,7 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
           </label>
         </div>
         <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888;margin-top:3px">
-          <label title="Bordure noire autour de l'écran (% de la largeur)">
+          <label title="Bordure non-utilisée autour de l'écran (% de la largeur)">
             Bordure
             <input type="number" id="border-input" value="5" min="0" max="20" step="1"
                    oninput="onBorderChange(this.value)"
@@ -514,6 +521,14 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
             <span style="color:#666">%</span>
           </label>
         </div>
+      </div>
+      <div class="sp-section" style="margin-bottom:0">
+        <div class="sp-title">Vue</div>
+        <label class="fp-cb" style="font-size:10px"
+               title="Affiche le boîtier en 3D — souris pour orbiter, molette pour zoomer">
+          <input type="checkbox" id="view3d-cb" onchange="onToggle3D(this.checked)">
+          <span>Boîtier 3D</span>
+        </label>
       </div>
     </div>
   </div>
@@ -575,6 +590,9 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
 <script src="disasm.js"></script>
 <script src="smaky.js"></script>
 <script src="screenRenderer.js"></script>
+<script src="three.min.js"></script>
+<script src="OrbitControls.js"></script>
+<script src="three3d.js"></script>
 <script src="audio.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
@@ -747,6 +765,8 @@ function onFrame(textMem, gfxMem, gfxMode) {
 
     renderScreen(screenImgData, textMem, gfxMem, CHARGEN_ROM, gfxMode, currentPalette);
     textCtx.putImageData(screenImgData, 0, 0);
+    // Notifie la vue 3D que la texture (= textCanvas) doit être ré-uploadée.
+    if (typeof update3DFrame === 'function') update3DFrame();
 
     if (!prevTextMem) prevTextMem = new Uint8Array(textMem.length);
     if (!prevGfxMem)  prevGfxMem  = new Uint8Array(gfxMem.length);
@@ -756,6 +776,45 @@ function onFrame(textMem, gfxMem, gfxMode) {
     prevPaletteName = currentPalette.name;
 
     syncFnCheckboxes();
+}
+
+// ─── Bascule vue 2D / 3D ─────────────────────────────────────────
+let _3DInitialized = false;
+function onToggle3D(on) {
+    const wrap = document.getElementById('screen-wrap');
+    const cont = document.getElementById('three-container');
+    if (!wrap || !cont) return;
+    if (on) {
+        // IMPORTANT : afficher le container AVANT init3D, sinon
+        // clientWidth/Height = 0 et le renderer Three a un canvas vide.
+        wrap.style.display = 'none';
+        cont.style.display = '';
+        if (!_3DInitialized) {
+            init3D(cont, textCanvas);
+            _3DInitialized = true;
+            // Bind aussi le clavier sur le canvas WebGL : sans ça,
+            // textCanvas étant caché, plus aucune frappe n'arrive au Smaky.
+            const c3d = (typeof get3DCanvas === 'function') ? get3DCanvas() : null;
+            if (c3d) {
+                c3d.tabIndex = 0;
+                c3d.style.outline = 'none';   // pas de halo de focus
+                c3d.addEventListener('keydown', smakyKeyDown);
+                c3d.addEventListener('keyup',   smakyKeyUp);
+            }
+        }
+        // Synchronise la bordure et le fond phosphore avec les réglages 2D.
+        if (typeof setScreenBorder === 'function') setScreenBorder(crtBorderPercent);
+        if (typeof setScreenBgColor === 'function') setScreenBgColor(currentPalette.off);
+        start3D();
+        // Donner le focus au canvas WebGL pour que les frappes y arrivent.
+        const c3d = (typeof get3DCanvas === 'function') ? get3DCanvas() : null;
+        if (c3d) c3d.focus();
+    } else {
+        stop3D();
+        cont.style.display = 'none';
+        wrap.style.display = '';
+        textCanvas.focus();
+    }
 }
 
 // ─── Géométrie écran (ratio + bordure) ───────────────────────────
@@ -775,6 +834,7 @@ function onBorderChange(val) {
     document.getElementById('border-input').value = crtBorderPercent;
     try { localStorage.setItem('borderPct', String(crtBorderPercent)); } catch (_) {}
     applyScreenGeometry();
+    if (typeof setScreenBorder === 'function') setScreenBorder(crtBorderPercent);
 }
 
 // ─── Choix de la palette de phosphore ────────────────────────────
@@ -786,6 +846,7 @@ function onPaletteChange(name) {
     prevPaletteName = '';
     // Mettre à jour la bordure CRT pour qu'elle suive la palette.
     applyScreenGeometry();
+    if (typeof setScreenBgColor === 'function') setScreenBgColor(currentPalette.off);
     // Si le simulateur n'est pas en train de tourner, repaint l'écran de fond
     if (!sim || sim.mode !== 'running') {
         const off = currentPalette.off;
@@ -1187,7 +1248,7 @@ const DISK_IMAGES = {
     'F7':'SM6WIN7.DSK','F8':'SM6WIN0.DSK',
 };
 
-textCanvas.addEventListener('keydown', e => {
+const smakyKeyDown = e => {
     if (!sim) return;
 
     // Touches modificatrices / fn_keys (détection par e.code)
@@ -1281,9 +1342,10 @@ textCanvas.addEventListener('keydown', e => {
         e.stopPropagation();
         return;
     }
-});
+};
+textCanvas.addEventListener('keydown', smakyKeyDown);
 
-textCanvas.addEventListener('keyup', e => {
+const smakyKeyUp = e => {
     if (!sim) return;
     if (e.code in CODE_FNKEYS) {
         if (e.code === 'AltRight') altgrPending = false;
@@ -1294,7 +1356,8 @@ textCanvas.addEventListener('keyup', e => {
         syncFnCheckboxes();
         e.preventDefault();
     }
-});
+};
+textCanvas.addEventListener('keyup', smakyKeyUp);
 
 // ─── Commandes ───────────────────────────────────────────────────
 const CMD_LETTERS = new Set(['S','X','V','W','P','R','Q']);

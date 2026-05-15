@@ -171,6 +171,9 @@ class Smaky {
         // Flags utilisateur par lecteur (contrôlés via UI)
         this._fdcInserted = [true, true];  // false = drive vu comme vide même si image chargée
         this._fdcWriteProtect = [false, false]; // true = bit 7 du statut $19 = 0 (TAB WP)
+        // Timestamps des derniers accès périphériques (pour les LEDs 3D).
+        this._lastFloppyAccessMs = 0;
+        this._lastHDAccessMs     = 0;
         this._fdcControl  = 0;             // dernier OUT $19
         this._fdcDrive    = -1;            // drive courant (0=FD1, 1=FD2, -1=aucun)
         this._fdcLogCount = 0;
@@ -822,6 +825,7 @@ class Smaky {
     }
 
     _wd1002In(p) {
+        this._lastHDAccessMs = performance.now();
         if (p === 0x20) {
             if (this._wdMode === 'read') {
                 const v = this._wdDataIdx < this._wdData.length
@@ -843,6 +847,7 @@ class Smaky {
     }
 
     _wd1002Out(p, v) {
+        this._lastHDAccessMs = performance.now();
         if (p === 0x20) {
             if (this._wdMode === 'write') {
                 if (this._wdDataIdx < this._wdData.length) {
@@ -960,6 +965,7 @@ class Smaky {
     }
 
     _fdcIn(p) {
+        this._lastFloppyAccessMs = performance.now();
         this._fdcCheckHandoff();
         let val;
         if (p === 0x19) {
@@ -1049,6 +1055,7 @@ class Smaky {
     }
 
     _fdcOut(p, v) {
+        this._lastFloppyAccessMs = performance.now();
         this._fdcCheckHandoff();
         const name = ['$18','$19','$1A','$1B'][p - 0x18];
         const vh   = v.toString(16).toUpperCase().padStart(2,'0');

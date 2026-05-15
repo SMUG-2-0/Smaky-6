@@ -16,7 +16,8 @@
     "files": [
       "index.html", "main.js", "preload.js",
       "rom18.js", "chargen_rom.js", "z80.js", "disasm.js", "smaky.js",
-      "screenRenderer.js", "audio.js"
+      "screenRenderer.js", "three.min.js", "OrbitControls.js", "three3d.js",
+      "audio.js"
     ],
     "win": {
       "target": "nsis",
