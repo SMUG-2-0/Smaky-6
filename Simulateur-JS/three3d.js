@@ -45,9 +45,70 @@ const PARAMS = {
     DRIVE_BOTTOM_TYPE: 'hd',
 };
 
+// ─── Description en tôles (mm → unités scène) ────────────────────
+// Conversion : 1 unité scène = 100 mm.
+const MM = 1 / 100;
+
+// Épaisseur uniforme de toutes les tôles du Smaky 6 (mm).
+// Modifier ici pour ajuster globalement.
+const SHEET_THICKNESS_MM = 1.5;
+
+// Tôle « fond du capot » : pièce plate trapézoïdale, posée sur le pan D
+// arrière des flancs. Base au bord arrière du fond (suit les 2 segments
+// F = portion latérale arrière), rétrécit en montant vers le sommet du V.
+const SHEET_BACK = {
+    TILT_BACK_DEG: 5,    // inclinaison vers l'arrière (depuis vertical)
+    TOP_WIDTH:     400,  // largeur en haut — estimation
+};
+
+// Tôle « écran-disques » : pièce plate trapézoïdale, monte presque
+// verticalement depuis le sommet du V (fin de la tôle clavier), un peu
+// penchée vers l'arrière. Porte 2 découpes : écran à droite, baie disques
+// à gauche. Toutes les valeurs en mm.
+const SHEET_SCREEN_DISK = {
+    HEIGHT:         200,    // hauteur de la pièce le long de la pente
+    TILT_BACK_DEG:  10,     // inclinaison vers l'arrière (par rapport à vertical)
+
+    // Découpe écran (rectangulaire) — coordonnées 2D dans le plan local
+    // (X = largeur, Y = position le long de la pente, Y = 0 au bas).
+    SCREEN_W:        180,
+    SCREEN_H:        135,
+    SCREEN_CENTER_X: +110,
+    SCREEN_CENTER_Y: +100,
+
+    // Découpe disques (rectangulaire, commune aux 2 emplacements).
+    DISKS_W:         180,
+    DISKS_H:         135,
+    DISKS_CENTER_X:  -110,
+    DISKS_CENTER_Y:  +100,
+};
+
+// Tôle « clavier » : 2 surfaces pliées.
+//   - face verticale en bas (touche le bord avant du fond, monte sur E)
+//   - face inclinée qui suit le pan avant des flancs (longueur C ≈ 190 mm)
+const SHEET_KEYBOARD = {
+    FACE_VERT_H: 50,   // E : hauteur de la face verticale (mm)
+    // La longueur de la face inclinée et son angle sont déduits de la
+    // géométrie du pan avant des flancs (TILT_FRONT_PROJ + TILT_PEAK_H).
+};
+
+// Tôle « du fond » : forme U évasé avec sommet en V asymétrique.
+// Toutes les valeurs en mm. Cotes du croquis-smaky6-fond.jpeg :
+//   A = B = 450, C = 190, D = 410, G = 600.
+// F (hauteur façade plate) et la hauteur du sommet : à mesurer.
+const SHEET_BOTTOM = {
+    W:                450,   // A : largeur du fond plat (gauche-droite)
+    D:                600,   // G : profondeur du fond plat (avant-arrière)
+    FLANK_TILT_DEG:   20,    // évasement des flancs (70° du fond = 20° du vertical)
+    FACADE_H:         50,    // hauteur de la façade plate (= FACE_VERT_H pour emboîtement)
+    TILT_FRONT_PROJ:  190,   // C : projection horiz. du pan avant (côté clavier)
+    TILT_BACK_PROJ:   410,   // D : projection horiz. du pan arrière (côté capot)
+    TILT_PEAK_H:      60,    // hauteur du sommet du toit au-dessus de la façade (estimation)
+};
+
 // ─── Couleurs (prélevées sur smaky-6.jpg) ────────────────────────
 const COLOR_BEIGE   = 0xbea888;
-const COLOR_BRUN    = 0x372d28;
+const COLOR_BRUN    = 0x1f160f;   // brun très foncé (échantillon photo trop clair sous éclairage)
 const COLOR_BEZEL   = 0x202020;   // cadre du moniteur, presque noir
 const COLOR_DRIVE   = 0x141414;   // boîtier des lecteurs (noir mat)
 const COLOR_SLOT    = 0x050505;   // fente d'insertion disquette
@@ -74,6 +135,9 @@ function init3D(container, sourceCanvas) {
     _renderer = new THREE.WebGLRenderer({ antialias: true });
     _renderer.setPixelRatio(window.devicePixelRatio);
     _renderer.setSize(container.clientWidth, container.clientHeight);
+    // Espace de couleur sRGB en sortie : sans ça, les couleurs sombres
+    // (ex. brun #372d28) sortent délavées (apparaissent beige clair).
+    _renderer.outputEncoding = THREE.sRGBEncoding;
     container.appendChild(_renderer.domElement);
 
     _scene = new THREE.Scene();
@@ -83,13 +147,17 @@ function init3D(container, sourceCanvas) {
         35, container.clientWidth / container.clientHeight, 0.1, 100);
     _camera.position.set(0, 2.2, 8.5);
 
-    // Éclairage : ambiante douce + lumière clé + remplissage léger.
-    _scene.add(new THREE.AmbientLight(0xffffff, 0.45));
-    const key = new THREE.DirectionalLight(0xffffff, 0.85);
+    // Éclairage très diffus pour minimiser les écarts de teinte selon
+    // l'orientation des faces (les tôles peintes restent perçues uniformes
+    // partout sur l'objet réel) :
+    //   - ambient dominante (75 %)
+    //   - key et fill modérées et symétriques entre gauche et droite
+    _scene.add(new THREE.AmbientLight(0xffffff, 0.75));
+    const key = new THREE.DirectionalLight(0xffffff, 0.40);
     key.position.set(4, 6, 5);
     _scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff, 0.25);
-    fill.position.set(-3, 2, 4);
+    const fill = new THREE.DirectionalLight(0xffffff, 0.40);
+    fill.position.set(-4, 6, 5);   // miroir gauche/droite de la key
     _scene.add(fill);
 
     _buildHousing(sourceCanvas);
@@ -106,63 +174,712 @@ function init3D(container, sourceCanvas) {
 }
 
 // ─── Construction du boîtier ─────────────────────────────────────
+// Refonte en cours : passage du « modèle volumes pleins » (capot + base
+// + plinthe) au « modèle tôles » fidèle à la fabrication réelle. Les
+// anciens éléments sont commentés pendant qu'on monte les tôles une à une.
 function _buildHousing(sourceCanvas) {
-    const P = PARAMS;
-    const beigeMat = new THREE.MeshStandardMaterial({
-        color: COLOR_BEIGE, roughness: 0.78, metalness: 0.04,
-    });
-    const brunMat = new THREE.MeshStandardMaterial({
-        color: COLOR_BRUN, roughness: 0.85, metalness: 0.0,
-    });
+    _buildBottomSheet();
+    _buildKeyboardSheet();
+    _buildKeyboard();
+    _buildScreenDiskSheet();
+    _buildBackSheet();
+    _buildTopCapotSheet();
+    _buildScreenAssembly(sourceCanvas);
+    _buildDrives();
+    _buildDimensionLabels();
+}
+
+// ─── Baie disques (dans la découpe DISKS de la tôle écran-disques) ──
+// Floppy en haut, disque dur en bas (paramétrable plus tard).
+function _buildDrives() {
+    const SD  = SHEET_SCREEN_DISK;
+    const SB  = SHEET_BOTTOM;
+    const SK  = SHEET_KEYBOARD;
+    const E   = SK.FACE_VERT_H * MM;
+    const Hp  = SB.TILT_PEAK_H * MM;
+    const Tp  = SB.TILT_FRONT_PROJ * MM;
+    const D_2 = SB.D * MM / 2;
+
+    const tilt_sd  = SD.TILT_BACK_DEG * Math.PI / 180;
+    const Y_bot_sd = E + Hp;
+    const Z_bot_sd = D_2 - Tp;
+
+    // Group orienté comme la tôle écran-disques.
+    const bay = new THREE.Group();
+    bay.position.set(0, Y_bot_sd, Z_bot_sd);
+    bay.rotation.x = -tilt_sd;
+    _scene.add(bay);
+
+    // Centre + dimensions de la baie (= découpe DISKS sur la tôle).
+    const cx  = SD.DISKS_CENTER_X * MM;
+    const cy  = SD.DISKS_CENTER_Y * MM;
+    const bw  = SD.DISKS_W * MM;
+    const bh  = SD.DISKS_H * MM;
+    const gap = 4 * MM;
+    const driveH = (bh - gap) / 2;
+
+    // Plaque noire de fond couvrant toute la baie.
+    const backDepth = 5 * MM;
+    const back = new THREE.Mesh(
+        new THREE.BoxGeometry(bw, bh, backDepth),
+        new THREE.MeshStandardMaterial({
+            color: COLOR_DRIVE, roughness: 0.7, metalness: 0.05, flatShading: true,
+        }),
+    );
+    back.position.set(cx, cy, backDepth / 2);
+    bay.add(back);
+
+    // 2 emplacements (haut = floppy, bas = HD), légèrement en relief.
+    const slotZ = backDepth + 1 * MM;
+    const yTop  = cy + (driveH + gap) / 2;
+    const yBot  = cy - (driveH + gap) / 2;
+
+    const topSlot = new THREE.Group();
+    topSlot.position.set(cx, yTop, slotZ);
+    bay.add(topSlot);
+    _buildDriveFloppy(topSlot, bw, driveH);
+
+    const botSlot = new THREE.Group();
+    botSlot.position.set(cx, yBot, slotZ);
+    bay.add(botSlot);
+    _buildDriveHD(botSlot, bw, driveH);
+}
+
+// ─── Cadre + écran texturé sur la tôle écran-disques ────────────
+// Cadre noir creux (4 rectangles haut/bas/gauche/droite) qui dépasse vers
+// l'extérieur de la tôle écran-disques, écran texturé en retrait.
+function _buildScreenAssembly(sourceCanvas) {
+    const SD  = SHEET_SCREEN_DISK;
+    const SB  = SHEET_BOTTOM;
+    const SK  = SHEET_KEYBOARD;
+    const E   = SK.FACE_VERT_H * MM;
+    const Hp  = SB.TILT_PEAK_H * MM;
+    const Tp  = SB.TILT_FRONT_PROJ * MM;
+    const D_2 = SB.D * MM / 2;
+
+    const tilt_sd  = SD.TILT_BACK_DEG * Math.PI / 180;
+    const Y_bot_sd = E + Hp;
+    const Z_bot_sd = D_2 - Tp;
+
+    // Group orienté comme la tôle écran-disques.
+    const group = new THREE.Group();
+    group.position.set(0, Y_bot_sd, Z_bot_sd);
+    group.rotation.x = -tilt_sd;
+
+    // Centre de la découpe écran (en local du shape 2D = local du group).
+    const cx = SD.SCREEN_CENTER_X * MM;
+    const cy = SD.SCREEN_CENTER_Y * MM;
+    const sw = SD.SCREEN_W * MM;
+    const sh = SD.SCREEN_H * MM;
+
+    const bw = 9 * MM;          // largeur du bezel autour de l'écran
+    const bezelDepth = 7 * MM;  // épaisseur du bezel en relief
+
     const bezelMat = new THREE.MeshStandardMaterial({
-        color: COLOR_BEZEL, roughness: 0.55, metalness: 0.0,
+        color: 0x202020, roughness: 0.55, metalness: 0.0, flatShading: true,
     });
 
-    // Sol = Y=0. On empile : socle, base, capot.
-    let y = 0;
+    // Cadre creux : 4 rectangles posés autour de la zone d'écran.
+    const bezelGeoH = new THREE.BoxGeometry(sw + 2 * bw, bw, bezelDepth);
+    const bezelGeoV = new THREE.BoxGeometry(bw, sh, bezelDepth);
+    function addBezel(x, y, geo) {
+        const m = new THREE.Mesh(geo, bezelMat);
+        m.position.set(x, y, bezelDepth / 2);
+        group.add(m);
+    }
+    addBezel(cx,             cy + sh / 2 + bw / 2, bezelGeoH);   // haut
+    addBezel(cx,             cy - sh / 2 - bw / 2, bezelGeoH);   // bas
+    addBezel(cx - sw / 2 - bw / 2, cy,             bezelGeoV);   // gauche
+    addBezel(cx + sw / 2 + bw / 2, cy,             bezelGeoV);   // droite
 
-    // Socle brun foncé (déborde de PLINTH_OVERHANG sur les 4 côtés).
-    const plinthW = Math.max(P.BASE_W, P.CAPOT_W) + 2 * P.PLINTH_OVERHANG;
-    const plinthD = P.BASE_D + 2 * P.PLINTH_OVERHANG;
-    const plinth = new THREE.Mesh(
-        new THREE.BoxGeometry(plinthW, P.PLINTH_HEIGHT, plinthD), brunMat);
-    plinth.position.y = y + P.PLINTH_HEIGHT / 2;
-    _scene.add(plinth);
-    y += P.PLINTH_HEIGHT;
+    // Pas de fond phosphore : c'est la texture du textCanvas qui s'occupe
+    // de toute la zone (bordure CRT + image). Évite la double couleur verte.
+    _bgMat = null;
 
-    // Base beige (zone clavier).
-    const base = new THREE.Mesh(
-        new THREE.BoxGeometry(P.BASE_W, P.BASE_H, P.BASE_D), beigeMat);
-    base.position.y = y + P.BASE_H / 2;
-    _scene.add(base);
-    y += P.BASE_H;
+    // Écran texturé, en retrait dans le cadre creux.
+    _screenTex = new THREE.CanvasTexture(sourceCanvas);
+    _screenTex.magFilter = THREE.NearestFilter;
+    _screenTex.minFilter = THREE.LinearFilter;
+    _screenTex.generateMipmaps = false;
+    const screenMat = new THREE.MeshBasicMaterial({ map: _screenTex });
+    _screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), screenMat);
+    _screenMesh.position.set(cx, cy, bezelDepth / 2 - 1.5 * MM);
+    group.add(_screenMesh);
 
-    // Capot trapézoïdal : assis sur la base, alignement à l'arrière.
-    // On fabrique une BoxGeometry et on recule en Z les vertices du sommet
-    // (Y > 0 local) pour créer la face avant inclinée.
-    const capotGeo = new THREE.BoxGeometry(P.CAPOT_W, P.CAPOT_H, P.CAPOT_D);
-    const pos = capotGeo.attributes.position;
-    for (let i = 0; i < pos.count; i++) {
-        if (pos.getY(i) > 0 && pos.getZ(i) > 0) {
-            pos.setZ(i, pos.getZ(i) - P.CAPOT_TILT);
+    _scene.add(group);
+}
+
+// ─── Tôle supérieure du capot ───────────────────────────────────
+// Plate trapézoïdale qui ferme le sommet du Smaky en reliant le bord haut
+// de la tôle écran-disques (avant, plus haut, plus large) à celui de la
+// tôle arrière (arrière, plus bas, plus étroit). Ses 2 bords latéraux
+// suivent une pente parallèle aux segments D des flancs.
+function _buildTopCapotSheet() {
+    const SB  = SHEET_BOTTOM;
+    const SBK = SHEET_BACK;
+    const SD  = SHEET_SCREEN_DISK;
+    const SK  = SHEET_KEYBOARD;
+    const W   = SB.W * MM;
+    const E   = SK.FACE_VERT_H * MM;
+    const Hp  = SB.TILT_PEAK_H * MM;
+    const Tp  = SB.TILT_FRONT_PROJ * MM;
+    const D_2 = SB.D * MM / 2;
+    const F_h = SB.FACADE_H * MM;
+    const tan_a      = Math.tan(SB.FLANK_TILT_DEG * Math.PI / 180);
+    const tan_shrink = Math.tan(10 * Math.PI / 180);
+
+    const tilt_sd = SD.TILT_BACK_DEG * Math.PI / 180;
+    const tilt_bk = SBK.TILT_BACK_DEG * Math.PI / 180;
+    const Hp_p    = SD.HEIGHT * MM;
+
+    // Sommet de la tôle écran-disques (= bord avant de la tôle supérieure).
+    const Y_top_sd = E + Hp + Hp_p * Math.cos(tilt_sd);
+    const Z_top_sd = (D_2 - Tp) - Hp_p * Math.sin(tilt_sd);
+    const W_bot_sd = W + 2 * (E + Hp) * tan_a;
+    const W_top_sd = W_bot_sd - 2 * Hp_p * Math.cos(tilt_sd) * tan_shrink;
+
+    // Sommet de la tôle arrière section 2 (= bord arrière de la tôle supérieure).
+    const W_inflex   = W + 2 * F_h * tan_a;
+    const Y_top_bk   = F_h + Hp_p * Math.cos(tilt_bk);
+    const Z_top_bk   = -D_2 - Hp_p * Math.sin(tilt_bk);
+    const W_top_bk   = W_inflex - 2 * Hp_p * tan_shrink;
+
+    const beigeMat = new THREE.MeshStandardMaterial({
+        color: COLOR_BEIGE, roughness: 1.0, metalness: 0.0, flatShading: true,
+        side: THREE.DoubleSide,
+    });
+
+    // ── Face supérieure (trapèze plat) ──
+    const v = new Float32Array([
+        -W_top_sd / 2, Y_top_sd, Z_top_sd,    // 0 AvG
+        +W_top_sd / 2, Y_top_sd, Z_top_sd,    // 1 AvD
+        +W_top_bk / 2, Y_top_bk, Z_top_bk,    // 2 ArD
+        -W_top_bk / 2, Y_top_bk, Z_top_bk,    // 3 ArG
+    ]);
+    const idx = [
+        0, 3, 2,
+        0, 2, 1,
+    ];
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(v, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    _scene.add(new THREE.Mesh(geo, beigeMat));
+
+    // ── 2 rabats latéraux qui descendent sur les segments D des flancs ──
+    // Bord haut : suit le bord latéral de la tôle supérieure (entre AvG et ArG)
+    // Bord avant : suit le bord latéral de la tôle écran-disques (jusqu'au sommet V)
+    // Bord arrière : suit le bord latéral de la tôle arrière (jusqu'au coin V4)
+    // Bord bas : exactement le segment D (du sommet V à V4 du flanc)
+    const W_2 = W / 2;
+    function makeRabat(side) {
+        // V3 (sommet du V) côté `side`
+        const V3_x = side * (W_2 + (E + Hp) * tan_a);
+        const V3_y = E + Hp;
+        const V3_z = D_2 - Tp;
+        // V4 (arrière-haut façade) côté `side`
+        const V4_x = side * (W_2 + F_h * tan_a);
+        const V4_y = F_h;
+        const V4_z = -D_2;
+        // 4 sommets du rabat (CCW vu depuis l'extérieur)
+        const verts = new Float32Array([
+            side * W_top_sd / 2, Y_top_sd, Z_top_sd,    // 0 haut-avant
+            side * W_top_bk / 2, Y_top_bk, Z_top_bk,    // 1 haut-arrière
+            V4_x, V4_y, V4_z,                            // 2 bas-arrière (V4)
+            V3_x, V3_y, V3_z,                            // 3 bas-avant (V3)
+        ]);
+        const idx = [0, 1, 2,  0, 2, 3];
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+        g.setIndex(idx);
+        g.computeVertexNormals();
+        return new THREE.Mesh(g, beigeMat);
+    }
+    _scene.add(makeRabat(-1));   // rabat gauche
+    _scene.add(makeRabat(+1));   // rabat droite
+}
+
+// ─── Tôle fond du capot ──────────────────────────────────────────
+// Pièce plate trapézoïdale couvrant la pente arrière (pan D) du Smaky.
+// Base au bord arrière du fond (largeur W + 2·F), monte vers le sommet
+// du V en rétrécissant.
+function _buildBackSheet() {
+    const SB  = SHEET_BOTTOM;
+    const SBK = SHEET_BACK;
+    const SD  = SHEET_SCREEN_DISK;
+    const SK  = SHEET_KEYBOARD;
+    const W   = SB.W * MM;
+    const E   = SK.FACE_VERT_H * MM;
+    const Hp  = SB.TILT_PEAK_H * MM;
+    const t   = SHEET_THICKNESS_MM * MM;
+    const D_2 = SB.D * MM / 2;
+    const tan_a      = Math.tan(SB.FLANK_TILT_DEG * Math.PI / 180);
+    const tan_shrink = Math.tan(10 * Math.PI / 180);
+
+    const tilt    = SBK.TILT_BACK_DEG * Math.PI / 180;
+    const tilt_sd = SD.TILT_BACK_DEG * Math.PI / 180;
+    const Hp_p    = SD.HEIGHT * MM;
+    const F_h     = SB.FACADE_H * MM;
+
+    // Largeurs aux 3 niveaux clés.
+    const W_bot    = W;                       // = B
+    const W_inflex = W + 2 * F_h * tan_a;     // suit F (au sommet de la façade arrière)
+
+    // Section 2 : même longueur (le long de sa pente) et même angle de
+    // rétrécissement que la tôle écran-disques. Les 2 sommets ne sont
+    // donc PAS à la même altitude — la tôle supérieure du capot fera
+    // la jonction entre eux.
+    const len_sec2 = Hp_p;
+    const W_top    = W_inflex - 2 * len_sec2 * tan_shrink;
+
+    const brunMat = new THREE.MeshStandardMaterial({
+        color: COLOR_BRUN, roughness: 1.0, metalness: 0.0, flatShading: true,
+    });
+
+    // ── Section 1 : verticale, plaquée contre F (de Y=0 à Y=F_h) ──
+    const shape1 = new THREE.Shape();
+    shape1.moveTo(-W_bot    / 2, 0);
+    shape1.lineTo(+W_bot    / 2, 0);
+    shape1.lineTo(+W_inflex / 2, F_h);
+    shape1.lineTo(-W_inflex / 2, F_h);
+    shape1.closePath();
+    const geo1 = new THREE.ExtrudeGeometry(shape1, { depth: t, bevelEnabled: false });
+    const mesh1 = new THREE.Mesh(geo1, brunMat);
+    mesh1.position.set(0, 0, -D_2);
+    _scene.add(mesh1);
+
+    // ── Section 2 : inclinée vers l'arrière, du sommet de F au sommet ──
+    const shape2 = new THREE.Shape();
+    shape2.moveTo(-W_inflex / 2, 0);
+    shape2.lineTo(+W_inflex / 2, 0);
+    shape2.lineTo(+W_top    / 2, len_sec2);
+    shape2.lineTo(-W_top    / 2, len_sec2);
+    shape2.closePath();
+    const geo2 = new THREE.ExtrudeGeometry(shape2, { depth: t, bevelEnabled: false });
+    const mesh2 = new THREE.Mesh(geo2, brunMat);
+    mesh2.position.set(0, F_h, -D_2);
+    mesh2.rotation.x = -tilt;
+    _scene.add(mesh2);
+}
+
+// ─── Tôle écran-disques ─────────────────────────────────────────
+// Pièce plate trapézoïdale, soudée au capot sur le Smaky mais modélisée
+// indépendamment. Part du sommet du V (fin de la tôle clavier), monte
+// vers le haut-arrière (presque verticale), porte 2 découpes : écran à
+// droite et baie disques à gauche (commune à 2 floppies, ou disque dur
+// + floppy).
+function _buildScreenDiskSheet() {
+    const SB  = SHEET_BOTTOM;
+    const SK  = SHEET_KEYBOARD;
+    const SD  = SHEET_SCREEN_DISK;
+    const W   = SB.W * MM;
+    const E   = SK.FACE_VERT_H * MM;
+    const Hp  = SB.TILT_PEAK_H * MM;
+    const Tp  = SB.TILT_FRONT_PROJ * MM;
+    const t   = SHEET_THICKNESS_MM * MM;
+    const D_2 = SB.D * MM / 2;
+    const tan_a = Math.tan(SB.FLANK_TILT_DEG * Math.PI / 180);
+
+    // Position du bord BAS de la tôle = sommet du V
+    const Y_bot = E + Hp;
+    const Z_bot = D_2 - Tp;
+
+    // Inclinaison vers l'arrière (par rapport à la verticale)
+    const tilt = SD.TILT_BACK_DEG * Math.PI / 180;
+    const Hp_piece = SD.HEIGHT * MM;
+    const Y_top = Y_bot + Hp_piece * Math.cos(tilt);
+    // (Z_top = Z_bot - Hp_piece * sin(tilt) — utilisé implicitement par la rotation)
+
+    // Largeur du trapèze : la base coïncide avec l'écart entre flancs au
+    // sommet du V (W_bot ≈ 530 mm), puis le trapèze rétrécit en montant.
+    // Angle de rétrécissement plus doux (≈ 10°) que l'évasement des flancs
+    // pour laisser de la marge autour des découpes.
+    const dY    = Y_top - Y_bot;
+    const tan_shrink = Math.tan(10 * Math.PI / 180);
+    const W_bot = W + 2 * Y_bot * tan_a;
+    const W_top = W_bot - 2 * dY * tan_shrink;
+
+    // Profil 2D de la tôle (X local = largeur, Y local = position le long
+    // de la pente). Origine = bas-centre de la tôle.
+    const shape = new THREE.Shape();
+    shape.moveTo(-W_bot / 2, 0);
+    shape.lineTo(+W_bot / 2, 0);
+    shape.lineTo(+W_top / 2, Hp_piece);
+    shape.lineTo(-W_top / 2, Hp_piece);
+    shape.closePath();
+
+    // Découpe écran (à droite)
+    const sCx = SD.SCREEN_CENTER_X * MM;
+    const sCy = SD.SCREEN_CENTER_Y * MM;
+    const sW2 = SD.SCREEN_W * MM / 2;
+    const sH2 = SD.SCREEN_H * MM / 2;
+    const screenHole = new THREE.Path();
+    screenHole.moveTo(sCx - sW2, sCy - sH2);
+    screenHole.lineTo(sCx + sW2, sCy - sH2);
+    screenHole.lineTo(sCx + sW2, sCy + sH2);
+    screenHole.lineTo(sCx - sW2, sCy + sH2);
+    screenHole.closePath();
+    shape.holes.push(screenHole);
+
+    // Découpe disques (à gauche)
+    const dCx = SD.DISKS_CENTER_X * MM;
+    const dCy = SD.DISKS_CENTER_Y * MM;
+    const dW2 = SD.DISKS_W * MM / 2;
+    const dH2 = SD.DISKS_H * MM / 2;
+    const disksHole = new THREE.Path();
+    disksHole.moveTo(dCx - dW2, dCy - dH2);
+    disksHole.lineTo(dCx + dW2, dCy - dH2);
+    disksHole.lineTo(dCx + dW2, dCy + dH2);
+    disksHole.lineTo(dCx - dW2, dCy + dH2);
+    disksHole.closePath();
+    shape.holes.push(disksHole);
+
+    const geo = new THREE.ExtrudeGeometry(shape, {
+        depth: t, bevelEnabled: false,
+    });
+
+    const beigeMat = new THREE.MeshStandardMaterial({
+        color: COLOR_BEIGE, roughness: 1.0, metalness: 0.0, flatShading: true,
+    });
+    const mesh = new THREE.Mesh(geo, beigeMat);
+    mesh.position.set(0, Y_bot, Z_bot);
+    // rotateX(-tilt) : Y local devient (0, cos, -sin) — vertical incliné vers l'arrière
+    //                  Z local (épaisseur) devient (0, sin, +cos) — vers haut-avant (extérieur visible)
+    mesh.rotation.x = -tilt;
+    _scene.add(mesh);
+}
+
+// ─── Étiquettes de cotes (sprites toujours face caméra) ─────────
+// Pour faciliter le report des mesures réelles : chaque sprite porte la
+// lettre du croquis (A, G, C, D, E, …) ou un angle (a, b, …).
+function _makeLabel(text, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128; canvas.height = 96;
+    const ctx = canvas.getContext('2d');
+    ctx.font = 'bold 72px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 8;
+    ctx.strokeText(text, 64, 48);
+    ctx.fillStyle = color || '#ff8c00';
+    ctx.fillText(text, 64, 48);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    const mat = new THREE.SpriteMaterial({
+        map: tex, transparent: true, depthTest: false,
+    });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(0.20, 0.15, 1);
+    sprite.renderOrder = 1000;       // toujours devant les meshes
+    return sprite;
+}
+
+function _addLabel(text, x, y, z, color) {
+    const s = _makeLabel(text, color);
+    s.position.set(x, y, z);
+    _scene.add(s);
+}
+
+function _buildDimensionLabels() {
+    const SB  = SHEET_BOTTOM;
+    const SK  = SHEET_KEYBOARD;
+    const W   = SB.W * MM;
+    const D   = SB.D * MM;
+    const E   = SK.FACE_VERT_H * MM;
+    const Hp  = SB.TILT_PEAK_H * MM;
+    const Tp  = SB.TILT_FRONT_PROJ * MM;
+    const Db  = SB.TILT_BACK_PROJ * MM;
+    const D_2 = D / 2;
+    const W_2 = W / 2;
+    const off = 0.18;   // décalage des étiquettes hors de la pièce
+
+    // Cotes (lettres majuscules, orange).
+    _addLabel('A', 0,           -off,         D_2 + off);          // largeur fond, devant
+    _addLabel('G', W_2 + off,   -off,         0);                  // profondeur fond, à droite
+    _addLabel('E', W_2 + off,   E / 2,        D_2 + off);          // hauteur face vert clavier
+    _addLabel('C', W_2 + off,   E + Hp / 2,   D_2 - Tp / 2);       // milieu pan avant
+    _addLabel('D', W_2 + off,   E + Hp / 2,   -D_2 + Db / 2);      // milieu pan arrière
+    // Les 2 segments F : bord arrière vertical des flancs (équivalent de
+    // E mais à l'arrière). Hauteur = SB.FACADE_H. Label placé au milieu.
+    const F_h = SB.FACADE_H * MM;
+    _addLabel('F', -W_2 - off, F_h / 2, -D_2);
+    _addLabel('F', +W_2 + off, F_h / 2, -D_2);
+
+    // Angles (lettres minuscules, vert clair).
+    _addLabel('a', W_2 + 0.02,  E / 2,        -D_2 + off,  '#88ff44');  // évasement flanc
+}
+
+// ─── Tôle du fond ────────────────────────────────────────────────
+// Fond plat rectangulaire, deux flancs latéraux évasés à 20° avec sommet
+// en V asymétrique (pan avant court 190 mm, pan arrière long 410 mm).
+function _buildBottomSheet() {
+    const S = SHEET_BOTTOM;
+    // Tôle peinte purement mate : couleur diffuse pure (pas de spéculaire),
+    // flatShading pour des facettes nettes (pas d'interpolation de normales
+    // entre faces du pliage).
+    const sheetMat = new THREE.MeshStandardMaterial({
+        color:        COLOR_BRUN,
+        roughness:    1.0,
+        metalness:    0.0,
+        flatShading:  true,
+    });
+
+    const t = SHEET_THICKNESS_MM * MM;
+
+    // 1) Fond plat : box mince horizontale, top à Y=0.
+    const bottomGeo = new THREE.BoxGeometry(S.W * MM, t, S.D * MM);
+    const bottom = new THREE.Mesh(bottomGeo, sheetMat);
+    bottom.position.y = -t / 2;
+    _scene.add(bottom);
+
+    // 2) Flancs latéraux : pentagone avec épaisseur réelle (1.5 mm) le long
+    //    de la normale interne du flanc. Construit comme un solide à 10
+    //    sommets (5 externes + 5 internes) + 2 pentagones + 5 quads de bord.
+    //    Convention scène : X+ = droite, Y+ = haut, Z+ = avant.
+    const angRad = S.FLANK_TILT_DEG * Math.PI / 180;
+    const tan_a  = Math.tan(angRad);
+    const cos_a  = Math.cos(angRad);
+    const sin_a  = Math.sin(angRad);
+    const W_2    = S.W * MM / 2;
+    const D_2    = S.D * MM / 2;
+    const F      = S.FACADE_H * MM;
+    const Hpeak  = S.TILT_PEAK_H * MM;
+    // Z scène du sommet (à 190 mm de l'avant ; avant = +Z).
+    const zPeak  = +D_2 - S.TILT_FRONT_PROJ * MM;
+
+    function makeFlank(side) {            // side = -1 (gauche) ou +1 (droite)
+        const x0 = side * W_2;
+        const dx = (h) => side * h * tan_a;
+        // Normale interne du flanc (vers l'intérieur du Smaky, +Y) :
+        //   flanc gauche  : (+cos α, +sin α, 0)
+        //   flanc droit   : (-cos α, +sin α, 0)
+        const nx = -side * cos_a;
+        const ny = sin_a;
+
+        // 5 sommets externes (face vue depuis l'extérieur).
+        const ext = [
+            [x0,                 0,         -D_2 ],   // V0 arrière-bas
+            [x0,                 0,         +D_2 ],   // V1 avant-bas
+            [x0 + dx(F),         F,         +D_2 ],   // V2 avant-haut façade
+            [x0 + dx(F+Hpeak),   F + Hpeak, zPeak],   // V3 sommet du toit
+            [x0 + dx(F),         F,         -D_2 ],   // V4 arrière-haut façade
+        ];
+        // 5 sommets internes (décalés de t le long de la normale interne).
+        const intr = ext.map(([x, y, z]) => [x + nx * t, y + ny * t, z]);
+
+        const v = new Float32Array(
+            ext.flat().concat(intr.flat()));
+
+        // Indices : ext = 0..4, int = 5..9. Triangulations choisies pour
+        // que la normale géométrique sorte vers l'extérieur (back-face culling
+        // donnera le bon rendu sans avoir à utiliser DoubleSide).
+        // Pour le flanc gauche, l'ordre du pentagone V0→V1→V2→V3→V4 est
+        // sens trigo direct vu depuis -X (extérieur). Pour le flanc droit
+        // c'est l'inverse, donc on swappe l'orientation.
+        const ccw = (side === -1);
+        function tri(a, b, c) { return ccw ? [a, b, c] : [a, c, b]; }
+        const idx = [
+            // Face externe (pentagone)
+            ...tri(0, 1, 2),
+            ...tri(0, 2, 3),
+            ...tri(0, 3, 4),
+            // Face interne (pentagone, orientation opposée)
+            ...tri(5, 7, 6),
+            ...tri(5, 8, 7),
+            ...tri(5, 9, 8),
+            // 5 quads de bord (chacun = 2 triangles).
+            // Pour chaque arête ext (a,b), arête int (a+5, b+5).
+            ...tri(0, 5, 6), ...tri(0, 6, 1),
+            ...tri(1, 6, 7), ...tri(1, 7, 2),
+            ...tri(2, 7, 8), ...tri(2, 8, 3),
+            ...tri(3, 8, 9), ...tri(3, 9, 4),
+            ...tri(4, 9, 5), ...tri(4, 5, 0),
+        ];
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(v, 3));
+        geo.setIndex(idx);
+        geo.computeVertexNormals();
+        return new THREE.Mesh(geo, sheetMat);
+    }
+
+    _scene.add(makeFlank(-1));   // flanc gauche
+    _scene.add(makeFlank(+1));   // flanc droit
+}
+
+// ─── Clavier (touches sur la tôle clavier) ──────────────────────
+// Plaque noire posée sur la face inclinée + grille de touches.
+// Quelques touches rouges aux positions caractéristiques (KILL, COPY,
+// fonctions). Tout se trouve dans un Group orienté comme la face inclinée.
+function _buildKeyboard() {
+    const SB  = SHEET_BOTTOM;
+    const SK  = SHEET_KEYBOARD;
+    const W   = SB.W * MM;
+    const E   = SK.FACE_VERT_H * MM;
+    const Hp  = SB.TILT_PEAK_H * MM;
+    const Tp  = SB.TILT_FRONT_PROJ * MM;
+    const D_2 = SB.D * MM / 2;
+
+    const Cpan = Math.sqrt(Tp * Tp + Hp * Hp);
+
+    // Group placé sur la face inclinée du clavier (mêmes pos+rotation
+    // que le mesh "incl" de _buildKeyboardSheet).
+    const kb = new THREE.Group();
+    kb.position.set(0, E + Hp / 2, D_2 - Tp / 2);
+    kb.rotation.x = Math.atan2(-Tp, Hp);
+
+    // Grille de touches. Toutes les dimensions multipliées par KB_SCALE pour
+    // ajuster la taille globale du clavier.
+    const KB_SCALE = 0.8;
+    const cols     = 20;
+    const rows     = 6;
+    const keySize  = 18 * KB_SCALE * MM;
+    const keyGap   =  3 * KB_SCALE * MM;
+    const keyDepth =  8 * KB_SCALE * MM;
+
+    const totalW = cols * keySize + (cols - 1) * keyGap;
+    const totalH = rows * keySize + (rows - 1) * keyGap;
+    const startX = -totalW / 2 + keySize / 2;
+    const startY = -totalH / 2 + keySize / 2;
+
+    // Plaque de fond (noir mat, sous la tôle — invisible de l'extérieur,
+    // sert juste de référence pour le positionnement des touches).
+    const plateW = totalW + 40 * KB_SCALE * MM;
+    const plateH = totalH + 40 * KB_SCALE * MM;
+    const plateDepth = 5 * KB_SCALE * MM;
+    const plate = new THREE.Mesh(
+        new THREE.BoxGeometry(plateW, plateH, plateDepth),
+        new THREE.MeshStandardMaterial({
+            color: 0x1a1a1a, roughness: 0.55, metalness: 0.05, flatShading: true,
+        }),
+    );
+    plate.position.z = -plateDepth / 2 - 2 * MM;   // sous la surface de la tôle
+    kb.add(plate);
+
+    const keyMat = new THREE.MeshStandardMaterial({
+        color: 0x4a4844, roughness: 0.65, metalness: 0.05, flatShading: true,
+    });
+    const redMat = new THREE.MeshStandardMaterial({
+        color: 0xb02818, roughness: 0.55, metalness: 0.05, flatShading: true,
+    });
+
+    // Touches rouges, toutes sur la rangée du bas (rangée 0) :
+    //   - 3 à gauche (cols 0, 1, 2)
+    //   - 4 à droite (cols cols-4 .. cols-1)
+    const isRed = (c, r) => (
+        (r === 0 && c <= 2) ||
+        (r === 0 && c >= cols - 4)
+    );
+
+    // Barre espace : rangée du bas, entre les rouges gauche et droite.
+    const SPACE_COL_START = 3;
+    const SPACE_COL_END   = cols - 5;   // = 15 (touche le 1er rouge à droite, col 16)
+    const SPACE_ROW       = 0;
+    const isSpace = (c, r) => (
+        r === SPACE_ROW && c >= SPACE_COL_START && c <= SPACE_COL_END
+    );
+
+    // Touches posées sur la surface de la tôle (Z = 0 local).
+    const keyZ = keyDepth / 2 + 1 * MM;
+
+    // Touches normales (skip emplacements de la barre espace).
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            if (isSpace(c, r)) continue;
+            const k = new THREE.Mesh(
+                new THREE.BoxGeometry(keySize, keySize, keyDepth),
+                isRed(c, r) ? redMat : keyMat,
+            );
+            k.position.set(
+                startX + c * (keySize + keyGap),
+                startY + r * (keySize + keyGap),
+                keyZ,
+            );
+            kb.add(k);
         }
     }
-    pos.needsUpdate = true;
-    capotGeo.computeVertexNormals();
 
-    const capot = new THREE.Mesh(capotGeo, beigeMat);
-    capot.position.y = y + P.CAPOT_H / 2;
-    // Aligner l'arrière du capot avec l'arrière de la base :
-    //   capotZ_arrière = -CAPOT_D/2 + capot.position.z
-    //   baseZ_arrière  = -BASE_D/2
-    capot.position.z = -P.BASE_D / 2 + P.CAPOT_D / 2;
-    _scene.add(capot);
+    // Barre espace (large, joint les emplacements skipés).
+    const spaceCols = SPACE_COL_END - SPACE_COL_START + 1;
+    const spaceW = spaceCols * keySize + (spaceCols - 1) * keyGap;
+    const spaceCx =
+        (startX + SPACE_COL_START * (keySize + keyGap) +
+         startX + SPACE_COL_END   * (keySize + keyGap)) / 2;
+    const spaceCy = startY + SPACE_ROW * (keySize + keyGap);
+    const space = new THREE.Mesh(
+        new THREE.BoxGeometry(spaceW, keySize, keyDepth),
+        keyMat,
+    );
+    space.position.set(spaceCx, spaceCy, keyZ);
+    kb.add(space);
 
-    // Écran sur la face inclinée du capot.
-    _buildScreenAssembly(sourceCanvas, capot.position, bezelMat);
+    _scene.add(kb);
+}
 
-    // Baie lecteurs (à gauche de l'écran).
-    _buildDriveBay(capot.position);
+// ─── Tôle clavier ────────────────────────────────────────────────
+// 2 faces TRAPÉZOÏDALES (les flancs latéraux s'évasent à 20°, la largeur
+// croît avec la hauteur) : face verticale (bas) + face inclinée qui suit
+// le pan avant des flancs. Beige.
+function _buildKeyboardSheet() {
+    const SB  = SHEET_BOTTOM;
+    const SK  = SHEET_KEYBOARD;
+    const W   = SB.W * MM;                  // 450 mm largeur du fond
+    const E   = SK.FACE_VERT_H * MM;        // 50 mm hauteur face verticale
+    const Hp  = SB.TILT_PEAK_H * MM;        // hauteur peak (60 mm)
+    const Tp  = SB.TILT_FRONT_PROJ * MM;    // 190 mm projection horiz pan avant
+    const t   = SHEET_THICKNESS_MM * MM;
+    const D_2 = SB.D * MM / 2;              // bord avant du fond (Z scène)
+    const tan_a = Math.tan(SB.FLANK_TILT_DEG * Math.PI / 180);
+
+    // Largeurs aux trois niveaux (à mesure qu'on monte, les flancs s'écartent).
+    const W_bot    = W;                          // à Y = 0
+    const W_pli    = W + 2 * E      * tan_a;     // à Y = E (haut face vert / bas face incl)
+    const W_sommet = W + 2 * (E + Hp) * tan_a;   // à Y = E + Hp (sommet du V)
+
+    const beigeMat = new THREE.MeshStandardMaterial({
+        color: COLOR_BEIGE, roughness: 1.0, metalness: 0.0, flatShading: true,
+    });
+
+    // 1) Face verticale TRAPÉZOÏDALE (X = largeur, Y = hauteur, extrudée en Z).
+    const shape1 = new THREE.Shape();
+    shape1.moveTo(-W_bot / 2, 0);
+    shape1.lineTo(+W_bot / 2, 0);
+    shape1.lineTo(+W_pli / 2, E);
+    shape1.lineTo(-W_pli / 2, E);
+    shape1.closePath();
+    const vertGeo = new THREE.ExtrudeGeometry(shape1, {
+        depth: t, bevelEnabled: false,
+    });
+    const vert = new THREE.Mesh(vertGeo, beigeMat);
+    // Origine du mesh = (0, 0, 0) en local, profil dans plan XY, extrudé en +Z.
+    // On veut la face int (Z=0 local) à Z = D_2 dans la scène.
+    vert.position.set(0, 0, D_2);
+    _scene.add(vert);
+
+    // 2) Face inclinée TRAPÉZOÏDALE.
+    //    Profil dans plan XY local : X = largeur, Y = longueur du pan.
+    //    Extrudé en Z = épaisseur t.
+    const Cpan = Math.sqrt(Tp * Tp + Hp * Hp);
+    const shape2 = new THREE.Shape();
+    shape2.moveTo(-W_pli    / 2, 0);
+    shape2.lineTo(+W_pli    / 2, 0);
+    shape2.lineTo(+W_sommet / 2, Cpan);
+    shape2.lineTo(-W_sommet / 2, Cpan);
+    shape2.closePath();
+    const inclGeo = new THREE.ExtrudeGeometry(shape2, {
+        depth: t, bevelEnabled: false,
+    });
+    const incl = new THREE.Mesh(inclGeo, beigeMat);
+    // Origine au coin (centre X, Y=0) = au pli, à (0, E, D_2) dans la scène.
+    incl.position.set(0, E, D_2);
+    // Rotation autour de X pour que +Y local s'aligne sur (0, +Hp, -Tp)/Cpan
+    // (= direction du pli vers le sommet du V).
+    //   rotateX(θ) sur (0,1,0) → (0, cos θ, sin θ)
+    //   On veut (0, Hp/Cpan, -Tp/Cpan) → cos θ = Hp/Cpan, sin θ = -Tp/Cpan
+    //   θ = atan2(-Tp, Hp)
+    incl.rotation.x = Math.atan2(-Tp, Hp);
+    _scene.add(incl);
 }
 
 // ─── Baie lecteurs ───────────────────────────────────────────────
@@ -271,69 +988,6 @@ function _addLED(parent, xLocal, yLocal, shape, type) {
     _leds.push({ mesh: led, type: type });
 }
 
-// ─── Cadre + écran texturé sur la face inclinée ──────────────────
-function _buildScreenAssembly(sourceCanvas, capotCenter, bezelMat) {
-    const P = PARAMS;
-
-    // Angle de la face inclinée (par rapport à la verticale).
-    const tiltAngle = Math.atan2(P.CAPOT_TILT, P.CAPOT_H);
-
-    // Centre de la face inclinée, en coordonnées scène.
-    // En local du capot : Z bas = +CAPOT_D/2, Z haut = +CAPOT_D/2 - TILT
-    //                     centre Z local = +CAPOT_D/2 - TILT/2
-    //                     centre Y local = 0 (capot centré sur sa hauteur)
-    const faceCenterY = capotCenter.y;
-    const faceCenterZ = capotCenter.z + P.CAPOT_D / 2 - P.CAPOT_TILT / 2;
-
-    // Group qui porte le cadre + l'écran ; on l'oriente avec rotateX(-tilt)
-    // pour que son axe Z local sorte perpendiculairement à la face.
-    const group = new THREE.Group();
-    group.position.set(P.SCREEN_OFFSET_X, faceCenterY, faceCenterZ);
-    group.rotation.x = -tiltAngle;
-
-    // Cadre : 4 rectangles (haut, bas, gauche, droite) encadrant l'écran,
-    // qui dépassent vers l'avant pour créer l'effet « tube CRT encastré ».
-    const sw = P.SCREEN_QUAD_W;
-    const sh = P.SCREEN_QUAD_H;
-    const bw = P.SCREEN_BEZEL;
-    const bezelDepth = 0.07;
-    const bezelGeoH = new THREE.BoxGeometry(sw + 2 * bw, bw, bezelDepth);
-    const bezelGeoV = new THREE.BoxGeometry(bw, sh, bezelDepth);
-    const bezelTop = new THREE.Mesh(bezelGeoH, bezelMat);
-    bezelTop.position.set(0, sh / 2 + bw / 2, bezelDepth / 2);
-    group.add(bezelTop);
-    const bezelBot = new THREE.Mesh(bezelGeoH, bezelMat);
-    bezelBot.position.set(0, -sh / 2 - bw / 2, bezelDepth / 2);
-    group.add(bezelBot);
-    const bezelLeft = new THREE.Mesh(bezelGeoV, bezelMat);
-    bezelLeft.position.set(-sw / 2 - bw / 2, 0, bezelDepth / 2);
-    group.add(bezelLeft);
-    const bezelRight = new THREE.Mesh(bezelGeoV, bezelMat);
-    bezelRight.position.set(sw / 2 + bw / 2, 0, bezelDepth / 2);
-    group.add(bezelRight);
-
-    // Fond « phosphore au repos » : occupe toute la zone interne du cadre.
-    // Sa couleur sera mise à jour par setScreenBgColor() (suit la palette).
-    _bgMat = new THREE.MeshBasicMaterial({ color: 0x001000 });
-    const bgPlane = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), _bgMat);
-    bgPlane.position.z = bezelDepth / 2 - P.SCREEN_INSET - 0.001;
-    group.add(bgPlane);
-
-    // Écran : PlaneGeometry texturé, posé en retrait dans le cadre creux.
-    // On stocke le mesh pour pouvoir le rétrécir (= ajouter de la bordure).
-    _screenTex = new THREE.CanvasTexture(sourceCanvas);
-    _screenTex.magFilter = THREE.NearestFilter;
-    _screenTex.minFilter = THREE.LinearFilter;
-    _screenTex.generateMipmaps = false;
-    const screenGeo = new THREE.PlaneGeometry(sw, sh);
-    const screenMat = new THREE.MeshBasicMaterial({ map: _screenTex });
-    _screenMesh = new THREE.Mesh(screenGeo, screenMat);
-    _screenMesh.position.z = bezelDepth / 2 - P.SCREEN_INSET;
-    group.add(_screenMesh);
-
-    _scene.add(group);
-}
-
 function _onResize() {
     if (!_renderer || !_container) return;
     const w = _container.clientWidth;
@@ -348,12 +1002,12 @@ function update3DFrame() {
     if (_screenTex) _screenTex.needsUpdate = true;
 }
 
-// Largeur de la bordure phosphore (% de la largeur du cadre).
-// Symétrique à crtBorderPercent en 2D : l'image se rétrécit, le fond apparaît.
-function setScreenBorder(percent) {
+// En 3D, la bordure CRT est portée par le textCanvas lui-même (palette
+// off pour les pixels éteints, padding du screen-wrap inclus). Le screen
+// plane garde donc toujours sa taille pleine.
+function setScreenBorder(_percent) {
     if (!_screenMesh) return;
-    const f = Math.max(0.01, 1 - 2 * (percent || 0) / 100);
-    _screenMesh.scale.set(f, f, 1);
+    _screenMesh.scale.set(1, 1, 1);
 }
 
 // Couleur du fond phosphore (palette.off : [r,g,b] sur 0..255).
