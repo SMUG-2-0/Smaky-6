@@ -14,6 +14,7 @@ function createWindow() {
         height: 860,
         minWidth:  800,
         minHeight: 700,
+        show:    false,              // affichée plus bas, après maximize, pour éviter le flash
         webPreferences: {
             preload:          path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -26,6 +27,19 @@ function createWindow() {
     mainWindow.loadFile('index.html');
     mainWindow.webContents.on('did-finish-load', () => {
         mainWindow.setTitle('SimSmaky6 : simulateur de Smaky 6. Version ' + app.getVersion());
+    });
+
+    // Maximiser la fenêtre (taille de l'écran, barre Windows et croix de
+    // fermeture restent visibles) et forcer le focus au démarrage — sinon,
+    // un lancement via `npm start` depuis un terminal laisse celui-ci
+    // par-dessus, masquant l'animation d'intro 3D.
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.maximize();
+        mainWindow.show();
+        mainWindow.focus();
+        // Astuce Windows : alwaysOnTop bref pour passer devant le terminal
+        mainWindow.setAlwaysOnTop(true);
+        setTimeout(() => mainWindow.setAlwaysOnTop(false), 200);
     });
 
     // Bloquer la touche Meta (Windows) pour éviter que le menu Démarrer

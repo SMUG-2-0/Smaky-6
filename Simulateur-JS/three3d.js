@@ -168,6 +168,7 @@ function init3D(container, sourceCanvas) {
     _controls.dampingFactor = 0.08;
     _controls.minDistance   = 4.0;
     _controls.maxDistance   = 25;
+    _controls.zoomSpeed     = 0.3;       // molette plus douce (défaut: 1.0)
     _controls.update();
 
     window.addEventListener('resize', _onResize);
@@ -186,7 +187,7 @@ function _buildHousing(sourceCanvas) {
     _buildTopCapotSheet();
     _buildScreenAssembly(sourceCanvas);
     _buildDrives();
-    _buildDimensionLabels();
+    // _buildDimensionLabels();   // désactivé pour la version 0.6.0
 }
 
 // ─── Baie disques (dans la découpe DISKS de la tôle écran-disques) ──
@@ -1044,6 +1045,44 @@ function start3D() {
     _renderLoop();
 }
 
+// Animation d'intro : caméra arrive depuis le haut-gauche (petite, vue
+// d'en haut) puis se rapproche du centre et se redresse légèrement.
+function playIntroAnimation(durationMs) {
+    if (!_camera || !_controls) return;
+    const dur = durationMs || 3000;
+
+    // Pose initiale : très éloignée, à gauche, vue plongeante
+    // (Smaky tout petit, en haut-gauche du cadre)
+    const startPos    = new THREE.Vector3(-24, 16, 12);
+    const startTarget = new THREE.Vector3(-3,  0.5, 0);
+
+    // Pose finale : 2× plus loin que la pose par défaut, donc Smaky 2× plus
+    // petit dans le cadre que ce qu'on avait avant.
+    const endPos    = new THREE.Vector3(0, 2.2, 15);
+    const endTarget = new THREE.Vector3(0, 1.0, 0);
+
+    _controls.enabled = false;
+    const t0 = performance.now();
+
+    function step() {
+        const elapsed = performance.now() - t0;
+        let t = Math.min(elapsed / dur, 1);
+        // Ease-out cubic : ralentit en arrivant
+        const e = 1 - Math.pow(1 - t, 3);
+
+        _camera.position.lerpVectors(startPos, endPos, e);
+        _controls.target.lerpVectors(startTarget, endTarget, e);
+        _controls.update();
+
+        if (t < 1) {
+            requestAnimationFrame(step);
+        } else {
+            _controls.enabled = true;
+        }
+    }
+    step();
+}
+
 function stop3D() {
     _animating = false;
 }
@@ -1056,5 +1095,6 @@ if (typeof window !== 'undefined') {
     window.setScreenBorder  = setScreenBorder;
     window.setScreenBgColor = setScreenBgColor;
     window.get3DCanvas      = () => _renderer ? _renderer.domElement : null;
+    window.playIntroAnimation = playIntroAnimation;
     window.SMAKY_3D_PARAMS  = PARAMS;   // pour bidouiller depuis la console
 }

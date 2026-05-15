@@ -108,22 +108,45 @@ def add(name, shape, color=None):
             pass
     return obj
 
+def make_wire(pts):
+    """Construit un Wire fermé via Part.LineSegment (plus robuste que
+    Part.makePolygon dans toutes les versions de FreeCAD)."""
+    pts_v = [App.Vector(*p) for p in pts]
+    if pts_v[0] != pts_v[-1]:
+        pts_v.append(pts_v[0])
+    edges = []
+    for i in range(len(pts_v) - 1):
+        edges.append(Part.LineSegment(pts_v[i], pts_v[i + 1]).toShape())
+    return Part.Wire(edges)
+
 def face_from_pts(pts):
     """Construit une face plane à partir d'une liste de points (boucle fermée)."""
-    if pts[0] != pts[-1]:
-        pts = pts + [pts[0]]
-    wire = Part.makePolygon([App.Vector(*p) for p in pts])
-    return Part.Face(wire)
+    return Part.Face(make_wire(pts))
 
-def face_with_holes(outer_pts, hole_pts_list):
-    """Face plane avec trous (tous dans le même plan XY)."""
-    def to_wire(pts):
-        if pts[0] != pts[-1]:
-            pts = pts + [pts[0]]
-        return Part.makePolygon([App.Vector(*p) for p in pts])
-    outer = to_wire(outer_pts)
-    holes = [to_wire(h) for h in hole_pts_list]
-    return Part.Face([outer] + holes)
+def make_solid_quad(pts4, depth_vec):
+    """Solide extrudé depuis un quadrilatère possiblement non-plan
+    (décomposé en 2 triangles + fusion)."""
+    tri1 = [pts4[0], pts4[1], pts4[2]]
+    tri2 = [pts4[0], pts4[2], pts4[3]]
+    s1 = Part.Face(make_wire(tri1)).extrude(App.Vector(*depth_vec))
+    s2 = Part.Face(make_wire(tri2)).extrude(App.Vector(*depth_vec))
+    try:
+        return s1.fuse(s2)
+    except Exception:
+        return Part.Compound([s1, s2])
+
+def make_extruded_solid(outer_pts, depth_vec, hole_pts_list=None):
+    """Construit un solide extrudé depuis un contour 2D, avec trous
+    optionnels (réalisés par cut booléen sur les solides — plus fiable
+    que Part.Face avec une liste de wires)."""
+    outer_face = Part.Face(make_wire(outer_pts))
+    solid = outer_face.extrude(App.Vector(*depth_vec))
+    if hole_pts_list:
+        for hole_pts in hole_pts_list:
+            hole_face = Part.Face(make_wire(hole_pts))
+            hole_solid = hole_face.extrude(App.Vector(*depth_vec))
+            solid = solid.cut(hole_solid)
+    return solid
 
 # Couleurs (RGB en 0..1)
 COLOR_BEIGE = (0.745, 0.659, 0.533)   # #beA888
@@ -230,8 +253,7 @@ def make_screen_disk_sheet():
         rect(SCREEN_CX, SCREEN_CY, SCREEN_W, SCREEN_H),
         rect(DISKS_CX,  DISKS_CY,  DISKS_W,  DISKS_H),
     ]
-    face = face_with_holes(outer, holes)
-    sheet = face.extrude(App.Vector(0, 0, T))
+    sheet = make_extruded_solid(outer, (0, 0, T), holes)
 
     # Placement : base à (0, E+H, Z_PEAK), inclinaison BETA_ED vers l'arrière
     sheet.rotate(App.Vector(0, 0, 0), App.Vector(1, 0, 0), -BETA_ED_DEG)
@@ -288,13 +310,9 @@ def make_top_capot_sheet():
     ArD = ( +W_TOP_ARR/2, Y_TOP_ARR, Z_TOP_ARR )
     ArG = ( -W_TOP_ARR/2, Y_TOP_ARR, Z_TOP_ARR )
 
-    # Face médiane : on la construit comme 2 triangles cousus en BSpline
-    # (quadrilatère gauche → on utilise Part.makeFilledFace ou makeShell).
-    # Plus simple : extruder un wire fermé de 4 pts via Part.Face directe
-    # (FreeCAD planarise automatiquement si l'écart est faible).
-    pts_top = [AvG, AvD, ArD, ArG]
-    face_top = face_from_pts(pts_top)
-    top_solid = face_top.extrude(App.Vector(0, T, 0))   # épaisseur en +Y (vers le haut)
+    # Face médiane : quadrilatère non-plan → 2 triangles + fusion.
+    # Épaisseur en +Y (vers le haut, sortant du capot).
+    top_solid = make_solid_quad([AvG, AvD, ArD, ArG], (0, T, 0))
 
     # V3 et V4 du flanc gauche / droit
     def V(side):
@@ -311,8 +329,8 @@ def make_top_capot_sheet():
     for side in (-1, +1):
         v = V(side)
         rabat_pts = [v["Av"], v["Ar"], v["V4"], v["V3"]]
-        face_r = face_from_pts(rabat_pts)
-        rabat_solid = face_r.extrude(App.Vector(side * T, 0, 0))
+        # Quadrilatère non-plan également → 2 triangles + fusion.
+        rabat_solid = make_solid_quad(rabat_pts, (side * T, 0, 0))
         name = "TopCapot_rabat_" + ("left" if side == -1 else "right")
         parts.append((name, rabat_solid))
 
@@ -322,16 +340,30 @@ def make_top_capot_sheet():
 #                       CONSTRUCTION
 # ═══════════════════════════════════════════════════════════════════
 
-ALL_PARTS = (
-    make_bottom_sheet()
-    + make_keyboard_sheet()
-    + make_screen_disk_sheet()
-    + make_back_sheet()
-    + make_top_capot_sheet()
-)
+ALL_PARTS = []
+
+def safe_add(label, fn):
+    """Appelle fn() ; loggue toute exception sans faire planter le reste."""
+    try:
+        result = fn()
+        ALL_PARTS.extend(result)
+        App.Console.PrintMessage(f"[OK]  {label}: {len(result)} pièce(s)\n")
+    except Exception as exc:
+        import traceback
+        App.Console.PrintError(f"[ERR] {label}: {exc}\n")
+        App.Console.PrintError(traceback.format_exc() + "\n")
+
+safe_add("bottom",      make_bottom_sheet)
+safe_add("keyboard",    make_keyboard_sheet)
+safe_add("screen_disk", make_screen_disk_sheet)
+safe_add("back",        make_back_sheet)
+safe_add("top_capot",   make_top_capot_sheet)
 
 for name, shape, color in ALL_PARTS:
-    add(name, shape, color)
+    try:
+        add(name, shape, color)
+    except Exception as exc:
+        App.Console.PrintError(f"[ERR add] {name}: {exc}\n")
 
 doc.recompute()
 

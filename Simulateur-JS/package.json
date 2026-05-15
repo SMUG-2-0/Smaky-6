@@ -1,6 +1,6 @@
 {
   "name": "smaky6-simulator",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Simulateur Smaky 6 — Epsitec SA",
   "main": "main.js",
   "scripts": {

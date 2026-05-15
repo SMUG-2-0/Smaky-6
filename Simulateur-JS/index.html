@@ -1998,6 +1998,23 @@ updateFloppyPanel();
     if (b) b.value = crtBorderPercent;
 }
 
+// Démarrage en mode 3D avec une petite animation d'entrée :
+// le Smaky apparaît en haut-gauche, vu d'en haut, et la caméra s'approche
+// du centre en se redressant légèrement.
+{
+    const cb = document.getElementById('view3d-cb');
+    if (cb) {
+        cb.checked = true;
+        // Délai très court pour laisser le DOM se stabiliser
+        setTimeout(() => {
+            onToggle3D(true);
+            if (typeof playIntroAnimation === 'function') {
+                playIntroAnimation(3500);
+            }
+        }, 100);
+    }
+}
+
 // Adapter l'interface selon le contexte (Electron / navigateur)
 if (window.electronAPI) {
     document.getElementById('disk-electron-btn').style.display = '';
