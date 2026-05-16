@@ -50,14 +50,25 @@ const PARAMS = {
 const MM = 1 / 100;
 
 // Épaisseur uniforme de toutes les tôles du Smaky 6 (mm).
-// Modifier ici pour ajuster globalement.
-const SHEET_THICKNESS_MM = 1.5;
+// Plus élevée que la tôle réelle pour tenir compte de la peinture.
+let SHEET_THICKNESS_MM = 2;
+
+// Paramètres de rendu — modifiables via le panneau Rendu.
+const RENDER_PARAMS = {
+    AMBIENT:       0.75,        // intensité ambient (0..2)
+    KEY:           0.40,        // intensité directional key (0..2)
+    FILL:          0.40,        // intensité directional fill (0..2)
+    BG_COLOR:      0x1a1a1a,    // couleur de fond de la scène
+    BEIGE_ROUGH:   1.0,         // roughness matériau beige (0..1)
+    BRUN_ROUGH:    1.0,         // roughness matériau brun (0..1)
+    FOV:           35,          // FOV caméra (degrés, 20..60)
+};
 
 // Tôle « fond du capot » : pièce plate trapézoïdale, posée sur le pan D
 // arrière des flancs. Base au bord arrière du fond (suit les 2 segments
 // F = portion latérale arrière), rétrécit en montant vers le sommet du V.
 const SHEET_BACK = {
-    TILT_BACK_DEG: 5,    // inclinaison vers l'arrière (depuis vertical)
+    TILT_BACK_DEG: 1,    // inclinaison vers l'arrière (depuis vertical)
     HEIGHT:        200,  // longueur de la section haute le long de sa pente
 };
 
@@ -69,6 +80,7 @@ const SHEET_SCREEN_DISK = {
     HEIGHT:         200,    // hauteur de la pièce le long de la pente
     TILT_BACK_DEG:  10,     // inclinaison vers l'arrière (par rapport à vertical)
     SHRINK_DEG:     10,     // angle de rétrécissement de la pièce vers le haut
+    OVERLAP:        10,     // recouvrement par le capot (la tôle passe sous, mm)
 
     // Découpe écran (rectangulaire) — coordonnées 2D dans le plan local
     // (X = largeur, Y = position le long de la pente, Y = 0 au bas).
@@ -76,6 +88,14 @@ const SHEET_SCREEN_DISK = {
     SCREEN_H:        135,
     SCREEN_CENTER_X: +110,
     SCREEN_CENTER_Y: +100,
+
+    // Cadre plastique noir devant l'écran. Chaque côté est paramétrable
+    // indépendamment (utile pour donner un look « TV années 60 »).
+    BEZEL_TOP:    9,    // largeur du cadre en haut (mm)
+    BEZEL_BOT:    9,    // largeur du cadre en bas
+    BEZEL_LEFT:   9,    // largeur du cadre à gauche
+    BEZEL_RIGHT:  9,    // largeur du cadre à droite
+    BEZEL_DEPTH:  7,    // épaisseur (= relief vers l'avant, mm)
 
     // Découpe disques (rectangulaire, commune aux 2 emplacements).
     DISKS_W:         180,
@@ -102,9 +122,9 @@ const SHEET_BOTTOM = {
     D:                600,   // G : profondeur du fond plat (avant-arrière)
     FLANK_TILT_DEG:   20,    // évasement des flancs (70° du fond = 20° du vertical)
     FACADE_H:         50,    // hauteur de la façade plate (= FACE_VERT_H pour emboîtement)
-    TILT_FRONT_PROJ:  190,   // C : projection horiz. du pan avant (côté clavier)
-    TILT_BACK_PROJ:   410,   // D : projection horiz. du pan arrière (côté capot)
-    TILT_PEAK_H:      60,    // hauteur du sommet du toit au-dessus de la façade (estimation)
+    TILT_FRONT_PROJ:  195,   // C : projection horiz. du pan avant (côté clavier)
+    TILT_BACK_PROJ:   405,   // D : projection horiz. du pan arrière (= G − C)
+    TILT_PEAK_H:      30,    // hauteur du sommet du toit au-dessus de la façade
 };
 
 // ─── Couleurs (prélevées sur smaky-6.jpg) ────────────────────────
@@ -131,6 +151,9 @@ let _container   = null;
 let _leds        = [];   // [{mesh, type:'floppy'|'hd'}, ...]
 let _housingGroup = null; // contient toutes les pièces du boîtier (pour rebuild)
 let _sourceCanvas = null; // mémorisé pour pouvoir reconstruire l'écran texturé
+let _ambientLight = null;
+let _keyLight     = null;
+let _fillLight    = null;
 
 function init3D(container, sourceCanvas) {
     _container = container;
@@ -144,24 +167,21 @@ function init3D(container, sourceCanvas) {
     container.appendChild(_renderer.domElement);
 
     _scene = new THREE.Scene();
-    _scene.background = new THREE.Color(0x1a1a1a);
+    _scene.background = new THREE.Color(RENDER_PARAMS.BG_COLOR);
 
     _camera = new THREE.PerspectiveCamera(
-        35, container.clientWidth / container.clientHeight, 0.1, 100);
+        RENDER_PARAMS.FOV, container.clientWidth / container.clientHeight, 0.1, 100);
     _camera.position.set(0, 2.2, 8.5);
 
-    // Éclairage très diffus pour minimiser les écarts de teinte selon
-    // l'orientation des faces (les tôles peintes restent perçues uniformes
-    // partout sur l'objet réel) :
-    //   - ambient dominante (75 %)
-    //   - key et fill modérées et symétriques entre gauche et droite
-    _scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-    const key = new THREE.DirectionalLight(0xffffff, 0.40);
-    key.position.set(4, 6, 5);
-    _scene.add(key);
-    const fill = new THREE.DirectionalLight(0xffffff, 0.40);
-    fill.position.set(-4, 6, 5);   // miroir gauche/droite de la key
-    _scene.add(fill);
+    // Éclairage : ambient dominante + key/fill symétriques.
+    _ambientLight = new THREE.AmbientLight(0xffffff, RENDER_PARAMS.AMBIENT);
+    _scene.add(_ambientLight);
+    _keyLight = new THREE.DirectionalLight(0xffffff, RENDER_PARAMS.KEY);
+    _keyLight.position.set(4, 6, 5);
+    _scene.add(_keyLight);
+    _fillLight = new THREE.DirectionalLight(0xffffff, RENDER_PARAMS.FILL);
+    _fillLight.position.set(-4, 6, 5);
+    _scene.add(_fillLight);
 
     _buildHousing(sourceCanvas);
 
@@ -223,6 +243,41 @@ function rebuildHousing() {
     if (_sourceCanvas) _buildHousing(_sourceCanvas);
 }
 
+// Setter pour les paramètres de rendu. Applique immédiatement les
+// changements sur les lumières / scène / caméra ; pour les matériaux
+// il faut rebuildHousing().
+function setRenderParam(key, value) {
+    if (key === 'BG_COLOR') {
+        // Couleur en hex (chaîne « #aabbcc » ou nombre)
+        let c = value;
+        if (typeof c === 'string' && c.startsWith('#')) c = parseInt(c.slice(1), 16);
+        RENDER_PARAMS.BG_COLOR = c;
+        if (_scene) _scene.background = new THREE.Color(c);
+        return;
+    }
+    const v = parseFloat(value);
+    if (isNaN(v)) return;
+    RENDER_PARAMS[key] = v;
+    switch (key) {
+        case 'AMBIENT': if (_ambientLight) _ambientLight.intensity = v; break;
+        case 'KEY':     if (_keyLight)     _keyLight.intensity     = v; break;
+        case 'FILL':    if (_fillLight)    _fillLight.intensity    = v; break;
+        case 'FOV':     if (_camera)     { _camera.fov = v; _camera.updateProjectionMatrix(); } break;
+        case 'BEIGE_ROUGH':
+        case 'BRUN_ROUGH':
+            // Matériaux recréés à chaque rebuild.
+            rebuildHousing();
+            break;
+    }
+}
+
+function getRenderParam(key) {
+    if (key === 'BG_COLOR') {
+        return '#' + RENDER_PARAMS.BG_COLOR.toString(16).padStart(6, '0');
+    }
+    return RENDER_PARAMS[key];
+}
+
 // Setter unifié pour les paramètres du boîtier.
 function setHousingParam(key, value) {
     const v = parseFloat(value);
@@ -242,6 +297,13 @@ function setHousingParam(key, value) {
         case 'L_ARR':    SHEET_BACK.HEIGHT = v; break;
         case 'BETA_ARR': SHEET_BACK.TILT_BACK_DEG = v; break;
         case 'SHRINK':   SHEET_SCREEN_DISK.SHRINK_DEG = v; break;
+        case 'OVERLAP':  SHEET_SCREEN_DISK.OVERLAP = v; break;
+        case 'THICKNESS':   SHEET_THICKNESS_MM = v; break;
+        case 'BEZEL_TOP':   SHEET_SCREEN_DISK.BEZEL_TOP   = v; break;
+        case 'BEZEL_BOT':   SHEET_SCREEN_DISK.BEZEL_BOT   = v; break;
+        case 'BEZEL_LEFT':  SHEET_SCREEN_DISK.BEZEL_LEFT  = v; break;
+        case 'BEZEL_RIGHT': SHEET_SCREEN_DISK.BEZEL_RIGHT = v; break;
+        case 'BEZEL_DEPTH': SHEET_SCREEN_DISK.BEZEL_DEPTH = v; break;
     }
 }
 
@@ -260,6 +322,13 @@ function getHousingParam(key) {
         case 'L_ARR':    return SHEET_BACK.HEIGHT;
         case 'BETA_ARR': return SHEET_BACK.TILT_BACK_DEG;
         case 'SHRINK':   return SHEET_SCREEN_DISK.SHRINK_DEG;
+        case 'OVERLAP':  return SHEET_SCREEN_DISK.OVERLAP;
+        case 'THICKNESS':   return SHEET_THICKNESS_MM;
+        case 'BEZEL_TOP':   return SHEET_SCREEN_DISK.BEZEL_TOP;
+        case 'BEZEL_BOT':   return SHEET_SCREEN_DISK.BEZEL_BOT;
+        case 'BEZEL_LEFT':  return SHEET_SCREEN_DISK.BEZEL_LEFT;
+        case 'BEZEL_RIGHT': return SHEET_SCREEN_DISK.BEZEL_RIGHT;
+        case 'BEZEL_DEPTH': return SHEET_SCREEN_DISK.BEZEL_DEPTH;
     }
     return null;
 }
@@ -347,35 +416,52 @@ function _buildScreenAssembly(sourceCanvas) {
     const sw = SD.SCREEN_W * MM;
     const sh = SD.SCREEN_H * MM;
 
-    const bw = 9 * MM;          // largeur du bezel autour de l'écran
-    const bezelDepth = 7 * MM;  // épaisseur du bezel en relief
+    // Cadre plastique : 4 côtés indépendants + épaisseur.
+    const bzT = SD.BEZEL_TOP   * MM;
+    const bzB = SD.BEZEL_BOT   * MM;
+    const bzL = SD.BEZEL_LEFT  * MM;
+    const bzR = SD.BEZEL_RIGHT * MM;
+    const bezelDepth = SD.BEZEL_DEPTH * MM;
 
     const bezelMat = new THREE.MeshStandardMaterial({
         color: 0x202020, roughness: 0.55, metalness: 0.0, flatShading: true,
     });
 
-    // Cadre creux : 4 rectangles posés autour de la zone d'écran.
-    const bezelGeoH = new THREE.BoxGeometry(sw + 2 * bw, bw, bezelDepth);
-    const bezelGeoV = new THREE.BoxGeometry(bw, sh, bezelDepth);
-    function addBezel(x, y, geo) {
-        const m = new THREE.Mesh(geo, bezelMat);
+    // Rectangles top/bot couvrent la largeur de l'écran ; les latéraux
+    // (left/right) couvrent toute la hauteur incluant top + bot pour fermer
+    // les coins sans chevauchement.
+    function addBezel(w, h, x, y) {
+        if (w <= 0 || h <= 0) return;
+        const m = new THREE.Mesh(
+            new THREE.BoxGeometry(w, h, bezelDepth), bezelMat);
         m.position.set(x, y, bezelDepth / 2);
         group.add(m);
     }
-    addBezel(cx,             cy + sh / 2 + bw / 2, bezelGeoH);   // haut
-    addBezel(cx,             cy - sh / 2 - bw / 2, bezelGeoH);   // bas
-    addBezel(cx - sw / 2 - bw / 2, cy,             bezelGeoV);   // gauche
-    addBezel(cx + sw / 2 + bw / 2, cy,             bezelGeoV);   // droite
+    // top et bot : largeur sw (juste l'écran), hauteur = bzT ou bzB
+    addBezel(sw,  bzT, cx, cy + sh / 2 + bzT / 2);
+    addBezel(sw,  bzB, cx, cy - sh / 2 - bzB / 2);
+    // left et right : largeur bzL/bzR, hauteur = sh + bzT + bzB (fermeture coins)
+    const sideH  = sh + bzT + bzB;
+    const sideCy = cy + (bzT - bzB) / 2;     // centré entre top et bot
+    addBezel(bzL, sideH, cx - sw / 2 - bzL / 2, sideCy);
+    addBezel(bzR, sideH, cx + sw / 2 + bzR / 2, sideCy);
 
-    // Pas de fond phosphore : c'est la texture du textCanvas qui s'occupe
-    // de toute la zone (bordure CRT + image). Évite la double couleur verte.
-    _bgMat = null;
+    // Fond phosphore au repos (couleur off de la palette courante).
+    // Visible dans la bordure CRT autour du textCanvas quand l'utilisateur
+    // augmente crtBorderPercent → setScreenBorder rétrécit _screenMesh.
+    _bgMat = new THREE.MeshBasicMaterial({ color: 0x001000 });
+    const bgPlane = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), _bgMat);
+    bgPlane.position.set(cx, cy, bezelDepth / 2 - 1.5 * MM - 0.001);
+    group.add(bgPlane);
 
     // Écran texturé, en retrait dans le cadre creux.
     _screenTex = new THREE.CanvasTexture(sourceCanvas);
     _screenTex.magFilter = THREE.NearestFilter;
     _screenTex.minFilter = THREE.LinearFilter;
     _screenTex.generateMipmaps = false;
+    // Marquer la texture comme sRGB (= ce qu'est un canvas DOM) pour que
+    // outputEncoding=sRGB de WebGLRenderer ne sature pas les couleurs.
+    _screenTex.encoding = THREE.sRGBEncoding;
     const screenMat = new THREE.MeshBasicMaterial({ map: _screenTex });
     _screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(sw, sh), screenMat);
     _screenMesh.position.set(cx, cy, bezelDepth / 2 - 1.5 * MM);
@@ -407,9 +493,10 @@ function _buildTopCapotSheet() {
     const tilt_bk = SBK.TILT_BACK_DEG * Math.PI / 180;
     const Hp_p    = SD.HEIGHT * MM;
 
-    // Sommet de la tôle écran-disques (= bord avant de la tôle supérieure).
-    const Y_top_sd = E + Hp + Hp_p * Math.cos(tilt_sd);
-    const Z_top_sd = (D_2 - Tp) - Hp_p * Math.sin(tilt_sd);
+    // Sommet de la tôle écran-disques (la tôle s'arrête là, mais le capot
+    // dépasse ensuite vers l'avant de OVERLAP mm — la tôle passe SOUS).
+    const Y_sd_end = E + Hp + Hp_p * Math.cos(tilt_sd);
+    const Z_sd_end = (D_2 - Tp) - Hp_p * Math.sin(tilt_sd);
     const W_bot_sd = W + 2 * (E + Hp) * tan_a;
     const W_top_sd = W_bot_sd - 2 * Hp_p * Math.cos(tilt_sd) * tan_shrink;
 
@@ -417,13 +504,24 @@ function _buildTopCapotSheet() {
     // au sommet réel construit dans _buildBackSheet (sinon le capot
     // supérieur ne tombe pas sur l'arête haute de la tôle arrière).
     const W_inflex   = W + 2 * F_h * tan_a;
-    const len_bk     = SHEET_BACK.HEIGHT * MM;     // longueur propre à la tôle arrière
+    const len_bk     = SHEET_BACK.HEIGHT * MM;
     const Y_top_bk   = F_h + len_bk * Math.cos(tilt_bk);
     const Z_top_bk   = -D_2 - len_bk * Math.sin(tilt_bk);
-    const W_top_bk   = Math.min(W_top_sd, W_inflex);   // même guard-rail qu'au build
+    const W_top_bk   = Math.min(W_top_sd, W_inflex);
+
+    // Prolongation du bord avant du capot vers l'avant, DANS LE PLAN du
+    // capot (= dans la direction du sommet arrière vers le sommet avant).
+    // La tôle écran-disques s'arrête au sommet, le capot dépasse au-dessus.
+    const overlap = SD.OVERLAP * MM;
+    const dY  = Y_sd_end - Y_top_bk;
+    const dZ  = Z_sd_end - Z_top_bk;
+    const dL  = Math.sqrt(dY * dY + dZ * dZ);
+    const ext = dL > 0 ? overlap / dL : 0;
+    const Y_top_sd = Y_sd_end + dY * ext;   // coins avant du capot supérieur
+    const Z_top_sd = Z_sd_end + dZ * ext;
 
     const beigeMat = new THREE.MeshStandardMaterial({
-        color: COLOR_BEIGE, roughness: 1.0, metalness: 0.0, flatShading: true,
+        color: COLOR_BEIGE, roughness: RENDER_PARAMS.BEIGE_ROUGH, metalness: 0.0, flatShading: true,
         side: THREE.DoubleSide,
     });
 
@@ -520,7 +618,7 @@ function _buildBackSheet() {
     const W_top = Math.min(W_top_sd, W_inflex);
 
     const brunMat = new THREE.MeshStandardMaterial({
-        color: COLOR_BRUN, roughness: 1.0, metalness: 0.0, flatShading: true,
+        color: COLOR_BRUN, roughness: RENDER_PARAMS.BRUN_ROUGH, metalness: 0.0, flatShading: true,
     });
 
     // ── Section 1 : verticale, plaquée contre F (de Y=0 à Y=F_h) ──
@@ -588,11 +686,16 @@ function _buildScreenDiskSheet() {
 
     // Profil 2D de la tôle (X local = largeur, Y local = position le long
     // de la pente). Origine = bas-centre de la tôle.
+    // On retire l'épaisseur t en haut, à droite et à gauche pour que
+    // la tôle ne dépasse pas du capot (sinon elle laisse des marques
+    // sur les bords du capot supérieur).
+    const W_top_in = W_top - 2 * t;
+    const H_in     = Hp_piece - t;
     const shape = new THREE.Shape();
-    shape.moveTo(-W_bot / 2, 0);
-    shape.lineTo(+W_bot / 2, 0);
-    shape.lineTo(+W_top / 2, Hp_piece);
-    shape.lineTo(-W_top / 2, Hp_piece);
+    shape.moveTo(-W_bot    / 2, 0);
+    shape.lineTo(+W_bot    / 2, 0);
+    shape.lineTo(+W_top_in / 2, H_in);
+    shape.lineTo(-W_top_in / 2, H_in);
     shape.closePath();
 
     // Découpe écran (à droite)
@@ -626,7 +729,7 @@ function _buildScreenDiskSheet() {
     });
 
     const beigeMat = new THREE.MeshStandardMaterial({
-        color: COLOR_BEIGE, roughness: 1.0, metalness: 0.0, flatShading: true,
+        color: COLOR_BEIGE, roughness: RENDER_PARAMS.BEIGE_ROUGH, metalness: 0.0, flatShading: true,
     });
     const mesh = new THREE.Mesh(geo, beigeMat);
     mesh.position.set(0, Y_bot, Z_bot);
@@ -925,7 +1028,7 @@ function _buildKeyboardSheet() {
     const W_sommet = W + 2 * (E + Hp) * tan_a;   // à Y = E + Hp (sommet du V)
 
     const beigeMat = new THREE.MeshStandardMaterial({
-        color: COLOR_BEIGE, roughness: 1.0, metalness: 0.0, flatShading: true,
+        color: COLOR_BEIGE, roughness: RENDER_PARAMS.BEIGE_ROUGH, metalness: 0.0, flatShading: true,
     });
 
     // 1) Face verticale TRAPÉZOÏDALE (X = largeur, Y = hauteur, extrudée en Z).
@@ -1089,18 +1192,23 @@ function update3DFrame() {
     if (_screenTex) _screenTex.needsUpdate = true;
 }
 
-// En 3D, la bordure CRT est portée par le textCanvas lui-même (palette
-// off pour les pixels éteints, padding du screen-wrap inclus). Le screen
-// plane garde donc toujours sa taille pleine.
-function setScreenBorder(_percent) {
+// Rétrécit le _screenMesh selon le pourcentage de bordure CRT (= même
+// paramètre que crtBorderPercent en 2D). Le fond phosphore (_bgMat)
+// apparaît autour quand l'écran est rétréci.
+function setScreenBorder(percent) {
     if (!_screenMesh) return;
-    _screenMesh.scale.set(1, 1, 1);
+    const f = Math.max(0.01, 1 - 2 * (percent || 0) / 100);
+    _screenMesh.scale.set(f, f, 1);
 }
 
 // Couleur du fond phosphore (palette.off : [r,g,b] sur 0..255).
+// Convert sRGB → linear pour que la sortie (outputEncoding=sRGB) donne
+// exactement la valeur sRGB d'origine — sinon les valeurs sombres
+// sortent plus claires (gamma de 2.2 inversé).
 function setScreenBgColor(rgb) {
     if (!_bgMat || !rgb) return;
-    _bgMat.color.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
+    _bgMat.color.setRGB(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255)
+                .convertSRGBToLinear();
 }
 
 function _updateLEDs() {
@@ -1185,5 +1293,7 @@ if (typeof window !== 'undefined') {
     window.rebuildHousing     = rebuildHousing;
     window.setHousingParam    = setHousingParam;
     window.getHousingParam    = getHousingParam;
+    window.setRenderParam     = setRenderParam;
+    window.getRenderParam     = getRenderParam;
     window.SMAKY_3D_PARAMS  = PARAMS;   // pour bidouiller depuis la console
 }

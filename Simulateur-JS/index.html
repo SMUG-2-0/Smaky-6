@@ -468,6 +468,17 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
       <div style="color:#88ccff;font-weight:bold;margin-bottom:5px">Géométrie boîtier (mm)</div>
       <div id="geom-fields"></div>
     </div>
+    <!-- Panneau de paramètres de rendu -->
+    <div id="render-panel" style="
+        display:none;
+        position:absolute; top:8px; left:8px;
+        background:rgba(20,20,20,0.92); color:#ccc;
+        font:11px 'Courier New',monospace; padding:8px 10px;
+        border:1px solid #444; border-radius:3px;
+        z-index:10; width:180px;">
+      <div style="color:#ffaa66;font-weight:bold;margin-bottom:5px">Rendu</div>
+      <div id="render-fields"></div>
+    </div>
   </div>
   <div style="display:flex;flex-direction:column;gap:6px">
     <div id="disk-panel"><!-- généré par buildDiskPanel() --></div>
@@ -546,6 +557,11 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
                title="Affiche un panneau pour modifier les dimensions en direct">
           <input type="checkbox" id="geom-cb" onchange="onToggleGeomPanel(this.checked)">
           <span>Géom.</span>
+        </label>
+        <label class="fp-cb" style="font-size:10px;margin-top:3px"
+               title="Affiche un panneau pour modifier les paramètres de rendu">
+          <input type="checkbox" id="render-cb" onchange="onToggleRenderPanel(this.checked)">
+          <span>Rendu</span>
         </label>
       </div>
     </div>
@@ -703,15 +719,16 @@ function initCanvas() {
 
     applyScreenGeometry();
 
-    // Fond initial = phosphore éteint
-    const off = currentPalette.off;
-    textCtx.fillStyle = `rgb(${off[0]},${off[1]},${off[2]})`;
+    // Fond initial = noir (vrai CRT éteint). Le rendu Smaky prendra le
+    // relais avec palette.off pour les pixels éteints dès la 1re frame.
+    textCtx.fillStyle = '#000';
     textCtx.fillRect(0, 0, SCREEN_W, SCREEN_H);
 }
 
 // Applique la taille CSS du canvas et la bordure CRT au screen-wrap.
-// La bordure prend la couleur "off" du phosphore courant (pas de noir
-// franc : un CRT au repos a déjà la teinte du faisceau résiduel).
+// La bordure est noire tant que le simulateur n'a pas démarré (CRT
+// éteint) ; elle prend la teinte "off" du phosphore une fois le
+// simulateur en marche.
 function applyScreenGeometry() {
     const cssW = SCREEN_W * BASE_SCALE;
     const cssH = SCREEN_H * BASE_SCALE * pixelAspectYX;
@@ -719,8 +736,12 @@ function applyScreenGeometry() {
     textCanvas.style.height = cssH + 'px';
     const wrap = document.getElementById('screen-wrap');
     if (wrap) {
-        const off = currentPalette.off;
-        wrap.style.background = `rgb(${off[0]},${off[1]},${off[2]})`;
+        if (sim) {
+            const off = currentPalette.off;
+            wrap.style.background = `rgb(${off[0]},${off[1]},${off[2]})`;
+        } else {
+            wrap.style.background = '#000';
+        }
         const pad = Math.round(cssW * crtBorderPercent / 100);
         wrap.style.padding = pad + 'px';
     }
@@ -811,7 +832,108 @@ const GEOM_PARAMS = [
     { key: 'L_ARR',    label: 'L_arr (arrière)', min: 50,  max: 400, step: 5 },
     { key: 'BETA_ARR', label: 'β_arr (incl.°)', min: 0,   max: 45,  step: 1 },
     { key: 'SHRINK',   label: 'rétréc. capot°', min: 0,   max: 30,  step: 1 },
+    { key: 'OVERLAP',     label: 'recouv. capot',   min: 0,   max: 50,  step: 1 },
+    { key: 'THICKNESS',   label: 't (épaisseur)',   min: 0.5, max: 5,   step: 0.1 },
+    { key: 'BEZEL_TOP',   label: 'cadre haut',      min: 0,   max: 50,  step: 1 },
+    { key: 'BEZEL_BOT',   label: 'cadre bas',       min: 0,   max: 50,  step: 1 },
+    { key: 'BEZEL_LEFT',  label: 'cadre gauche',    min: 0,   max: 50,  step: 1 },
+    { key: 'BEZEL_RIGHT', label: 'cadre droite',    min: 0,   max: 50,  step: 1 },
+    { key: 'BEZEL_DEPTH', label: 'cadre épaiss.',   min: 0,   max: 30,  step: 1 },
 ];
+
+// ─── Panneau de paramètres de rendu ──────────────────────────────
+const RENDER_FIELDS = [
+    { key: 'AMBIENT',     label: 'Ambient',       min: 0, max: 2, step: 0.05, type: 'number' },
+    { key: 'KEY',         label: 'Key light',     min: 0, max: 2, step: 0.05, type: 'number' },
+    { key: 'FILL',        label: 'Fill light',    min: 0, max: 2, step: 0.05, type: 'number' },
+    { key: 'BG_COLOR',    label: 'Fond',          type: 'color' },
+    { key: 'BEIGE_ROUGH', label: 'Roughness beige', min: 0, max: 1, step: 0.05, type: 'number' },
+    { key: 'BRUN_ROUGH',  label: 'Roughness brun', min: 0, max: 1, step: 0.05, type: 'number' },
+    { key: 'FOV',         label: 'FOV caméra°',   min: 20, max: 60, step: 1, type: 'number' },
+];
+
+let _renderFieldsBuilt = false;
+
+function _buildRenderFields() {
+    if (_renderFieldsBuilt) return;
+    const container = document.getElementById('render-fields');
+    if (!container || typeof getRenderParam !== 'function') return;
+    container.innerHTML = '';
+    for (const f of RENDER_FIELDS) {
+        const v = getRenderParam(f.key);
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:4px;margin:2px 0';
+        if (f.type === 'color') {
+            row.innerHTML =
+                `<label style="flex:1;color:#ccc;font-size:10px">${f.label}</label>` +
+                `<input type="color" id="render-${f.key}" value="${v}" ` +
+                  `onchange="onRenderChange('${f.key}', this.value)" ` +
+                  `style="width:55px;height:18px;background:#111;border:1px solid #444;padding:0">`;
+        } else {
+            row.innerHTML =
+                `<label style="flex:1;color:#ccc;font-size:10px">${f.label}</label>` +
+                `<input type="number" id="render-${f.key}" value="${v}" ` +
+                  `min="${f.min}" max="${f.max}" step="${f.step}" ` +
+                  `style="width:55px;background:#111;color:#fc8;border:1px solid #444;` +
+                         `font:inherit;font-size:10px;padding:1px 3px;text-align:right" ` +
+                  `oninput="onRenderChange('${f.key}', this.value)">`;
+        }
+        container.appendChild(row);
+    }
+    // Bouton « Enregistrer sous »
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'margin-top:6px;border-top:1px solid #333;padding-top:5px';
+    btnRow.innerHTML =
+        `<button onclick="onRenderSave()" ` +
+        `style="width:100%;background:#3a2a00;color:#ffaa44;border:1px solid #7a5a00;` +
+               `font:inherit;font-size:10px;padding:3px;cursor:pointer;border-radius:2px">` +
+        `💾 Enregistrer sous…</button>` +
+        `<div id="render-save-status" style="color:#888;font-size:9px;margin-top:3px;min-height:11px"></div>`;
+    container.appendChild(btnRow);
+    _renderFieldsBuilt = true;
+}
+
+function onRenderChange(key, value) {
+    if (typeof setRenderParam === 'function') setRenderParam(key, value);
+}
+
+function onToggleRenderPanel(on) {
+    const panel = document.getElementById('render-panel');
+    if (!panel) return;
+    if (on) {
+        _buildRenderFields();
+        panel.style.display = '';
+    } else {
+        panel.style.display = 'none';
+    }
+}
+
+function onRenderSave() {
+    const params = {};
+    for (const f of RENDER_FIELDS) params[f.key] = getRenderParam(f.key);
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const payload = {
+        generated:   new Date().toISOString(),
+        description: 'Smaky 6 rendering parameters',
+        params:      params,
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const status = document.getElementById('render-save-status');
+    try {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;  a.download = `smaky6-render-${ts}.json`;  a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {}
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(json)
+            .then(() => { if (status) status.textContent = '✓ Fichier + presse-papier'; })
+            .catch(() => { if (status) status.textContent = '✓ Fichier téléchargé'; });
+    } else if (status) {
+        status.textContent = '✓ Fichier téléchargé';
+    }
+}
 
 let _geomFieldsBuilt = false;
 
@@ -833,7 +955,52 @@ function _buildGeomFields() {
               `oninput="onGeomChange('${p.key}', this.value)">`;
         container.appendChild(row);
     }
+    // Bouton « Enregistrer sous » en bas du panneau
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'margin-top:6px;border-top:1px solid #333;padding-top:5px';
+    btnRow.innerHTML =
+        `<button onclick="onGeomSave()" ` +
+        `style="width:100%;background:#003a1a;color:#22cc77;border:1px solid #007a3a;` +
+               `font:inherit;font-size:10px;padding:3px;cursor:pointer;border-radius:2px">` +
+        `💾 Enregistrer sous…</button>` +
+        `<div id="geom-save-status" style="color:#888;font-size:9px;margin-top:3px;min-height:11px"></div>`;
+    container.appendChild(btnRow);
     _geomFieldsBuilt = true;
+}
+
+// Enregistre les paramètres courants dans un fichier .json téléchargé
+// (et copie aussi au presse-papier).
+function onGeomSave() {
+    const params = {};
+    for (const p of GEOM_PARAMS) {
+        params[p.key] = getHousingParam(p.key);
+    }
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const payload = {
+        generated:   new Date().toISOString(),
+        description: 'Smaky 6 housing geometric parameters',
+        params:      params,
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const status = document.getElementById('geom-save-status');
+
+    // 1) Téléchargement du fichier
+    try {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;  a.download = `smaky6-geom-${ts}.json`;  a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {}
+
+    // 2) Copie au presse-papier (avec fallback Electron si disponible)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(json)
+            .then(() => { if (status) status.textContent = '✓ Fichier téléchargé + copié dans le presse-papier'; })
+            .catch(() => { if (status) status.textContent = '✓ Fichier téléchargé (copie presse-papier refusée)'; });
+    } else if (status) {
+        status.textContent = '✓ Fichier téléchargé';
+    }
 }
 
 function onGeomChange(key, value) {
@@ -878,7 +1045,10 @@ function onToggle3D(on) {
         }
         // Synchronise la bordure et le fond phosphore avec les réglages 2D.
         if (typeof setScreenBorder === 'function') setScreenBorder(crtBorderPercent);
-        if (typeof setScreenBgColor === 'function') setScreenBgColor(currentPalette.off);
+        // Bordure noire tant que le simulateur n'a pas démarré.
+        if (typeof setScreenBgColor === 'function') {
+            setScreenBgColor(sim ? currentPalette.off : [0, 0, 0]);
+        }
         start3D();
         // Donner le focus au canvas WebGL pour que les frappes y arrivent.
         const c3d = (typeof get3DCanvas === 'function') ? get3DCanvas() : null;
@@ -921,10 +1091,11 @@ function onPaletteChange(name) {
     // Mettre à jour la bordure CRT pour qu'elle suive la palette.
     applyScreenGeometry();
     if (typeof setScreenBgColor === 'function') setScreenBgColor(currentPalette.off);
-    // Si le simulateur n'est pas en train de tourner, repaint l'écran de fond
+    // Si le simulateur n'est pas en train de tourner, garder l'écran noir
+    // (vrai CRT éteint). La bordure CRT change automatiquement de teinte
+    // via setScreenBgColor.
     if (!sim || sim.mode !== 'running') {
-        const off = currentPalette.off;
-        textCtx.fillStyle = `rgb(${off[0]},${off[1]},${off[2]})`;
+        textCtx.fillStyle = '#000';
         textCtx.fillRect(0, 0, SCREEN_W, SCREEN_H);
     }
 }
@@ -2009,6 +2180,9 @@ function startSimulation() {
     sim.onPpByte  = () => updatePpStatus();
     updateDiskPanel();
     updateFloppyPanel();
+    // Le CRT s'allume : bordure passe de noir à la teinte du phosphore.
+    applyScreenGeometry();
+    if (typeof setScreenBgColor === 'function') setScreenBgColor(currentPalette.off);
     sim.onFrame   = onFrame;
     // Haut-parleur : ce démarrage est dans un handler de clic, donc
     // on peut débloquer l'AudioContext sans risque (politique autoplay).
