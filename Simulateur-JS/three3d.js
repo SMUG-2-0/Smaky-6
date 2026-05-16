@@ -58,7 +58,7 @@ const SHEET_THICKNESS_MM = 1.5;
 // F = portion latérale arrière), rétrécit en montant vers le sommet du V.
 const SHEET_BACK = {
     TILT_BACK_DEG: 5,    // inclinaison vers l'arrière (depuis vertical)
-    TOP_WIDTH:     400,  // largeur en haut — estimation
+    HEIGHT:        200,  // longueur de la section haute le long de sa pente
 };
 
 // Tôle « écran-disques » : pièce plate trapézoïdale, monte presque
@@ -68,6 +68,7 @@ const SHEET_BACK = {
 const SHEET_SCREEN_DISK = {
     HEIGHT:         200,    // hauteur de la pièce le long de la pente
     TILT_BACK_DEG:  10,     // inclinaison vers l'arrière (par rapport à vertical)
+    SHRINK_DEG:     10,     // angle de rétrécissement de la pièce vers le haut
 
     // Découpe écran (rectangulaire) — coordonnées 2D dans le plan local
     // (X = largeur, Y = position le long de la pente, Y = 0 au bas).
@@ -128,6 +129,8 @@ let _bgMat       = null;     // matériau du fond phosphore (derrière l'image)
 let _animating   = false;
 let _container   = null;
 let _leds        = [];   // [{mesh, type:'floppy'|'hd'}, ...]
+let _housingGroup = null; // contient toutes les pièces du boîtier (pour rebuild)
+let _sourceCanvas = null; // mémorisé pour pouvoir reconstruire l'écran texturé
 
 function init3D(container, sourceCanvas) {
     _container = container;
@@ -179,15 +182,86 @@ function init3D(container, sourceCanvas) {
 // + plinthe) au « modèle tôles » fidèle à la fabrication réelle. Les
 // anciens éléments sont commentés pendant qu'on monte les tôles une à une.
 function _buildHousing(sourceCanvas) {
-    _buildBottomSheet();
-    _buildKeyboardSheet();
-    _buildKeyboard();
-    _buildScreenDiskSheet();
-    _buildBackSheet();
-    _buildTopCapotSheet();
-    _buildScreenAssembly(sourceCanvas);
-    _buildDrives();
-    // _buildDimensionLabels();   // désactivé pour la version 0.6.0
+    _sourceCanvas = sourceCanvas;
+
+    // Group qui contient toutes les pièces du boîtier (créé une seule fois,
+    // vidé à chaque reconstruction).
+    if (!_housingGroup) {
+        _housingGroup = new THREE.Group();
+        _scene.add(_housingGroup);
+    } else {
+        while (_housingGroup.children.length > 0) {
+            _housingGroup.remove(_housingGroup.children[0]);
+        }
+    }
+    _leds = [];
+    _screenTex = null;
+    _screenMesh = null;
+    _bgMat = null;
+
+    // Redirige temporairement _scene.add vers _housingGroup pendant
+    // la construction (évite d'éparpiller des _housingGroup.add partout).
+    const sceneAddOriginal = _scene.add.bind(_scene);
+    _scene.add = function(obj) { _housingGroup.add(obj); return _housingGroup; };
+    try {
+        _buildBottomSheet();
+        _buildKeyboardSheet();
+        _buildKeyboard();
+        _buildScreenDiskSheet();
+        _buildBackSheet();
+        _buildTopCapotSheet();
+        _buildScreenAssembly(sourceCanvas);
+        _buildDrives();
+        // _buildDimensionLabels();   // désactivé pour la version 0.6.0
+    } finally {
+        _scene.add = sceneAddOriginal;
+    }
+}
+
+// Reconstruit le boîtier (après modification de paramètres).
+function rebuildHousing() {
+    if (_sourceCanvas) _buildHousing(_sourceCanvas);
+}
+
+// Setter unifié pour les paramètres du boîtier.
+function setHousingParam(key, value) {
+    const v = parseFloat(value);
+    if (isNaN(v)) return;
+    switch (key) {
+        case 'A':        SHEET_BOTTOM.W = v; break;
+        case 'G':        SHEET_BOTTOM.D = v;
+                         SHEET_BOTTOM.TILT_BACK_PROJ = v - SHEET_BOTTOM.TILT_FRONT_PROJ; break;
+        case 'C':        SHEET_BOTTOM.TILT_FRONT_PROJ = v;
+                         SHEET_BOTTOM.TILT_BACK_PROJ  = SHEET_BOTTOM.D - v; break;
+        case 'E':        SHEET_KEYBOARD.FACE_VERT_H = v; break;
+        case 'F':        SHEET_BOTTOM.FACADE_H = v; break;
+        case 'H':        SHEET_BOTTOM.TILT_PEAK_H = v; break;
+        case 'ALPHA':    SHEET_BOTTOM.FLANK_TILT_DEG = v; break;
+        case 'L_ED':     SHEET_SCREEN_DISK.HEIGHT = v; break;
+        case 'BETA_ED':  SHEET_SCREEN_DISK.TILT_BACK_DEG = v; break;
+        case 'L_ARR':    SHEET_BACK.HEIGHT = v; break;
+        case 'BETA_ARR': SHEET_BACK.TILT_BACK_DEG = v; break;
+        case 'SHRINK':   SHEET_SCREEN_DISK.SHRINK_DEG = v; break;
+    }
+}
+
+// Lit la valeur courante d'un paramètre (pour pré-remplir l'UI).
+function getHousingParam(key) {
+    switch (key) {
+        case 'A':        return SHEET_BOTTOM.W;
+        case 'G':        return SHEET_BOTTOM.D;
+        case 'C':        return SHEET_BOTTOM.TILT_FRONT_PROJ;
+        case 'E':        return SHEET_KEYBOARD.FACE_VERT_H;
+        case 'F':        return SHEET_BOTTOM.FACADE_H;
+        case 'H':        return SHEET_BOTTOM.TILT_PEAK_H;
+        case 'ALPHA':    return SHEET_BOTTOM.FLANK_TILT_DEG;
+        case 'L_ED':     return SHEET_SCREEN_DISK.HEIGHT;
+        case 'BETA_ED':  return SHEET_SCREEN_DISK.TILT_BACK_DEG;
+        case 'L_ARR':    return SHEET_BACK.HEIGHT;
+        case 'BETA_ARR': return SHEET_BACK.TILT_BACK_DEG;
+        case 'SHRINK':   return SHEET_SCREEN_DISK.SHRINK_DEG;
+    }
+    return null;
 }
 
 // ─── Baie disques (dans la découpe DISKS de la tôle écran-disques) ──
@@ -327,7 +401,7 @@ function _buildTopCapotSheet() {
     const D_2 = SB.D * MM / 2;
     const F_h = SB.FACADE_H * MM;
     const tan_a      = Math.tan(SB.FLANK_TILT_DEG * Math.PI / 180);
-    const tan_shrink = Math.tan(10 * Math.PI / 180);
+    const tan_shrink = Math.tan(SHEET_SCREEN_DISK.SHRINK_DEG * Math.PI / 180);
 
     const tilt_sd = SD.TILT_BACK_DEG * Math.PI / 180;
     const tilt_bk = SBK.TILT_BACK_DEG * Math.PI / 180;
@@ -339,11 +413,14 @@ function _buildTopCapotSheet() {
     const W_bot_sd = W + 2 * (E + Hp) * tan_a;
     const W_top_sd = W_bot_sd - 2 * Hp_p * Math.cos(tilt_sd) * tan_shrink;
 
-    // Sommet de la tôle arrière section 2 (= bord arrière de la tôle supérieure).
+    // Sommet de la tôle arrière section 2 — DOIT correspondre exactement
+    // au sommet réel construit dans _buildBackSheet (sinon le capot
+    // supérieur ne tombe pas sur l'arête haute de la tôle arrière).
     const W_inflex   = W + 2 * F_h * tan_a;
-    const Y_top_bk   = F_h + Hp_p * Math.cos(tilt_bk);
-    const Z_top_bk   = -D_2 - Hp_p * Math.sin(tilt_bk);
-    const W_top_bk   = W_inflex - 2 * Hp_p * tan_shrink;
+    const len_bk     = SHEET_BACK.HEIGHT * MM;     // longueur propre à la tôle arrière
+    const Y_top_bk   = F_h + len_bk * Math.cos(tilt_bk);
+    const Z_top_bk   = -D_2 - len_bk * Math.sin(tilt_bk);
+    const W_top_bk   = Math.min(W_top_sd, W_inflex);   // même guard-rail qu'au build
 
     const beigeMat = new THREE.MeshStandardMaterial({
         color: COLOR_BEIGE, roughness: 1.0, metalness: 0.0, flatShading: true,
@@ -415,7 +492,7 @@ function _buildBackSheet() {
     const t   = SHEET_THICKNESS_MM * MM;
     const D_2 = SB.D * MM / 2;
     const tan_a      = Math.tan(SB.FLANK_TILT_DEG * Math.PI / 180);
-    const tan_shrink = Math.tan(10 * Math.PI / 180);
+    const tan_shrink = Math.tan(SHEET_SCREEN_DISK.SHRINK_DEG * Math.PI / 180);
 
     const tilt    = SBK.TILT_BACK_DEG * Math.PI / 180;
     const tilt_sd = SD.TILT_BACK_DEG * Math.PI / 180;
@@ -426,12 +503,21 @@ function _buildBackSheet() {
     const W_bot    = W;                       // = B
     const W_inflex = W + 2 * F_h * tan_a;     // suit F (au sommet de la façade arrière)
 
-    // Section 2 : même longueur (le long de sa pente) et même angle de
-    // rétrécissement que la tôle écran-disques. Les 2 sommets ne sont
-    // donc PAS à la même altitude — la tôle supérieure du capot fera
-    // la jonction entre eux.
-    const len_sec2 = Hp_p;
-    const W_top    = W_inflex - 2 * len_sec2 * tan_shrink;
+    // Option A : seule la LARGEUR du sommet doit matcher celle de la tôle
+    // écran-disques (pour que la face supérieure du capot soit plane).
+    // L'altitude du sommet de la tôle arrière reste libre — la face du
+    // capot est inclinée vers l'arrière (descendante).
+    const W_bot_sd  = W + 2 * (E + Hp) * tan_a;
+    const W_top_sd  = W_bot_sd - 2 * Hp_p * Math.cos(tilt_sd) * tan_shrink;
+
+    // Longueur libre (paramètre utilisateur).
+    const len_sec2 = SBK.HEIGHT * MM;
+    // Contrainte de planéité du capot supérieur : W_top = W_top_sd.
+    // Garde-fou : si l'évasement α est si fort que W_top_sd dépasserait
+    // W_inflex (la tôle s'élargirait au lieu de rétrécir), on cape à
+    // W_inflex — la tôle reste au pire rectangulaire, la planéité du
+    // capot supérieur est alors sacrifiée (rabattu en 2 triangles).
+    const W_top = Math.min(W_top_sd, W_inflex);
 
     const brunMat = new THREE.MeshStandardMaterial({
         color: COLOR_BRUN, roughness: 1.0, metalness: 0.0, flatShading: true,
@@ -496,7 +582,7 @@ function _buildScreenDiskSheet() {
     // Angle de rétrécissement plus doux (≈ 10°) que l'évasement des flancs
     // pour laisser de la marge autour des découpes.
     const dY    = Y_top - Y_bot;
-    const tan_shrink = Math.tan(10 * Math.PI / 180);
+    const tan_shrink = Math.tan(SHEET_SCREEN_DISK.SHRINK_DEG * Math.PI / 180);
     const W_bot = W + 2 * Y_bot * tan_a;
     const W_top = W_bot - 2 * dY * tan_shrink;
 
@@ -1096,5 +1182,8 @@ if (typeof window !== 'undefined') {
     window.setScreenBgColor = setScreenBgColor;
     window.get3DCanvas      = () => _renderer ? _renderer.domElement : null;
     window.playIntroAnimation = playIntroAnimation;
+    window.rebuildHousing     = rebuildHousing;
+    window.setHousingParam    = setHousingParam;
+    window.getHousingParam    = getHousingParam;
     window.SMAKY_3D_PARAMS  = PARAMS;   // pour bidouiller depuis la console
 }

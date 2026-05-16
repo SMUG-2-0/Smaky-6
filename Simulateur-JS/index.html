@@ -456,7 +456,19 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
       <canvas id="gfx-canvas"></canvas>
       <canvas id="text-canvas" tabindex="0"></canvas>
   </div>
-  <div id="three-container" style="display:none;width:800px;height:600px;background:#1a1a1a"></div>
+  <div id="three-container" style="display:none;width:800px;height:600px;background:#1a1a1a;position:relative">
+    <!-- Panneau de paramètres géométrie (overlay sur le canvas 3D) -->
+    <div id="geom-panel" style="
+        display:none;
+        position:absolute; top:8px; right:8px;
+        background:rgba(20,20,20,0.92); color:#ccc;
+        font:11px 'Courier New',monospace; padding:8px 10px;
+        border:1px solid #444; border-radius:3px;
+        z-index:10; width:180px;">
+      <div style="color:#88ccff;font-weight:bold;margin-bottom:5px">Géométrie boîtier (mm)</div>
+      <div id="geom-fields"></div>
+    </div>
+  </div>
   <div style="display:flex;flex-direction:column;gap:6px">
     <div id="disk-panel"><!-- généré par buildDiskPanel() --></div>
     <div id="floppy-panel"><!-- généré par buildFloppyPanel() --></div>
@@ -529,6 +541,11 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
                title="Affiche le boîtier en 3D — souris pour orbiter, molette pour zoomer">
           <input type="checkbox" id="view3d-cb" onchange="onToggle3D(this.checked)">
           <span>Boîtier 3D</span>
+        </label>
+        <label class="fp-cb" style="font-size:10px;margin-top:3px"
+               title="Affiche un panneau pour modifier les dimensions en direct">
+          <input type="checkbox" id="geom-cb" onchange="onToggleGeomPanel(this.checked)">
+          <span>Géom.</span>
         </label>
       </div>
     </div>
@@ -777,6 +794,62 @@ function onFrame(textMem, gfxMem, gfxMode) {
     prevPaletteName = currentPalette.name;
 
     syncFnCheckboxes();
+}
+
+// ─── Panneau de paramètres géométrie (overlay 3D) ────────────────
+// Liste des paramètres avec leurs bornes (en mm ou degrés)
+const GEOM_PARAMS = [
+    { key: 'A',        label: 'A (largeur)',   min: 200, max: 800, step: 5 },
+    { key: 'G',        label: 'G (profondeur)', min: 200, max: 900, step: 5 },
+    { key: 'C',        label: 'C (av./V)',      min: 50,  max: 500, step: 5 },
+    { key: 'E',        label: 'E (façade av.)', min: 0,   max: 200, step: 2 },
+    { key: 'F',        label: 'F (façade ar.)', min: 0,   max: 200, step: 2 },
+    { key: 'H',        label: 'H (sommet V)',   min: 0,   max: 300, step: 5 },
+    { key: 'ALPHA',    label: 'α (évasement°)', min: 0,   max: 45,  step: 1 },
+    { key: 'L_ED',     label: 'L_ed (écran)',   min: 50,  max: 400, step: 5 },
+    { key: 'BETA_ED',  label: 'β_ed (incl.°)',  min: 0,   max: 45,  step: 1 },
+    { key: 'L_ARR',    label: 'L_arr (arrière)', min: 50,  max: 400, step: 5 },
+    { key: 'BETA_ARR', label: 'β_arr (incl.°)', min: 0,   max: 45,  step: 1 },
+    { key: 'SHRINK',   label: 'rétréc. capot°', min: 0,   max: 30,  step: 1 },
+];
+
+let _geomFieldsBuilt = false;
+
+function _buildGeomFields() {
+    if (_geomFieldsBuilt) return;
+    const container = document.getElementById('geom-fields');
+    if (!container || typeof getHousingParam !== 'function') return;
+    container.innerHTML = '';
+    for (const p of GEOM_PARAMS) {
+        const v = getHousingParam(p.key);
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:4px;margin:2px 0';
+        row.innerHTML =
+            `<label style="flex:1;color:#ccc;font-size:10px">${p.label}</label>` +
+            `<input type="number" id="geom-${p.key}" value="${v}" ` +
+              `min="${p.min}" max="${p.max}" step="${p.step}" ` +
+              `style="width:55px;background:#111;color:#cfc;border:1px solid #444;` +
+                     `font:inherit;font-size:10px;padding:1px 3px;text-align:right" ` +
+              `oninput="onGeomChange('${p.key}', this.value)">`;
+        container.appendChild(row);
+    }
+    _geomFieldsBuilt = true;
+}
+
+function onGeomChange(key, value) {
+    if (typeof setHousingParam === 'function') setHousingParam(key, value);
+    if (typeof rebuildHousing  === 'function') rebuildHousing();
+}
+
+function onToggleGeomPanel(on) {
+    const panel = document.getElementById('geom-panel');
+    if (!panel) return;
+    if (on) {
+        _buildGeomFields();
+        panel.style.display = '';
+    } else {
+        panel.style.display = 'none';
+    }
 }
 
 // ─── Bascule vue 2D / 3D ─────────────────────────────────────────
