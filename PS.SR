@@ -1,0 +1,892 @@
+;#############################################################
+;# PS.SR  --  PARSER + EMETTEUR DE BYTECODE PETIT-PYTHON     #
+;#############################################################
+;PYR 17 MAI 2026
+;A INCLURE PAR .INS PS DEPUIS LE PROGRAMME PRINCIPAL OU TEST.
+;DEPEND DE : LX.SR (INCLUS CI-DESSOUS), BCBUF, SYMTBL
+;(LES BUFFERS BCBUF/SYMTBL SONT DECLARES PAR L'INCLUDEUR).
+
+
+
+;#############################################################
+;# INCLURE LE LEXER (LX.SR DEFINIT TKxxx, LXINIT, LXNEXT...) #
+;#############################################################
+
+	.INS	LX
+
+
+
+;#############################################################
+;# OPCODES DE BYTECODE                                       #
+;#############################################################
+
+BCHALT	= H'00		;FIN DU PROGRAMME
+BCPSHI	= H'01		;PUSH IMMEDIAT 16 BITS (SUIVI DE 2 OCTETS LE)
+BCLOAD	= H'02		;LOAD VAR (SUIVI 1 OCTET = SLOT)
+BCSTOR	= H'03		;STORE VAR (SUIVI 1 OCTET = SLOT)
+
+BCADD	= H'10
+BCSUB	= H'11
+BCMUL	= H'12
+BCDIV	= H'13
+BCMOD	= H'14
+BCNEG	= H'15		;UNAIRE -
+
+BCEQ	= H'20
+BCNE	= H'21
+BCLT	= H'22
+BCLE	= H'23
+BCGT	= H'24
+BCGE	= H'25
+
+BCNOT	= H'30
+BCAND	= H'31
+BCOR	= H'32
+
+BCJMP	= H'40		;JUMP ADRESSE ABS (SUIVI 2 OCTETS LE)
+BCJZ	= H'41		;POP, JUMP SI 0
+BCJNZ	= H'42		;POP, JUMP SI != 0
+
+BCPRTI	= H'50		;POP ET AFFICHE EN DECIMAL
+BCPRSP	= H'51		;AFFICHE UN ESPACE
+BCPRNL	= H'52		;AFFICHE UN SAUT DE LIGNE
+BCPOP	= H'53		;DEPILE ET JETTE
+
+NBSYM	= 64.		;NOMBRE MAX DE VARIABLES PYTHON
+
+
+
+;#############################################################
+;# MESSAGES D'ERREUR                                         #
+;#############################################################
+
+PSEM1:	.ASCIZ	"ERR PS : INSTRUCTION INATTENDUE<CR>"
+PSEM2:	.ASCIZ	"ERR PS : TOKEN INATTENDU<CR>"
+PSEM3:	.ASCIZ	"ERR PS : EXPRESSION INVALIDE<CR>"
+PSEM4:	.ASCIZ	"ERR PS : TROP DE VARIABLES<CR>"
+PSEM5:	.ASCIZ	"ERR PS : BREAK HORS BOUCLE<CR>"
+PSEM6:	.ASCIZ	"ERR PS : CONTINUE HORS BOUCLE<CR>"
+
+
+
+;#############################################################
+;# VARIABLES D'ETAT DU PARSER                                #
+;#############################################################
+
+BCPTR:	.BLKB	2		;PTR PROCHAIN OCTET LIBRE DANS BCBUF
+SYMNUM:	.BLKB	1		;NOMBRE DE SYMBOLES ALLOUES
+PSIFEC:	.BLKB	2		;CHAINE DE PATCH POUR JUMP FIN-DE-IF
+CBRPTR:	.BLKB	2		;CHAINE DE PATCH POUR BREAK
+CCNPTR:	.BLKB	2		;ADRESSE LOOP_START (0 = HORS BOUCLE)
+PSCAND:	.BLKB	2		;PTR CANDIDAT POUR LOOKUP SYMBOLE
+PSCLEN:	.BLKB	1		;LONGUEUR DU CANDIDAT
+
+
+
+;#############################################################
+;#############################################################
+;# ROUTINES                                                  #
+;#############################################################
+;#############################################################
+
+
+
+;==========================================================
+;PSINIT : INITIALISE LE PARSER
+;==========================================================
+;IN  : -
+;OUT : BCPTR = #BCBUF, SYMNUM = 0, ETC.
+;USES: A, HL
+
+PSINIT:
+	LOAD	HL,#BCBUF
+	LOAD	BCPTR,HL
+	XOR	A,A
+	LOAD	SYMNUM,A
+	LOAD	HL,#0
+	LOAD	PSIFEC,HL
+	LOAD	CBRPTR,HL
+	LOAD	CCNPTR,HL
+	RET
+
+
+
+;==========================================================
+;PSPARS : PARSE LE PROGRAMME COMPLET
+;==========================================================
+;IN  : LEXER INITIALISE (LXINIT APPELE)
+;OUT : BYTECODE EMIS DANS BCBUF, BCPTR POINTE LA FIN+1
+;USES: TOUT
+
+PSPARS:
+	CALL	LXNEXT		;CHARGE PREMIER TOKEN
+
+PSPRLP:	LOAD	A,LXTYPE
+	COMP	A,#TKEOF
+	JUMP	EQ,PSPRDN
+	COMP	A,#TKNL
+	JUMP	NE,PSPRS1
+	;LIGNE BLANCHE
+	CALL	LXNEXT
+	JUMP	PSPRLP
+PSPRS1:	CALL	PSSTMT
+	JUMP	PSPRLP
+
+PSPRDN:	LOAD	A,#BCHALT
+	CALL	PSEMIT
+	RET
+
+
+
+;==========================================================
+;PSSTMT : PARSE UNE INSTRUCTION
+;==========================================================
+;DISPATCH SELON LXTYPE
+
+PSSTMT:	LOAD	A,LXTYPE
+	COMP	A,#TKIF
+	JUMP	EQ,PSIF
+	COMP	A,#TKWHIL
+	JUMP	EQ,PSWHIL
+	COMP	A,#TKPRIN
+	JUMP	EQ,PSPRIN
+	COMP	A,#TKNAME
+	JUMP	EQ,PSASGN
+	COMP	A,#TKPASS
+	JUMP	EQ,PSPASS
+	COMP	A,#TKBRK
+	JUMP	EQ,PSBRK
+	COMP	A,#TKCONT
+	JUMP	EQ,PSCONT
+	JUMP	PSER1
+
+
+
+;==========================================================
+;PSBLOC : PARSE UN BLOC INDENTE  NL INDENT { STMT } DEDENT
+;==========================================================
+
+PSBLOC:	LOAD	A,#TKNL
+	CALL	PSEXP
+	LOAD	A,#TKIND
+	CALL	PSEXP
+PSBLLP:	LOAD	A,LXTYPE
+	COMP	A,#TKNL
+	JUMP	NE,PSBLN1
+	;LIGNE BLANCHE DANS LE BLOC
+	CALL	LXNEXT
+	JUMP	PSBLLP
+PSBLN1:	COMP	A,#TKDED
+	JUMP	EQ,PSBLDN
+	COMP	A,#TKEOF
+	JUMP	EQ,PSBLDN	;EOF DANS UN BLOC -> ON SORT
+	CALL	PSSTMT
+	JUMP	PSBLLP
+PSBLDN:	;CONSOMMER LE DEDENT SI PRESENT
+	LOAD	A,LXTYPE
+	COMP	A,#TKDED
+	JUMP	NE,PSBLD1
+	CALL	LXNEXT
+PSBLD1:	RET
+
+
+
+;==========================================================
+;PSIF : PARSE  IF EXPR : BLOC { ELIF EXPR : BLOC } [ ELSE : BLOC ]
+;==========================================================
+;UTILISE PSIFEC POUR LE CHAINAGE DES JUMPs DE FIN.
+;SAUVE/RESTAURE LA VALEUR DE PSIFEC SUR LA PILE Z80.
+
+PSIF:	CALL	LXNEXT		;CONSOMMER IF
+	;SAUVE PSIFEC EXTERIEUR
+	LOAD	HL,PSIFEC
+	PUSH	HL
+	LOAD	HL,#0
+	LOAD	PSIFEC,HL
+
+PSIFBR:	;PARSE CONDITION
+	CALL	PSEXPR
+	LOAD	A,#TKCOLN
+	CALL	PSEXP
+	;EMET JZ + PLACEHOLDER
+	LOAD	A,#BCJZ
+	CALL	PSEMIT
+	LOAD	HL,BCPTR
+	PUSH	HL		;PH_JZ
+	LOAD	HL,#0
+	CALL	PSEMI2
+
+	;PARSE BLOC
+	CALL	PSBLOC
+
+	;ELIF / ELSE / RIEN ?
+	LOAD	A,LXTYPE
+	COMP	A,#TKELIF
+	JUMP	EQ,PSIFLI
+	COMP	A,#TKELSE
+	JUMP	EQ,PSIFLE
+
+	;PAS DE BRANCHE SUIVANTE : PATCH PH_JZ A BCPTR COURANT
+	POP	HL		;PH_JZ
+	LOAD	DE,BCPTR
+	CALL	PSPAT2
+	;PATCH LA CHAINE PSIFEC
+	LOAD	HL,PSIFEC
+	LOAD	DE,BCPTR
+	CALL	PSWLK
+	;RESTAURE PSIFEC EXTERIEUR
+	POP	HL
+	LOAD	PSIFEC,HL
+	RET
+
+PSIFLI:	;ELIF
+	CALL	LXNEXT		;CONSOMMER ELIF
+	;EMET JUMP CHAINE
+	LOAD	A,#BCJMP
+	CALL	PSEMIT
+	;OPERANDE = ANCIEN PSIFEC ; NOUVELLE TETE = BCPTR COURANT
+	LOAD	HL,BCPTR
+	LOAD	DE,PSIFEC
+	LOAD	PSIFEC,HL
+	EX	HL,DE		;HL = ANCIEN PSIFEC
+	CALL	PSEMI2
+
+	;PATCH PH_JZ A BCPTR COURANT
+	POP	HL		;PH_JZ
+	LOAD	DE,BCPTR
+	CALL	PSPAT2
+
+	;BOUCLE SUR PROCHAINE CONDITION
+	JUMP	PSIFBR
+
+PSIFLE:	;ELSE
+	CALL	LXNEXT		;CONSOMMER ELSE
+	LOAD	A,#TKCOLN
+	CALL	PSEXP
+
+	;EMET JUMP CHAINE
+	LOAD	A,#BCJMP
+	CALL	PSEMIT
+	LOAD	HL,BCPTR
+	LOAD	DE,PSIFEC
+	LOAD	PSIFEC,HL
+	EX	HL,DE
+	CALL	PSEMI2
+
+	;PATCH PH_JZ A BCPTR COURANT
+	POP	HL		;PH_JZ
+	LOAD	DE,BCPTR
+	CALL	PSPAT2
+
+	;PARSE BLOC ELSE
+	CALL	PSBLOC
+
+	;PATCH LA CHAINE PSIFEC
+	LOAD	HL,PSIFEC
+	LOAD	DE,BCPTR
+	CALL	PSWLK
+	;RESTAURE PSIFEC EXTERIEUR
+	POP	HL
+	LOAD	PSIFEC,HL
+	RET
+
+
+
+;==========================================================
+;PSWHIL : PARSE  WHILE EXPR : BLOC
+;==========================================================
+
+PSWHIL:	CALL	LXNEXT		;CONSOMMER WHILE
+	;SAUVE CONTEXTE BOUCLE
+	LOAD	HL,CCNPTR
+	PUSH	HL
+	LOAD	HL,CBRPTR
+	PUSH	HL
+
+	;NOUVEAU CONTEXTE
+	LOAD	HL,BCPTR	;LOOP_START
+	LOAD	CCNPTR,HL
+	LOAD	HL,#0
+	LOAD	CBRPTR,HL
+
+	;PARSE CONDITION
+	CALL	PSEXPR
+	LOAD	A,#TKCOLN
+	CALL	PSEXP
+
+	;EMET JZ EXIT + PLACEHOLDER
+	LOAD	A,#BCJZ
+	CALL	PSEMIT
+	LOAD	HL,BCPTR
+	PUSH	HL		;PH_EXIT
+	LOAD	HL,#0
+	CALL	PSEMI2
+
+	;PARSE BLOC
+	CALL	PSBLOC
+
+	;EMET JUMP LOOP_START
+	LOAD	A,#BCJMP
+	CALL	PSEMIT
+	LOAD	HL,CCNPTR
+	CALL	PSEMI2
+
+	;PATCH PH_EXIT A BCPTR COURANT
+	POP	HL		;PH_EXIT
+	LOAD	DE,BCPTR
+	CALL	PSPAT2
+
+	;PATCH LA CHAINE BREAK
+	LOAD	HL,CBRPTR
+	LOAD	DE,BCPTR
+	CALL	PSWLK
+
+	;RESTAURE CONTEXTE EXTERIEUR
+	POP	HL
+	LOAD	CBRPTR,HL
+	POP	HL
+	LOAD	CCNPTR,HL
+	RET
+
+
+
+;==========================================================
+;PSPRIN : PARSE  PRINT '(' [ EXPR { ',' EXPR } ] ')'
+;==========================================================
+
+PSPRIN:	CALL	LXNEXT		;CONSOMMER PRINT
+	LOAD	A,#TKLPAR
+	CALL	PSEXP
+
+	;CAS PRINT() VIDE ?
+	LOAD	A,LXTYPE
+	COMP	A,#TKRPAR
+	JUMP	EQ,PSPREM
+
+	;PREMIER ARGUMENT
+	CALL	PSEXPR
+	LOAD	A,#BCPRTI
+	CALL	PSEMIT
+
+PSPRLO:	LOAD	A,LXTYPE
+	COMP	A,#TKCOMM
+	JUMP	NE,PSPRDX
+	;EMET ESPACE ENTRE ARGUMENTS
+	LOAD	A,#BCPRSP
+	CALL	PSEMIT
+	CALL	LXNEXT		;CONSOMMER ,
+	CALL	PSEXPR
+	LOAD	A,#BCPRTI
+	CALL	PSEMIT
+	JUMP	PSPRLO
+
+PSPRDX:	LOAD	A,#TKRPAR
+	CALL	PSEXP
+	LOAD	A,#BCPRNL
+	CALL	PSEMIT
+	;CONSOMMER NL EVENTUEL
+	JUMP	PSEONL
+
+PSPREM:	CALL	LXNEXT		;CONSOMMER )
+	LOAD	A,#BCPRNL
+	CALL	PSEMIT
+	JUMP	PSEONL
+
+
+
+;==========================================================
+;PSASGN : PARSE  NAME '=' EXPR
+;==========================================================
+
+PSASGN:	;ALLOUE OU CHERCHE LE SLOT
+	LOAD	HL,LXVAL
+	LOAD	A,LXIDLN
+	LOAD	B,A
+	CALL	PSSYM		;A = SLOT
+	PUSH	AF		;SAUVE SLOT
+	CALL	LXNEXT		;CONSOMMER NAME
+
+	LOAD	A,#TKASGN
+	CALL	PSEXP
+
+	CALL	PSEXPR
+
+	LOAD	A,#BCSTOR
+	CALL	PSEMIT
+	POP	AF		;RECUPERE SLOT
+	CALL	PSEMIT
+	JUMP	PSEONL
+
+
+
+;==========================================================
+;PSPASS / PSBRK / PSCONT : INSTRUCTIONS SIMPLES
+;==========================================================
+
+PSPASS:	CALL	LXNEXT		;CONSOMMER PASS
+	JUMP	PSEONL
+
+PSBRK:	;VERIFIER QU'ON EST DANS UNE BOUCLE
+	LOAD	HL,CCNPTR
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,PSER5
+	CALL	LXNEXT		;CONSOMMER BREAK
+	;EMET JUMP CHAINE
+	LOAD	A,#BCJMP
+	CALL	PSEMIT
+	LOAD	HL,BCPTR
+	LOAD	DE,CBRPTR
+	LOAD	CBRPTR,HL
+	EX	HL,DE
+	CALL	PSEMI2
+	JUMP	PSEONL
+
+PSCONT:	LOAD	HL,CCNPTR
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,PSER6
+	CALL	LXNEXT		;CONSOMMER CONTINUE
+	LOAD	A,#BCJMP
+	CALL	PSEMIT
+	LOAD	HL,CCNPTR
+	CALL	PSEMI2
+	JUMP	PSEONL
+
+
+
+;==========================================================
+;PSEONL : CONSOMME UN NL TRAILER S'IL EST PRESENT
+;==========================================================
+
+PSEONL:	LOAD	A,LXTYPE
+	COMP	A,#TKNL
+	JUMP	NE,PSEON1
+	CALL	LXNEXT
+PSEON1:	RET
+
+
+
+;#############################################################
+;# EXPRESSIONS                                               #
+;#############################################################
+
+
+;==========================================================
+;PSEXPR -> PSOR
+;==========================================================
+
+PSEXPR:	;ALIAS
+	;FALLTHROUGH
+
+PSOR:	CALL	PSAND
+PSORLP:	LOAD	A,LXTYPE
+	COMP	A,#TKOR
+	JUMP	NE,PSORDN
+	CALL	LXNEXT
+	CALL	PSAND
+	LOAD	A,#BCOR
+	CALL	PSEMIT
+	JUMP	PSORLP
+PSORDN:	RET
+
+
+
+;==========================================================
+;PSAND
+;==========================================================
+
+PSAND:	CALL	PSNOT
+PSANLP:	LOAD	A,LXTYPE
+	COMP	A,#TKAND
+	JUMP	NE,PSANDN
+	CALL	LXNEXT
+	CALL	PSNOT
+	LOAD	A,#BCAND
+	CALL	PSEMIT
+	JUMP	PSANLP
+PSANDN:	RET
+
+
+
+;==========================================================
+;PSNOT
+;==========================================================
+
+PSNOT:	LOAD	A,LXTYPE
+	COMP	A,#TKNOT
+	JUMP	NE,PSCMP
+	CALL	LXNEXT
+	CALL	PSNOT
+	LOAD	A,#BCNOT
+	CALL	PSEMIT
+	RET
+
+
+
+;==========================================================
+;PSCMP : SOMME [ RELOP SOMME ]
+;==========================================================
+;LES OPCODES BCXX (H'20..H'25) ET LES TOKENS TKXX (H'47..H'4C)
+;SONT EN OFFSET CONSTANT H'27 ; ON MAPPE PAR SOUSTRACTION.
+
+PSCMP:	CALL	PSSUM
+	LOAD	A,LXTYPE
+	COMP	A,#TKEQ
+	JUMP	LO,PSCMDN
+	COMP	A,#TKGE+1
+	JUMP	LO,PSCM1
+	JUMP	PSCMDN
+PSCM1:	;A IN TKEQ..TKGE : OPCODE = A - H'27
+	SUB	A,#H'27
+	PUSH	AF
+	CALL	LXNEXT
+	CALL	PSSUM
+	POP	AF
+	CALL	PSEMIT
+PSCMDN:	RET
+
+
+
+;==========================================================
+;PSSUM : TERME { (+|-) TERME }
+;==========================================================
+
+PSSUM:	CALL	PSTERM
+PSSULP:	LOAD	A,LXTYPE
+	COMP	A,#TKPLUS
+	JUMP	EQ,PSSUP
+	COMP	A,#TKMINS
+	JUMP	EQ,PSSUM_
+	RET
+PSSUP:	CALL	LXNEXT
+	CALL	PSTERM
+	LOAD	A,#BCADD
+	CALL	PSEMIT
+	JUMP	PSSULP
+PSSUM_:	CALL	LXNEXT
+	CALL	PSTERM
+	LOAD	A,#BCSUB
+	CALL	PSEMIT
+	JUMP	PSSULP
+
+
+
+;==========================================================
+;PSTERM : UNAIRE { (*|/|//|%) UNAIRE }
+;==========================================================
+
+PSTERM:	CALL	PSUN
+PSTRLP:	LOAD	A,LXTYPE
+	COMP	A,#TKSTAR
+	JUMP	EQ,PSTRMU
+	COMP	A,#TKSLSH
+	JUMP	EQ,PSTRMD
+	COMP	A,#TKDSLA
+	JUMP	EQ,PSTRMD
+	COMP	A,#TKPERC
+	JUMP	EQ,PSTRMP
+	RET
+PSTRMU:	CALL	LXNEXT
+	CALL	PSUN
+	LOAD	A,#BCMUL
+	CALL	PSEMIT
+	JUMP	PSTRLP
+PSTRMD:	CALL	LXNEXT
+	CALL	PSUN
+	LOAD	A,#BCDIV
+	CALL	PSEMIT
+	JUMP	PSTRLP
+PSTRMP:	CALL	LXNEXT
+	CALL	PSUN
+	LOAD	A,#BCMOD
+	CALL	PSEMIT
+	JUMP	PSTRLP
+
+
+
+;==========================================================
+;PSUN : [ - | + ] FACTEUR
+;==========================================================
+
+PSUN:	LOAD	A,LXTYPE
+	COMP	A,#TKMINS
+	JUMP	EQ,PSUNNG
+	COMP	A,#TKPLUS
+	JUMP	EQ,PSUNPL
+	JUMP	PSFACT
+PSUNNG:	CALL	LXNEXT
+	CALL	PSFACT
+	LOAD	A,#BCNEG
+	CALL	PSEMIT
+	RET
+PSUNPL:	CALL	LXNEXT
+	JUMP	PSFACT
+
+
+
+;==========================================================
+;PSFACT : NOMBRE | NOM | '(' EXPR ')'
+;==========================================================
+
+PSFACT:	LOAD	A,LXTYPE
+	COMP	A,#TKNUM
+	JUMP	EQ,PSFCNM
+	COMP	A,#TKNAME
+	JUMP	EQ,PSFCNA
+	COMP	A,#TKLPAR
+	JUMP	EQ,PSFCPR
+	JUMP	PSER3
+
+PSFCNM:	LOAD	A,#BCPSHI
+	CALL	PSEMIT
+	LOAD	HL,LXVAL
+	CALL	PSEMI2
+	CALL	LXNEXT
+	RET
+
+PSFCNA:	LOAD	HL,LXVAL
+	LOAD	A,LXIDLN
+	LOAD	B,A
+	CALL	PSSYM		;A = SLOT
+	PUSH	AF
+	LOAD	A,#BCLOAD
+	CALL	PSEMIT
+	POP	AF
+	CALL	PSEMIT
+	CALL	LXNEXT
+	RET
+
+PSFCPR:	CALL	LXNEXT		;CONSOMMER (
+	CALL	PSEXPR
+	LOAD	A,#TKRPAR
+	CALL	PSEXP
+	RET
+
+
+
+;#############################################################
+;# HELPERS                                                   #
+;#############################################################
+
+
+;==========================================================
+;PSEXP : EXIGE LE TOKEN A, ERREUR SINON, AVANCE SI MATCH
+;==========================================================
+;IN : A = TYPE ATTENDU
+;USES: A, B
+
+PSEXP:	LOAD	B,A
+	LOAD	A,LXTYPE
+	COMP	A,B
+	JUMP	NE,PSER2
+	CALL	LXNEXT
+	RET
+
+
+
+;==========================================================
+;PSEMIT : EMET 1 OCTET A BCPTR ET AVANCE
+;==========================================================
+;IN  : A = OCTET A EMETTRE
+;PRESERVE : HL, DE, BC
+
+PSEMIT:	PUSH	HL
+	PUSH	DE
+	PUSH	AF
+	LOAD	HL,BCPTR
+	POP	AF
+	LOAD	(HL),A
+	INC	HL
+	LOAD	BCPTR,HL
+	POP	DE
+	POP	HL
+	RET
+
+
+
+;==========================================================
+;PSEMI2 : EMET HL EN 16 BITS LITTLE-ENDIAN A BCPTR
+;==========================================================
+;IN : HL = VALEUR
+;PRESERVE : HL, DE, BC
+
+PSEMI2:	PUSH	HL
+	LOAD	A,L
+	CALL	PSEMIT
+	POP	HL
+	PUSH	HL
+	LOAD	A,H
+	CALL	PSEMIT
+	POP	HL
+	RET
+
+
+
+;==========================================================
+;PSPAT2 : PATCHE 16 BITS A L'ADRESSE HL AVEC LA VALEUR DE
+;==========================================================
+;IN : HL = ADRESSE A PATCHER, DE = VALEUR
+
+PSPAT2:	LOAD	(HL),E
+	INC	HL
+	LOAD	(HL),D
+	RET
+
+
+
+;==========================================================
+;PSWLK : PARCOURT UNE CHAINE DE PATCHES ET PATCHE CHACUN
+;==========================================================
+;IN : HL = TETE DE CHAINE (0 = VIDE), DE = VALEUR DE PATCH
+;CHAQUE NOEUD CONTIENT L'ADRESSE DU NOEUD SUIVANT (LE 0 INI-
+;TIAL EST UNE TETE NULLE, SIGNAL DE FIN).
+
+PSWLK:	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,PSWLDN
+	;LIRE NEXT DEPUIS (HL)
+	LOAD	C,(HL)
+	INC	HL
+	LOAD	B,(HL)
+	DEC	HL
+	;ECRIRE DE A (HL)
+	LOAD	(HL),E
+	INC	HL
+	LOAD	(HL),D
+	;HL := BC (NEXT)
+	LOAD	H,B
+	LOAD	L,C
+	JUMP	PSWLK
+PSWLDN:	RET
+
+
+
+;==========================================================
+;PSSYM : LOOKUP OU ALLOCATION D'UN SYMBOLE
+;==========================================================
+;IN  : HL = PTR DEBUT NOM, B = LONGUEUR (1..8)
+;OUT : A = SLOT INDEX (0..63)
+;TABLE : SYMTBL[NBSYM*8], CHAQUE ENTREE = 8 OCTETS DU NOM
+;PADDE A 0 SI LONGUEUR < 8.
+
+PSSYM:	;SAUVE LE CANDIDAT EN MEMOIRE
+	LOAD	PSCAND,HL
+	LOAD	A,B
+	LOAD	PSCLEN,A
+
+	;TABLE VIDE ?
+	LOAD	A,SYMNUM
+	OR	A,A
+	JUMP	EQ,PSSYAD
+
+	LOAD	DE,#SYMTBL
+	LOAD	C,#0		;C = SLOT COURANT
+
+PSSYLP:	;COMPARE ENTREE (DE) AVEC CANDIDAT (PSCAND, PSCLEN)
+	PUSH	DE		;SAUVE DEBUT D'ENTREE
+	LOAD	HL,PSCAND
+	LOAD	A,PSCLEN
+	LOAD	B,A		;B = CHARS A COMPARER
+
+PSSYCL:	LOAD	A,(DE)
+	COMP	A,(HL)
+	JUMP	NE,PSSYNX
+	INC	HL
+	INC	DE
+	DEC	B
+	JUMP	NE,PSSYCL
+
+	;TOUS B CARS MATCHENT ; ENTREE DOIT AVOIR 0 A CETTE POS
+	LOAD	A,(DE)
+	OR	A,A
+	JUMP	NE,PSSYNX
+	;MATCH !
+	POP	DE		;NETTOIE LA PILE
+	LOAD	A,C
+	RET
+
+PSSYNX:	;MISMATCH : RESTAURE DE A DEBUT D'ENTREE, AVANCE DE 8
+	POP	DE
+	INC	DE
+	INC	DE
+	INC	DE
+	INC	DE
+	INC	DE
+	INC	DE
+	INC	DE
+	INC	DE
+	INC	C
+	LOAD	A,SYMNUM
+	LOAD	B,A
+	LOAD	A,C
+	COMP	A,B
+	JUMP	LO,PSSYLP
+
+	;PAS TROUVE : AJOUTER NOUVELLE ENTREE
+
+PSSYAD:	LOAD	A,SYMNUM
+	COMP	A,#NBSYM
+	JUMP	EQ,PSER4	;TROP DE VARIABLES
+
+	;ADR ENTREE = SYMTBL + SYMNUM*8
+	LOAD	H,#0
+	LOAD	L,A
+	ADD	HL,HL		;*2
+	ADD	HL,HL		;*4
+	ADD	HL,HL		;*8
+	LOAD	DE,#SYMTBL
+	ADD	HL,DE		;HL = ADR ENTREE
+	EX	HL,DE		;DE = ADR ENTREE
+	;COPIE NOM DEPUIS PSCAND VERS DE
+	LOAD	HL,PSCAND
+	LOAD	A,PSCLEN
+	LOAD	B,A
+PSSYCP:	LOAD	A,(HL)
+	LOAD	(DE),A
+	INC	HL
+	INC	DE
+	DEC	B
+	JUMP	NE,PSSYCP
+
+	;PADDING A 0 SUR LES OCTETS RESTANTS
+	LOAD	A,PSCLEN
+	LOAD	B,A
+	LOAD	A,#8.
+	SUB	A,B
+	OR	A,A
+	JUMP	EQ,PSSYPD
+	LOAD	B,A
+	XOR	A,A
+PSSYP1:	LOAD	(DE),A
+	INC	DE
+	DEC	B
+	JUMP	NE,PSSYP1
+
+PSSYPD:	;SLOT = ANCIEN SYMNUM ; INCREMENTE
+	LOAD	A,SYMNUM
+	PUSH	AF
+	INC	A
+	LOAD	SYMNUM,A
+	POP	AF
+	RET
+
+
+
+;==========================================================
+;ROUTINES D'ERREUR (FATALES, RETOUR SAMOS)
+;==========================================================
+
+PSER1:	LOAD	HL,#PSEM1
+	JUMP	PSERX
+PSER2:	LOAD	HL,#PSEM2
+	JUMP	PSERX
+PSER3:	LOAD	HL,#PSEM3
+	JUMP	PSERX
+PSER4:	LOAD	HL,#PSEM4
+	JUMP	PSERX
+PSER5:	LOAD	HL,#PSEM5
+	JUMP	PSERX
+PSER6:	LOAD	HL,#PSEM6
+PSERX:	.W	?DITEXT
+	.W	?RTN

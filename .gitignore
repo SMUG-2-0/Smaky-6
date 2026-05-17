@@ -4,6 +4,10 @@
 # Sauvegardes Notepad++
 *.bak
 
+# Listings d'assemblage (régénérés à chaque assemblage)
+*.ls
+*.LS
+
 # Bruit système
 Thumbs.db
 .DS_Store
