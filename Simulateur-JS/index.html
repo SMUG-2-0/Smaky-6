@@ -1259,6 +1259,8 @@ async function prChoose() {
         for (const ch of normalized) {
             if (ch === '\r') {
                 fifo.push(13);
+            } else if (ch === '\t') {
+                fifo.push(9);
             } else {
                 const smaky = UNICODE_TO_SMAKY.get(ch);
                 if (smaky !== undefined) fifo.push(smaky.charCodeAt(0));
@@ -1290,6 +1292,7 @@ async function ppSave() {
         let text = '';
         for (const b of sim._ppBuffer) {
             if (b === 13) { text += '\r\n'; }
+            else if (b === 9) { text += '\t'; }
             else { text += SMAKY_CHARS_JS[b & 0x7F] || ''; }
         }
         data = Array.from(new TextEncoder().encode(text));
@@ -1337,6 +1340,8 @@ async function doColler() {
     for (const ch of normalized) {
         if (ch === '\r') {
             chars.push('\r');
+        } else if (ch === '\t') {
+            chars.push('\t');
         } else {
             const smaky = UNICODE_TO_SMAKY.get(ch);
             if (smaky !== undefined) chars.push(smaky);
