@@ -1,0 +1,9 @@
+# Dossier de session Claude Code (privé à la machine)
+.claude/
+
+# Sauvegardes Notepad++
+*.bak
+
+# Bruit système
+Thumbs.db
+.DS_Store

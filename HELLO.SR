@@ -1,0 +1,113 @@
+	.TITLE	HELLO.SR
+	.PROC	Z80
+	.REF	FLO
+
+;PYR 17 MAI 2026  ETAPE 1 PETIT-PYTHON
+;TEST D'OUVERTURE / LECTURE / AFFICHAGE DE TEST.PY
+;VALIDE LA CHAINE D'ASSEMBLAGE ET LES SYSCALLS SAMOS
+
+
+
+;#############################################################
+;# CONSTANTES                                                #
+;#############################################################
+
+
+BUFSIZ	= 4000		;TAILLE BUFFER SOURCE EN OCTAL (2 KO)
+
+
+	.LOC	53000	;ORIGINE DU CODE EN MEMOIRE UTILISATEUR
+
+
+
+;#############################################################
+;# TEXTES, VARIABLES, BUFFER                                 #
+;#############################################################
+
+
+FNAME:	.ASCIZ	"TEST.PY"	;NOM HARDCODE EN V0.1
+CANAL:	.BLKB	1		;CANAL RETOURNE PAR ?OPEN
+SRCBUF:	.BLKB	BUFSIZ		;BUFFER DE 2 KO
+ENDBUF:	.B	0		;SENTINELLE 0 (FILET DE SECURITE)
+
+
+
+;#############################################################
+;#############################################################
+;# PROGRAMME PRINCIPAL                                       #
+;#############################################################
+;#############################################################
+
+
+
+START:				;POINT D'ENTREE
+
+
+;==========================================================
+; ETAPE 1 : CLEAR DU BUFFER (IDIOME LDIR)
+;==========================================================
+;LDIR PROPAGE LE 0 INITIAL SUR TOUT LE BUFFER
+
+	LOAD	HL,#SRCBUF	;HL := AD(BUFFER)
+	XOR	A,A		;A := 0
+	LOAD	(HL),A		;((HL)) := 0
+	LOAD	DE,#SRCBUF+1	;DE := AD(BUFFER) + 1
+	LOAD	BC,#BUFSIZ-1	;BC := TAILLE - 1
+	LDIR			;BLOCK COPY HL->DE TANT QUE BC#0
+
+
+;==========================================================
+; ETAPE 2 : OUVRIR TEST.PY
+;==========================================================
+
+	LOAD	DE,#FNAME	;DE := AD(NOM)
+	.W	?OPEN		;OUVRE LE FICHIER
+	JUMP	CS,ERROPN	;CS => ERREUR
+	LOAD	CANAL,A		;SAUVE LE CANAL
+
+
+;==========================================================
+; ETAPE 3 : LIRE LE CONTENU
+;==========================================================
+
+	LOAD	A,CANAL
+	LOAD	BC,#BUFSIZ	;LONGUEUR DEMANDEE
+	LOAD	DE,#SRCBUF	;DESTINATION
+	.W	?RDBYTE		;LIT BC OCTETS
+
+
+;==========================================================
+; ETAPE 4 : FERMER LE FICHIER
+;==========================================================
+
+	LOAD	A,CANAL
+	.W	?CLOSE
+
+
+;==========================================================
+; ETAPE 5 : AFFICHER LE CONTENU
+;==========================================================
+;?DITEXT S'ARRETE AU PREMIER 0. LE BUFFER PRE-ZEROE
+;GARANTIT L'ARRET A LA FIN DU FICHIER LU.
+
+	LOAD	HL,#SRCBUF	;HL := AD(BUFFER)
+	.W	?DITEXT		;AFFICHE LE TEXTE
+	.W	?RETURN		;CR FINAL
+
+
+	.W	?RTN		;RETOUR A SAMOS
+
+
+
+;#############################################################
+;# GESTION D'ERREUR                                          #
+;#############################################################
+
+
+ERROPN:	.W	?TEXTIM
+	.ASCIZ	"TEST.PY INTROUVABLE<CR>"
+	.W	?RTN
+
+
+
+	.END	START

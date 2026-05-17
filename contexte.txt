@@ -1,0 +1,32 @@
+Je suis Pierre-Yves Rochat, ingénieur EPFL né en 1957.
+J'ai participé durant mes études au développement des ordinateurs suisse Smaky.
+Depuis une année environ, Epsitex m'a confié un travail de préservation-restauration des Smaky.
+Dans ce cadre, un grand travail a été effectué sur le Smaky 6, datant de 1978, avec un Z80 et 68 kB de RAM.
+Tous nos disques dur de l'époque sont en panne. Les lecteurs de floppy sont souvent défectueur, toujours fragiles.
+Mais j'ai développé une carte qui émule un contrôleur de disque WD1002.
+Par ce moyen, on  maintenant des Smaky 6 qui fonctionnent parfaitement bien.
+J'ai aussi développé un simulateur sur PC. Il fonctionnne parfaitement, avec tous les logiciels d'époque.
+Il émule l'écran alphanumérique, l'écran graphique, le claviers et ses touches super-shift, le petit haut-parleur,
+les lecteurs de floppy, le disque dur et son contrôleur WD1002 et la ligne série $PP-$PR,
+qui permet de transférer de manière commode des fichiers depuis le PC hôte.
+On utilisait à l'époque le standard CALM pour les mnémoniques de l'assembleur Z80.
+On avait des appels système. Le gestionnaire de fichiers s'appelle Samos.
+J'ai désassemblé le Système et Samos, en CALM. Je peux les réassembler directement sur un Smaky 6 ou le simulateur.
+Grâce aux travaux de l'époque, on a déjà plusieurs langages de programmation sur Smaky 6:
+Dans l'ordre historique et de mémoire: l'assembleur CALM, le Basic, le Forth, le Pascal.
+Riche de cet environnement, je souhaite explorer ce qu'on peut faire avec ce matériel d'époque 
+et des outils plus modernes.
+Un passionné s'occupe ces jours de mettre du C sur le Smaky 6, avec  SDCC.
+Aujourd'hui, je souhaite explorer la piste Python, ce sera probablement du micro-Python.
+Qu'en penses-tu?
+-------------
+Plusieurs points pour préciser ma demande. (A) Le dossier parent contient tous mes autres projets Smaky 6. J'imagine qu'il te
+  faut la description de CALM. Tu pourrais la déduire du déassembleur CALM, dans ../Simulateur-JS/samos_disasm. Important: ne
+  consulte pas le dossier calm_docs, il s'agit de documents tirés du site pf-soft, mais trop récents, qui concerne CALM 2,
+  incompatible avec le CALM de 1980. (B) Sur le Smaky 6, on avait un éditeur-assembleur Z80. Mais il ne permettait que d'éditer de
+  petits programmes. On avait aussi l'editeur de programmes EPRO.SM et l'assembleur AS.SM. Je propose qu'on utilise cette chaîne
+  de travail: l'utilisateur écrira son programme en "petit-Python" avec EPRO, il lancera ensuite la commande PYTHON qui exécutera
+  le programme PYTHON.SM qu'on va écrire. J'imagine qu'il y aura à ce niveau une précompilation, puis une exécution. J'aurais
+  envie d'utiliser une ByteCode VM, c'est probablement ce qui permettrait de pousser le concept le plus loin. (C) Je souhaite
+  conserver l'indentation comme syntaxe des blocs, elle me semble essentielle à l'esprit de Python. (D) Est-ce que je mets la
+  barre trop haut?
