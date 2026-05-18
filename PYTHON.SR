@@ -26,6 +26,7 @@ BCSIZE	= 4000		;TAILLE BUFFER BYTECODE EN OCTAL (2 KO)
 
 FNAME:	.ASCIZ	"TEST.PY"
 MERR:	.ASCIZ	"TEST.PY INTROUVABLE<CR>"
+MFIN:	.ASCIZ	"<CR>Fin du programme, pressez une touche pour quitter !<CR>"
 
 
 
@@ -124,7 +125,17 @@ START:				;POINT D'ENTREE
 
 
 ;==========================================================
-; ETAPE 5 : RETOUR SAMOS
+; ETAPE 5 : MESSAGE FIN + ATTENTE TOUCHE
+;==========================================================
+;EVITE QUE LE CLI EFFACE LE RESULTAT AU RETOUR
+
+	LOAD	HL,#MFIN
+	.W	?DITEXT
+	.W	?GETCAR
+
+
+;==========================================================
+; ETAPE 6 : RETOUR SAMOS
 ;==========================================================
 
 	.W	?RTN

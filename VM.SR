@@ -116,17 +116,20 @@ NEG_HL:	XOR	A,A
 ;#############################################################
 ;ALGO SHIFT-ADD : RESULTAT EN HL, MULTIPLICAND EN BC,
 ;MULTIPLIER (DE) DECALE A DROITE, BIT 0 -> CARRY.
+;NOTE : en CALM 1re gen, "RRC" et "RLC" = rotates a travers
+;le carry (le C suffixe veut dire "with Carry"). "RR" et "RL"
+;sans C sont des rotates circulaires.
 
 MUL16:	LOAD	B,H
 	LOAD	C,L		;BC = MULTIPLICAND
 	LOAD	HL,#0
 	LOAD	A,#16.
 ML_LP:	SRC	D		;DE >>= 1, OLD LOW BIT -> CARRY
-	RR	E
+	RRC	E
 	JUMP	CC,ML_SK
 	ADD	HL,BC
 ML_SK:	SLC	C		;BC <<= 1
-	RL	B
+	RLC	B
 	DEC	A
 	JUMP	NE,ML_LP
 	RET
@@ -145,8 +148,8 @@ DIV16:	LOAD	A,#16.
 	LOAD	C,#0
 DV_LP:	;HL <<= 1, TOP BIT INTO BC
 	ADD	HL,HL
-	RL	C
-	RL	B
+	RLC	C		;BC <<= 1 + c-in (= bit 15 ancien de HL)
+	RLC	B
 	;TENTATIVE BC -= DE
 	LOAD	A,C
 	SUB	A,E
