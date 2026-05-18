@@ -11,7 +11,8 @@
 ;#############################################################
 
 VSSIZE	= 128.		;PILE VM EN OCTETS (64 CELLULES 16 BITS)
-VRSIZE	= 128.		;TABLEAU VARIABLES (64 SLOTS 16 BITS)
+VRSIZE	= 128.		;TABLEAU VARIABLES GLOBALES (64 SLOTS)
+LSSIZE	= 256.		;PILE LOCAUX (FRAMES DE FONCTION)
 
 
 
@@ -21,6 +22,7 @@ VRSIZE	= 128.		;TABLEAU VARIABLES (64 SLOTS 16 BITS)
 
 VMEM1:	.ASCIZ	"VM ERR: OPCODE INCONNU<CR>"
 VMEM2:	.ASCIZ	"VM ERR: DIVISION PAR ZERO<CR>"
+VMEM3:	.ASCIZ	"VM ERR: PILE LOCAUX PLEINE<CR>"
 
 
 
@@ -31,8 +33,15 @@ VMEM2:	.ASCIZ	"VM ERR: DIVISION PAR ZERO<CR>"
 IP:	.BLKB	2		;POINTEUR D'INSTRUCTION
 VSP:	.BLKB	2		;SOMMET PILE VM (CROIT VERS BAS)
 VSTAK:	.BLKB	VSSIZE
-VSTOP	= VSTAK+VSSIZE		;ADRESSE PILE VIDE
-VARS:	.BLKB	VRSIZE		;TABLEAU VARIABLES (INIT 0)
+VSTOP	= VSTAK+VSSIZE		;ADRESSE PILE VM VIDE
+VARS:	.BLKB	VRSIZE		;VARIABLES GLOBALES (INIT 0)
+FP:	.BLKB	2		;FRAME POINTER (0 SI HORS FONCTION)
+LSP:	.BLKB	2		;PROCHAIN SLOT LIBRE DANS LSTACK
+LSTACK:	.BLKB	LSSIZE		;PILE DES FRAMES (LOCAUX DES FONCTIONS)
+LSTOP	= LSTACK+LSSIZE		;ADRESSE FIN LSTACK
+RETVAL:	.BLKB	2		;VALEUR DE RETOUR TEMPORAIRE
+CALLAD:	.BLKB	2		;ADRESSE CIBLE DURANT CALL
+CALLNA:	.BLKB	1		;NB ARGS DURANT CALL
 DVCNT:	.BLKB	1		;COMPTEUR POUR DIV16
 DVDS:	.BLKB	1		;SIGNE DIVIDEND
 DVQS:	.BLKB	1		;SIGNE QUOTIENT
@@ -66,6 +75,12 @@ VMINIT:	LOAD	HL,#VSTOP
 	LOAD	DE,#VARS+1
 	LOAD	BC,#VRSIZE-1
 	LDIR
+	;FP := 0 (hors fonction au depart)
+	LOAD	HL,#0
+	LOAD	FP,HL
+	;LSP := base de LSTACK
+	LOAD	HL,#LSTACK
+	LOAD	LSP,HL
 	RET
 
 
@@ -334,9 +349,14 @@ OPTBL:
 	.W	VM_PSHI
 	.W	VM_LOAD
 	.W	VM_STOR
-	;H'04 - H'0F
-	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
-	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	;H'04 - H'08 : LOCAUX + FONCTIONS
+	.W	VM_LDL
+	.W	VM_STL
+	.W	VM_CALL
+	.W	VM_RETN
+	.W	VM_FRAME
+	;H'09 - H'0F : INUTILISES
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	;H'10 - H'15
 	.W	VM_ADD
 	.W	VM_SUB
@@ -386,9 +406,15 @@ OPTBL:
 ;#############################################################
 
 VM_HALT:
+	.W	?TEXTIM
+	.ASCIZ	"VH<CR>"
+	.W	?GETCAR
 	RET			;RETOUR A L'APPELANT DE VMRUN
 
 VM_PSHI:
+	.W	?TEXTIM
+	.ASCIZ	"VP<CR>"
+	.W	?GETCAR
 	LOAD	HL,IP
 	LOAD	E,(HL)
 	INC	HL
@@ -620,7 +646,10 @@ VM_OR:	CALL	VPOP
 	JUMP	NE,CMP_T
 	JUMP	CMP_F
 
-VM_JMP:	LOAD	HL,IP
+VM_JMP:	.W	?TEXTIM
+	.ASCIZ	"VJ<CR>"
+	.W	?GETCAR
+	LOAD	HL,IP
 	LOAD	E,(HL)
 	INC	HL
 	LOAD	D,(HL)
@@ -650,6 +679,9 @@ VM_JNZ:	CALL	VPOP
 	JUMP	VMLOOP
 
 VM_PRTI:
+	.W	?TEXTIM
+	.ASCIZ	"VI<CR>"
+	.W	?GETCAR
 	CALL	VPOP
 	CALL	PRDEC_S
 	JUMP	VMLOOP
@@ -659,7 +691,11 @@ VM_PRSP:
 	JUMP	VMLOOP
 
 VM_PRNL:
+	.W	?TEXTIM
+	.ASCIZ	"VN<CR>"
+	.W	?GETCAR
 	.W	?RETURN
+	.W	?GETCAR		;DIAG : pause apres chaque print
 	JUMP	VMLOOP
 
 VM_POP:	CALL	VPOP
@@ -668,8 +704,187 @@ VM_POP:	CALL	VPOP
 
 
 ;#############################################################
-;# CMP_T / CMP_F : PUSH 1 OU 0, RETOUR DISPATCH              #
+;# HANDLERS FONCTIONS / LOCAUX (V0.2)                        #
 ;#############################################################
+
+
+;LOAD VARIABLE LOCALE : HL := LSTACK[FP + slot*2], push
+VM_LDL:
+	.W	?TEXTIM
+	.ASCIZ	"VL<CR>"
+	.W	?GETCAR
+	LOAD	HL,IP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	IP,HL
+	;HL := FP + A*2
+	LOAD	HL,FP
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	;Lire 2 octets a (HL)
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;STORE VARIABLE LOCALE : pop, store dans LSTACK[FP + slot*2]
+VM_STL:
+	LOAD	HL,IP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	IP,HL
+	;HL := FP + A*2
+	LOAD	HL,FP
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	PUSH	HL		;ADR CIBLE
+	CALL	VPOP		;HL = VALEUR
+	POP	DE		;DE = ADR
+	LOAD	A,L
+	LOAD	(DE),A
+	INC	DE
+	LOAD	A,H
+	LOAD	(DE),A
+	JUMP	VMLOOP
+
+
+;CALL <addr 2 octets> <nargs 1 octet>
+;Sauve FP et IP dans header de frame, alloue frame, copie args
+;depuis VSTACK, saute a l'entree de la fonction.
+VM_CALL:
+	.W	?TEXTIM
+	.ASCIZ	"VC<CR>"
+	.W	?GETCAR
+	;Lire addr et nargs
+	LOAD	HL,IP
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	LOAD	A,(HL)		;A = nargs
+	INC	HL
+	LOAD	IP,HL		;IP = adresse de retour
+	;Sauver addr et nargs en memoire
+	EX	HL,DE		;HL = addr
+	LOAD	CALLAD,HL
+	LOAD	CALLNA,A
+	;Sauver FP et IP au debut de la nouvelle frame (header)
+	LOAD	HL,LSP
+	LOAD	DE,FP
+	LOAD	(HL),E
+	INC	HL
+	LOAD	(HL),D
+	INC	HL
+	LOAD	DE,IP
+	LOAD	(HL),E
+	INC	HL
+	LOAD	(HL),D
+	INC	HL
+	;HL = LSP + 4 = base de la frame (= nouveau FP)
+	LOAD	FP,HL
+	LOAD	LSP,HL
+	;Allouer nargs slots : LSP += nargs*2
+	LOAD	A,CALLNA
+	OR	A,A
+	JUMP	EQ,VMC_NA
+VMC_AL:	INC	HL
+	INC	HL
+	DEC	A
+	JUMP	NE,VMC_AL
+	LOAD	LSP,HL
+	;Remplir les slots avec les args (popper VSTACK).
+	;Top de VSTACK = dernier arg -> slot nargs-1 (= addr le plus haut)
+	;Travailler du haut vers le bas.
+	;HL = LSP (= FP + nargs*2). Decrementer pour chaque arg.
+	LOAD	A,CALLNA
+VMC_FL:	DEC	HL
+	DEC	HL
+	PUSH	HL		;sauve addr slot
+	PUSH	AF		;sauve compteur
+	CALL	VPOP		;HL = valeur popped
+	POP	AF
+	POP	DE		;DE = addr slot
+	LOAD	A,L
+	LOAD	(DE),A
+	INC	DE
+	LOAD	A,H
+	LOAD	(DE),A
+	DEC	DE		;DE = slot start
+	EX	HL,DE		;HL = slot start (pour decremmenter au prochain tour)
+	DEC	A
+	JUMP	NE,VMC_FL
+VMC_NA:	;Sauter a la fonction
+	LOAD	HL,CALLAD
+	LOAD	IP,HL
+	JUMP	VMLOOP
+
+
+;FRAME <nlocals 1 octet> : etend la frame de N slots zeroes
+VM_FRAME:
+	.W	?TEXTIM
+	.ASCIZ	"VF<CR>"
+	.W	?GETCAR
+	LOAD	HL,IP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	IP,HL
+	OR	A,A
+	JUMP	EQ,VMF_DN
+	LOAD	HL,LSP
+	LOAD	B,A
+VMF_LP:	XOR	A,A
+	LOAD	(HL),A
+	INC	HL
+	LOAD	(HL),A
+	INC	HL
+	DEC	B
+	JUMP	NE,VMF_LP
+	LOAD	LSP,HL
+VMF_DN:	JUMP	VMLOOP
+
+
+;RETN : pop valeur de retour, libere frame, restaure FP+IP, repush
+VM_RETN:
+	.W	?TEXTIM
+	.ASCIZ	"VR<CR>"
+	.W	?GETCAR
+	CALL	VPOP		;HL = valeur de retour
+	LOAD	RETVAL,HL
+	;LSP := FP - 4 (= debut header)
+	LOAD	HL,FP
+	DEC	HL
+	DEC	HL
+	DEC	HL
+	DEC	HL
+	LOAD	LSP,HL
+	;Lire saved FP a (HL), (HL+1)
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	;DE = saved FP ; le sauver pour plus tard
+	PUSH	DE
+	;Lire saved IP a (HL), (HL+1)
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	;DE = saved IP
+	EX	HL,DE		;HL = saved IP
+	LOAD	IP,HL		;IP := saved IP (forme LD (nn),HL = 22)
+	;Restaurer FP
+	POP	HL		;HL = saved FP
+	LOAD	FP,HL
+	;Push valeur de retour sur VSTACK
+	LOAD	HL,RETVAL
+	CALL	VPUSH
+	JUMP	VMLOOP
 
 CMP_T:	LOAD	HL,#1
 	CALL	VPUSH

@@ -25,7 +25,7 @@ BCSIZE	= 4000		;TAILLE BUFFER BYTECODE EN OCTAL (2 KO)
 ;#############################################################
 
 FNAME:	.ASCIZ	"TEST.PY"
-MERR:	.ASCIZ	"TEST.PY INTROUVABLE<CR>"
+MERR:	.ASCIZ	"FICHIER .PY INTROUVABLE<CR>"
 MFIN:	.ASCIZ	"<CR>Fin du programme, pressez une touche pour quitter !<CR>"
 
 
@@ -35,6 +35,8 @@ MFIN:	.ASCIZ	"<CR>Fin du programme, pressez une touche pour quitter !<CR>"
 ;#############################################################
 
 CANAL:	.BLKB	1
+ARGPTR:	.BLKB	2		;PTR LIGNE DE COMMANDE (DE A L'ENTREE)
+FILEBUF: .BLKB	12.		;NOM DE FICHIER COPIE (NULL-TERMINE)
 
 
 
@@ -67,6 +69,14 @@ SYMTBL:	.BLKB	512.
 
 
 START:				;POINT D'ENTREE
+	;Samos passe le pointeur de la ligne de commande dans DE
+	LOAD	ARGPTR,DE
+
+	;DIAG : PR marker AVANT ?IDIS (screen mode courant Samos)
+	.W	?TEXTIM
+	.ASCIZ	"PR start<CR>"
+	.W	?GETCAR
+
 
 ;==========================================================
 ; ETAPE 0 : ECRAN ALPHA COMPLET
@@ -74,6 +84,10 @@ START:				;POINT D'ENTREE
 
 	LOAD	C,#20.
 	.W	?IDIS
+
+	.W	?TEXTIM
+	.ASCIZ	"P0 PYTHON entry<CR>"
+	.W	?GETCAR
 
 
 ;==========================================================
@@ -89,11 +103,70 @@ START:				;POINT D'ENTREE
 
 
 ;==========================================================
-; ETAPE 2 : OUVRIR / LIRE / FERMER TEST.PY
+; ETAPE 2 : DETERMINER LE NOM DE FICHIER
+;==========================================================
+;Si ARGPTR pointe sur un nom non-vide, on le copie dans FILEBUF.
+;Sinon on utilise TEST.PY par defaut.
+
+	LOAD	HL,ARGPTR
+SKSPLP:	LOAD	A,(HL)
+	COMP	A,#H'20		;saute espaces
+	JUMP	NE,SKSPDN
+	INC	HL
+	JUMP	SKSPLP
+SKSPDN:	;Premier non-espace : si 0 ou CR -> argument vide
+	OR	A,A
+	JUMP	EQ,USDEF
+	COMP	A,#H'0D
+	JUMP	EQ,USDEF
+	;Copie HL -> FILEBUF, arret a 0 / CR / espace
+	LOAD	DE,#FILEBUF
+	LOAD	B,#11.
+CPLP:	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,CPDN
+	COMP	A,#H'0D
+	JUMP	EQ,CPDN
+	COMP	A,#H'20
+	JUMP	EQ,CPDN
+	LOAD	(DE),A
+	INC	HL
+	INC	DE
+	DEC	B
+	JUMP	NE,CPLP
+CPDN:	XOR	A,A
+	LOAD	(DE),A		;null-termine
+	;Ajoute .PY si le nom n'a pas d'extension (habitude Smaky 6)
+	LOAD	HL,#FILEBUF
+CHKDOT:	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,APYE		;fin atteinte sans trouver de point
+	COMP	A,#'.
+	JUMP	EQ,HASDOT	;extension presente
+	INC	HL
+	JUMP	CHKDOT
+APYE:	;HL pointe sur le 0 ; ajoute .PY puis 0
+	LOAD	A,#'.
+	LOAD	(HL),A
+	INC	HL
+	LOAD	A,#'P
+	LOAD	(HL),A
+	INC	HL
+	LOAD	A,#'Y
+	LOAD	(HL),A
+	INC	HL
+	XOR	A,A
+	LOAD	(HL),A
+HASDOT:	LOAD	DE,#FILEBUF
+	JUMP	OPNF
+USDEF:	LOAD	DE,#FNAME	;defaut
+
+
+;==========================================================
+; ETAPE 3 : OUVRIR / LIRE / FERMER LE FICHIER
 ;==========================================================
 
-	LOAD	DE,#FNAME
-	.W	?OPEN
+OPNF:	.W	?OPEN
 	JUMP	CS,STERR
 	LOAD	CANAL,A
 
@@ -109,16 +182,32 @@ START:				;POINT D'ENTREE
 ;==========================================================
 ; ETAPE 3 : LEX + PARSE
 ;==========================================================
+	.W	?TEXTIM
+	.ASCIZ	"P1 before LXINIT<CR>"
+	.W	?GETCAR
 
 	LOAD	HL,#SRCBUF
 	CALL	LXINIT
+
+	.W	?TEXTIM
+	.ASCIZ	"P2 before PSINIT<CR>"
+	.W	?GETCAR
+
 	CALL	PSINIT
+
+	.W	?TEXTIM
+	.ASCIZ	"P3 before PSPARS<CR>"
+	.W	?GETCAR
+
 	CALL	PSPARS
 
 
 ;==========================================================
 ; ETAPE 4 : EXECUTION DU BYTECODE
 ;==========================================================
+;DIAG : marker pour voir si le parser a termine
+	.W	?TEXTIM
+	.ASCIZ	">>PARSE OK, VM START<CR>"
 
 	LOAD	HL,#BCBUF
 	CALL	VMRUN

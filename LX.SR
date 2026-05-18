@@ -33,6 +33,8 @@ TKNOT	= H'27
 TKPASS	= H'28
 TKBRK	= H'29
 TKCONT	= H'2A
+TKDEF	= H'2B
+TKRETN	= H'2C
 
 ;OPERATEURS
 TKPLUS	= H'40		;+
@@ -84,6 +86,10 @@ KWTBL:
 	.B	TKBRK
 	.ASCIZ	"continue"
 	.B	TKCONT
+	.ASCIZ	"def"
+	.B	TKDEF
+	.ASCIZ	"return"
+	.B	TKRETN
 	.B	0		;SENTINELLE FIN DE TABLE
 
 
@@ -163,10 +169,8 @@ LXNEXT:
 	JUMP	EQ,LXNX1
 	DEC	A
 	LOAD	LXDEDP,A
-	;DEPILE
-	LOAD	A,LXSTKP
-	DEC	A
-	LOAD	LXSTKP,A
+	;NOTE : LXHIND a deja decremente LXSTKP en empilant LXDEDP.
+	;On emet juste le token TKDED ici, sans re-pop.
 	;EMET DEDENT
 	LOAD	HL,LXLINE
 	LOAD	LXLN,HL
