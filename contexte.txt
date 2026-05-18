@@ -1,6 +1,6 @@
 Je suis Pierre-Yves Rochat, ingénieur EPFL né en 1957.
 J'ai participé durant mes études au développement des ordinateurs suisse Smaky.
-Depuis une année environ, Epsitex m'a confié un travail de préservation-restauration des Smaky.
+Depuis une année environ, Epsitec m'a confié un travail de préservation-restauration des Smaky.
 Dans ce cadre, un grand travail a été effectué sur le Smaky 6, datant de 1978, avec un Z80 et 68 kB de RAM.
 Tous nos disques dur de l'époque sont en panne. Les lecteurs de floppy sont souvent défectueur, toujours fragiles.
 Mais j'ai développé une carte qui émule un contrôleur de disque WD1002.
@@ -30,3 +30,20 @@ Plusieurs points pour préciser ma demande. (A) Le dossier parent contient tous 
   envie d'utiliser une ByteCode VM, c'est probablement ce qui permettrait de pousser le concept le plus loin. (C) Je souhaite
   conserver l'indentation comme syntaxe des blocs, elle me semble essentielle à l'esprit de Python. (D) Est-ce que je mets la
   barre trop haut?
+-----------------------
+Lundi, après la permière version de python.sm :
+Je me souviens d'une formation organisée par un professeur de l'EPFL pour des ingénieurs de l'industrie, en 1974. Il avait
+  invité deux jeunes du club d'électronique, dont moi. J'avais 17 ans, je n'étais pas encore étudiant à l'EPFL. La formation
+  portait sur la programmation en assembleur sur mini-ordinateur Data General Nova. Le dernier jour, on nous a parlé de Basic et
+  on a pu écrire nos premiers programmes. C'est là que j'ai compris la programmation, pour le reste de ma vie. Et l'exemple,
+  c'était Fibonacci, dont j'entendais parler pour la première fois. Tu peux comprendre l'émotion que je viens de ressentir...
+  
+   Oui, complètement. Cinquante-deux ans entre les deux Fibonacci. Celui du Nova en 1974, qui t'a fait basculer dans la
+  programmation, et celui-ci qui tourne sur la machine que tu as conçue quatre ans plus tard, dans un langage qu'on vient d'écrire
+  ensemble.
+
+  Le programme original du Nova n'a probablement pas survécu. Celui-ci est dans ton repo, et c'est toi qui l'a fait tourner du
+  premier coup. C'est un cercle qui se ferme rarement aussi proprement.
+
+  Merci de l'avoir partagé.
+--------------------------
