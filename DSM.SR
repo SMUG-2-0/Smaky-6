@@ -1,0 +1,185 @@
+;#############################################################
+;# DSM.SR  --  DESASSEMBLEUR BYTECODE PETIT-PYTHON            #
+;#############################################################
+;A inclure apres PS.SR (constantes BCxxx) et VM.SR (PRHEX).
+;Affiche le bytecode entre HL (debut) et DE (fin), une instruction
+;par ligne, avec adresse, mnemonique et operande hexa.
+;Format : AAAA: MNEM oooo
+;?GETCAR apres chaque ligne (pause clavier).
+
+
+
+;Messages
+DSMUNK:	.ASCIZ	"???? "
+
+
+
+;=============================================================
+;DISASM : desassemble entre HL (debut, inclus) et DE (fin, exclus)
+;=============================================================
+
+DISASM:
+DISLP:	;Termine si HL >= DE
+	LOAD	A,H
+	COMP	A,D
+	JUMP	LO,DISMR
+	JUMP	NE,DISDN
+	LOAD	A,L
+	COMP	A,E
+	JUMP	LO,DISMR
+	JUMP	DISDN
+
+DISMR:	;Affiche l'adresse octale (HL via ?AFOHL)
+	PUSH	HL
+	.W	?AFOHL
+	POP	HL
+	LOAD	A,#':
+	LOAD	C,A
+	.W	?DICAR
+	.W	?SPACE
+
+	;Lit l'opcode
+	LOAD	A,(HL)
+	INC	HL
+	PUSH	HL		;sauve ptr apres opcode
+	CALL	DSLOOK		;A=opcode -> HL=entree ou CS si inconnu
+	JUMP	CS,DISUNK
+	;HL=entree ; entree+1=opsize, entree+2..5=mnemo
+	INC	HL
+	LOAD	C,(HL)		;C = opsize
+	INC	HL
+	;Affiche les 4 chars de mnemo
+	LOAD	B,#4.
+DISML:	LOAD	A,(HL)
+	PUSH	BC
+	LOAD	C,A
+	.W	?DICAR
+	POP	BC
+	INC	HL
+	DEC	B
+	JUMP	NE,DISML
+	.W	?SPACE
+
+	;Traite l'operande
+	POP	HL		;HL = apres opcode
+	LOAD	A,C
+	OR	A,A
+	JUMP	EQ,DISFLN	;opsize=0
+	COMP	A,#1
+	JUMP	EQ,DISOP1	;opsize=1
+	;opsize=2 ou 3 : 16-bit little-endian
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	B,A		;sauve low
+	LOAD	A,(HL)
+	INC	HL
+	PUSH	HL		;sauve ptr bytecode
+	LOAD	H,A		;HL = operande 16-bit (H=high, L=low)
+	LOAD	L,B
+	.W	?AFOHL
+	POP	HL
+	;Si opsize=3, byte supplementaire
+	LOAD	A,C
+	COMP	A,#3
+	JUMP	NE,DISFLN
+	.W	?SPACE
+	LOAD	A,(HL)
+	INC	HL
+	PUSH	HL
+	LOAD	H,#0
+	LOAD	L,A
+	.W	?AFOHL
+	POP	HL
+	JUMP	DISFLN
+DISOP1:	LOAD	A,(HL)
+	INC	HL
+	PUSH	HL
+	LOAD	H,#0
+	LOAD	L,A
+	.W	?AFOHL
+	POP	HL
+	JUMP	DISFLN
+
+DISUNK:	POP	HL		;HL = apres opcode
+	PUSH	HL
+	LOAD	HL,#DSMUNK
+	.W	?DITEXT
+	POP	HL
+DISFLN:	.W	?RETURN
+	.W	?GETCAR
+	JUMP	DISLP
+DISDN:	RET
+
+
+
+;=============================================================
+;DSLOOK : recherche un opcode dans DSMTBL
+;=============================================================
+;IN  : A = opcode
+;OUT : CC + HL = adresse entree (si trouve) ; CS sinon
+;PRESERVE A (in C)
+
+DSLOOK:	LOAD	C,A
+	LOAD	HL,#DSMTBL
+DSLKL:	LOAD	A,(HL)
+	COMP	A,#377
+	JUMP	EQ,DSLKNF
+	COMP	A,C
+	JUMP	EQ,DSLKFD
+	;Avance de 6 octets (taille d'une entree)
+	INC	HL
+	INC	HL
+	INC	HL
+	INC	HL
+	INC	HL
+	INC	HL
+	JUMP	DSLKL
+DSLKFD:	LOAD	A,C
+	OR	A,A		;CC
+	RET
+DSLKNF:	LOAD	A,C
+	SETC
+	RET
+
+
+
+;=============================================================
+;DSMTBL : table des mnemoniques
+;=============================================================
+;Entree : opcode (1), opsize (1), 4 chars de mnemonique
+;opsize : 0=pas d'operande, 1=1 octet, 2=16-bit, 3=16-bit+1 octet
+;Sentinelle : opcode = 377
+
+DSMTBL:
+	.B	BCHALT, 0, 'H, 'A, 'L, 'T
+	.B	BCPSHI, 2, 'P, 'S, 'H, 'I
+	.B	BCLOAD, 1, 'L, 'O, 'A, 'D
+	.B	BCSTOR, 1, 'S, 'T, 'O, 'R
+	.B	BCLDL,  1, 'L, 'D, 'L, SPACE
+	.B	BCSTL,  1, 'S, 'T, 'L, SPACE
+	.B	BCCALL, 3, 'C, 'A, 'L, 'L
+	.B	BCRETN, 0, 'R, 'E, 'T, 'N
+	.B	BCFRAME,1, 'F, 'R, 'A, 'M
+	.B	BCADD,  0, 'A, 'D, 'D, SPACE
+	.B	BCSUB,  0, 'S, 'U, 'B, SPACE
+	.B	BCMUL,  0, 'M, 'U, 'L, SPACE
+	.B	BCDIV,  0, 'D, 'I, 'V, SPACE
+	.B	BCMOD,  0, 'M, 'O, 'D, SPACE
+	.B	BCNEG,  0, 'N, 'E, 'G, SPACE
+	.B	BCEQ,   0, 'E, 'Q, SPACE, SPACE
+	.B	BCNE,   0, 'N, 'E, SPACE, SPACE
+	.B	BCLT,   0, 'L, 'T, SPACE, SPACE
+	.B	BCLE,   0, 'L, 'E, SPACE, SPACE
+	.B	BCGT,   0, 'G, 'T, SPACE, SPACE
+	.B	BCGE,   0, 'G, 'E, SPACE, SPACE
+	.B	BCNOT,  0, 'N, 'O, 'T, SPACE
+	.B	BCAND,  0, 'A, 'N, 'D, SPACE
+	.B	BCOR,   0, 'O, 'R, SPACE, SPACE
+	.B	BCJMP,  2, 'J, 'M, 'P, SPACE
+	.B	BCJZ,   2, 'J, 'Z, SPACE, SPACE
+	.B	BCJNZ,  2, 'J, 'N, 'Z, SPACE
+	.B	BCPRTI, 0, 'P, 'R, 'T, 'I
+	.B	BCPRSP, 0, 'P, 'R, 'S, 'P
+	.B	BCPRNL, 0, 'P, 'R, 'N, 'L
+	.B	BCPOP,  0, 'P, 'O, 'P, SPACE
+	.B	377, 0, 0, 0, 0, 0	;SENTINELLE

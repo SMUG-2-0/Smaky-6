@@ -10,9 +10,32 @@
 ;# CONSTANTES                                                #
 ;#############################################################
 
-VSSIZE	= 128.		;PILE VM EN OCTETS (64 CELLULES 16 BITS)
 VRSIZE	= 128.		;TABLEAU VARIABLES GLOBALES (64 SLOTS)
-LSSIZE	= 256.		;PILE LOCAUX (FRAMES DE FONCTION)
+FILPAT	= 314		;PATTERN DE REMPLISSAGE (diag corruption)
+
+;Adresses fixes des piles (en haut de RAM, 1 kB chacune)
+;Zones :  170000-173777 LSTACK (frames, grandit vers le haut)
+;         172000-173777 VSTAK  (VPUSH/VPOP, grandit vers le bas)
+;         174000-175777 zone pile Z80 (SP grandit vers le bas)
+;         176000-176377 variables VM (au-dessus pile, hors corruption)
+LSTACK	= 170000	;base de LSTACK, LSP demarre ici
+VSTAK	= 172000	;base de VSTAK (low addr)
+VSTOP	= 174000	;sommet de VSTAK, VSP demarre ici
+PILZ80	= 176000	;sommet pile Z80, SP demarre ici
+
+;Variables VM a adresses fixes (176000-176377, hors zone modifiable
+;par Samos ou par les pushes Z80)
+BCIP	= 176000	;POINTEUR D'INSTRUCTION BYTECODE (2)
+VSP	= 176002	;SOMMET PILE VM (2)
+FP	= 176004	;FRAME POINTER (2)
+LSP	= 176006	;PROCHAIN SLOT LIBRE LSTACK (2)
+RETVAL	= 176010	;VALEUR DE RETOUR TEMPORAIRE (2)
+CALLAD	= 176012	;ADRESSE CIBLE CALL (2)
+CALLNA	= 176014	;NB ARGS CALL (1)
+DVCNT	= 176015	;COMPTEUR DIV16 (1)
+DVDS	= 176016	;SIGNE DIVIDEND (1)
+DVQS	= 176017	;SIGNE QUOTIENT (1)
+VARS	= 176020	;VARIABLES GLOBALES (128 octets 176020-176217)
 
 
 
@@ -29,22 +52,8 @@ VMEM3:	.ASCIZ	"VM ERR: PILE LOCAUX PLEINE<CR>"
 ;#############################################################
 ;# VARIABLES D'ETAT                                          #
 ;#############################################################
-
-IP:	.BLKB	2		;POINTEUR D'INSTRUCTION
-VSP:	.BLKB	2		;SOMMET PILE VM (CROIT VERS BAS)
-VSTAK:	.BLKB	VSSIZE
-VSTOP	= VSTAK+VSSIZE		;ADRESSE PILE VM VIDE
-VARS:	.BLKB	VRSIZE		;VARIABLES GLOBALES (INIT 0)
-FP:	.BLKB	2		;FRAME POINTER (0 SI HORS FONCTION)
-LSP:	.BLKB	2		;PROCHAIN SLOT LIBRE DANS LSTACK
-LSTACK:	.BLKB	LSSIZE		;PILE DES FRAMES (LOCAUX DES FONCTIONS)
-LSTOP	= LSTACK+LSSIZE		;ADRESSE FIN LSTACK
-RETVAL:	.BLKB	2		;VALEUR DE RETOUR TEMPORAIRE
-CALLAD:	.BLKB	2		;ADRESSE CIBLE DURANT CALL
-CALLNA:	.BLKB	1		;NB ARGS DURANT CALL
-DVCNT:	.BLKB	1		;COMPTEUR POUR DIV16
-DVDS:	.BLKB	1		;SIGNE DIVIDEND
-DVQS:	.BLKB	1		;SIGNE QUOTIENT
+;Toutes les variables VM sont maintenant a adresses fixes 0xFC00+
+;(declarees comme constantes plus haut). Pas de .BLKB ici.
 
 
 
@@ -54,10 +63,12 @@ DVQS:	.BLKB	1		;SIGNE QUOTIENT
 ;IN  : HL = ADRESSE DEBUT BYTECODE
 ;SORT QUAND HALT EXECUTE OU ERREUR FATALE.
 
-VMRUN:	PUSH	HL
+VMRUN:	IOF			;coupe interruptions 50 Hz pendant l'execution VM
+				;(SP est deja sur notre pile Z80, init dans PYTHON.SR)
+	PUSH	HL
 	CALL	VMINIT
 	POP	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	JUMP	VMLOOP
 
 
@@ -66,9 +77,24 @@ VMRUN:	PUSH	HL
 ;# VMINIT : INIT PILE + TABLEAU VARIABLES                    #
 ;#############################################################
 
-VMINIT:	LOAD	HL,#VSTOP
+VMINIT:	;Remplit LSTACK (1024 octets) avec FILPAT pour diagnostic
+	LOAD	HL,#LSTACK
+	LOAD	A,#FILPAT
+	LOAD	(HL),A
+	LOAD	DE,#LSTACK+1
+	LOAD	BC,#1024.-1
+	LDIR
+	;Remplit VSTAK (1024 octets) avec FILPAT
+	LOAD	HL,#VSTAK
+	LOAD	A,#FILPAT
+	LOAD	(HL),A
+	LOAD	DE,#VSTAK+1
+	LOAD	BC,#1024.-1
+	LDIR
+	;VSP := VSTOP (sommet pile VM, croit vers le bas)
+	LOAD	HL,#VSTOP
 	LOAD	VSP,HL
-	;VARS := 0 (PROPAGATION LDIR)
+	;VARS := 0 (variables globales)
 	LOAD	HL,#VARS
 	XOR	A,A
 	LOAD	(HL),A
@@ -200,11 +226,11 @@ DV_NX:	LOAD	A,DVCNT
 ;OUT : HL = QUOTIENT, DE = REMAINDER (SIGNE DU DIVIDEND)
 
 DIV16S:	LOAD	A,H
-	AND	A,#H'80
+	AND	A,#200
 	LOAD	DVDS,A		;SIGNE DIVIDEND
 	LOAD	A,H
 	XOR	A,D
-	AND	A,#H'80
+	AND	A,#200
 	LOAD	DVQS,A		;SIGNE QUOTIENT = XOR DES SIGNES
 	;ABS(HL)
 	LOAD	A,DVDS
@@ -213,7 +239,7 @@ DIV16S:	LOAD	A,H
 	CALL	NEG_HL
 DV_AHL:	;ABS(DE)
 	LOAD	A,D
-	AND	A,#H'80
+	AND	A,#200
 	JUMP	EQ,DV_ADE
 	XOR	A,A
 	SUB	A,E
@@ -250,7 +276,7 @@ DV_DN:	RET
 
 PRDEC_S:
 	LOAD	A,H
-	AND	A,#H'80
+	AND	A,#200
 	JUMP	EQ,PRDS_P
 	;NEGATIF
 	PUSH	HL
@@ -317,13 +343,41 @@ PRDIGS:	RET
 
 
 ;#############################################################
+;# PRHEX : IMPRIME A EN HEX 2 CHARS (DIAGNOSTIC)             #
+;#############################################################
+;Clobbers A, C
+
+PRHEX:	PUSH	AF
+	SRC	A
+	SRC	A
+	SRC	A
+	SRC	A
+	ADD	A,#'0
+	COMP	A,#'9+1
+	JUMP	LO,PRHX1
+	ADD	A,#7
+PRHX1:	LOAD	C,A
+	.W	?DICAR
+	POP	AF
+	AND	A,#17
+	ADD	A,#'0
+	COMP	A,#'9+1
+	JUMP	LO,PRHX2
+	ADD	A,#7
+PRHX2:	LOAD	C,A
+	.W	?DICAR
+	RET
+
+
+
+;#############################################################
 ;# VMLOOP : BOUCLE DE DISPATCH                               #
 ;#############################################################
 
-VMLOOP:	LOAD	HL,IP
+VMLOOP:	LOAD	HL,BCIP
 	LOAD	A,(HL)
 	INC	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	;HL := OPTBL + A*2
 	LOAD	HL,#OPTBL
 	LOAD	D,#0
@@ -344,56 +398,56 @@ VMLOOP:	LOAD	HL,IP
 ;#############################################################
 
 OPTBL:
-	;H'00 - H'03
+	;000 - 003
 	.W	VM_HALT
 	.W	VM_PSHI
 	.W	VM_LOAD
 	.W	VM_STOR
-	;H'04 - H'08 : LOCAUX + FONCTIONS
+	;004 - 010 : LOCAUX + FONCTIONS
 	.W	VM_LDL
 	.W	VM_STL
 	.W	VM_CALL
 	.W	VM_RETN
 	.W	VM_FRAME
-	;H'09 - H'0F : INUTILISES
+	;011 - 017 : INUTILISES
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
-	;H'10 - H'15
+	;020 - 025
 	.W	VM_ADD
 	.W	VM_SUB
 	.W	VM_MUL
 	.W	VM_DIV
 	.W	VM_MOD
 	.W	VM_NEG
-	;H'16 - H'1F
+	;026 - 037
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
-	;H'20 - H'25
+	;040 - 045
 	.W	VM_EQ
 	.W	VM_NE
 	.W	VM_LT
 	.W	VM_LE
 	.W	VM_GT
 	.W	VM_GE
-	;H'26 - H'2F
+	;046 - 057
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
-	;H'30 - H'32
+	;060 - 062
 	.W	VM_NOT
 	.W	VM_AND
 	.W	VM_OR
-	;H'33 - H'3F
+	;063 - 077
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	.W	VM_ILL,VM_ILL,VM_ILL
-	;H'40 - H'42
+	;0100 - 0102
 	.W	VM_JMP
 	.W	VM_JZ
 	.W	VM_JNZ
-	;H'43 - H'4F
+	;0103 - 0117
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	.W	VM_ILL,VM_ILL,VM_ILL
-	;H'50 - H'53
+	;0120 - 0123
 	.W	VM_PRTI
 	.W	VM_PRSP
 	.W	VM_PRNL
@@ -406,30 +460,25 @@ OPTBL:
 ;#############################################################
 
 VM_HALT:
-	.W	?TEXTIM
-	.ASCIZ	"VH<CR>"
-	.W	?GETCAR
+	ION			;reactive interruptions avant retour Samos
 	RET			;RETOUR A L'APPELANT DE VMRUN
 
 VM_PSHI:
-	.W	?TEXTIM
-	.ASCIZ	"VP<CR>"
-	.W	?GETCAR
-	LOAD	HL,IP
+	LOAD	HL,BCIP
 	LOAD	E,(HL)
 	INC	HL
 	LOAD	D,(HL)
 	INC	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	EX	HL,DE
 	CALL	VPUSH
 	JUMP	VMLOOP
 
 VM_LOAD:
-	LOAD	HL,IP
+	LOAD	HL,BCIP
 	LOAD	A,(HL)
 	INC	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	;HL := VARS + A*2
 	LOAD	HL,#VARS
 	LOAD	D,#0
@@ -444,10 +493,10 @@ VM_LOAD:
 	JUMP	VMLOOP
 
 VM_STOR:
-	LOAD	HL,IP
+	LOAD	HL,BCIP
 	LOAD	A,(HL)
 	INC	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	LOAD	HL,#VARS
 	LOAD	D,#0
 	LOAD	E,A
@@ -550,10 +599,10 @@ VM_LT:	CALL	VPOP
 	POP	DE
 	;SIGNED A < B : XOR MSBs, COMPARE UNSIGNED, HL - DE
 	LOAD	A,H
-	XOR	A,#H'80
+	XOR	A,#200
 	LOAD	H,A
 	LOAD	A,D
-	XOR	A,#H'80
+	XOR	A,#200
 	LOAD	D,A
 	LOAD	A,L
 	SUB	A,E
@@ -567,10 +616,10 @@ VM_LE:	CALL	VPOP
 	CALL	VPOP
 	POP	DE
 	LOAD	A,H
-	XOR	A,#H'80
+	XOR	A,#200
 	LOAD	H,A
 	LOAD	A,D
-	XOR	A,#H'80
+	XOR	A,#200
 	LOAD	D,A
 	;A <= B  <=>  DE - HL SANS EMPRUNT
 	LOAD	A,E
@@ -585,10 +634,10 @@ VM_GT:	CALL	VPOP
 	CALL	VPOP
 	POP	DE
 	LOAD	A,H
-	XOR	A,#H'80
+	XOR	A,#200
 	LOAD	H,A
 	LOAD	A,D
-	XOR	A,#H'80
+	XOR	A,#200
 	LOAD	D,A
 	;A > B  <=>  DE - HL AVEC EMPRUNT
 	LOAD	A,E
@@ -603,10 +652,10 @@ VM_GE:	CALL	VPOP
 	CALL	VPOP
 	POP	DE
 	LOAD	A,H
-	XOR	A,#H'80
+	XOR	A,#200
 	LOAD	H,A
 	LOAD	A,D
-	XOR	A,#H'80
+	XOR	A,#200
 	LOAD	D,A
 	;A >= B  <=>  HL - DE SANS EMPRUNT
 	LOAD	A,L
@@ -646,15 +695,12 @@ VM_OR:	CALL	VPOP
 	JUMP	NE,CMP_T
 	JUMP	CMP_F
 
-VM_JMP:	.W	?TEXTIM
-	.ASCIZ	"VJ<CR>"
-	.W	?GETCAR
-	LOAD	HL,IP
+VM_JMP:	LOAD	HL,BCIP
 	LOAD	E,(HL)
 	INC	HL
 	LOAD	D,(HL)
 	EX	HL,DE
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	JUMP	VMLOOP
 
 VM_JZ:	CALL	VPOP
@@ -662,26 +708,23 @@ VM_JZ:	CALL	VPOP
 	OR	A,L
 	JUMP	EQ,VM_JMP
 	;NON BRANCHE : SKIP OPERANDE (2 OCTETS)
-	LOAD	HL,IP
+	LOAD	HL,BCIP
 	INC	HL
 	INC	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	JUMP	VMLOOP
 
 VM_JNZ:	CALL	VPOP
 	LOAD	A,H
 	OR	A,L
 	JUMP	NE,VM_JMP
-	LOAD	HL,IP
+	LOAD	HL,BCIP
 	INC	HL
 	INC	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	JUMP	VMLOOP
 
 VM_PRTI:
-	.W	?TEXTIM
-	.ASCIZ	"VI<CR>"
-	.W	?GETCAR
 	CALL	VPOP
 	CALL	PRDEC_S
 	JUMP	VMLOOP
@@ -691,11 +734,8 @@ VM_PRSP:
 	JUMP	VMLOOP
 
 VM_PRNL:
-	.W	?TEXTIM
-	.ASCIZ	"VN<CR>"
-	.W	?GETCAR
 	.W	?RETURN
-	.W	?GETCAR		;DIAG : pause apres chaque print
+	.W	?GETCAR		;pause apres chaque print (utile pour voir la sortie)
 	JUMP	VMLOOP
 
 VM_POP:	CALL	VPOP
@@ -710,13 +750,10 @@ VM_POP:	CALL	VPOP
 
 ;LOAD VARIABLE LOCALE : HL := LSTACK[FP + slot*2], push
 VM_LDL:
-	.W	?TEXTIM
-	.ASCIZ	"VL<CR>"
-	.W	?GETCAR
-	LOAD	HL,IP
+	LOAD	HL,BCIP
 	LOAD	A,(HL)
 	INC	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	;HL := FP + A*2
 	LOAD	HL,FP
 	LOAD	D,#0
@@ -734,10 +771,10 @@ VM_LDL:
 
 ;STORE VARIABLE LOCALE : pop, store dans LSTACK[FP + slot*2]
 VM_STL:
-	LOAD	HL,IP
+	LOAD	HL,BCIP
 	LOAD	A,(HL)
 	INC	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	;HL := FP + A*2
 	LOAD	HL,FP
 	LOAD	D,#0
@@ -759,18 +796,15 @@ VM_STL:
 ;Sauve FP et IP dans header de frame, alloue frame, copie args
 ;depuis VSTACK, saute a l'entree de la fonction.
 VM_CALL:
-	.W	?TEXTIM
-	.ASCIZ	"VC<CR>"
-	.W	?GETCAR
 	;Lire addr et nargs
-	LOAD	HL,IP
+	LOAD	HL,BCIP
 	LOAD	E,(HL)
 	INC	HL
 	LOAD	D,(HL)
 	INC	HL
 	LOAD	A,(HL)		;A = nargs
 	INC	HL
-	LOAD	IP,HL		;IP = adresse de retour
+	LOAD	BCIP,HL		;IP = adresse de retour
 	;Sauver addr et nargs en memoire
 	EX	HL,DE		;HL = addr
 	LOAD	CALLAD,HL
@@ -782,7 +816,7 @@ VM_CALL:
 	INC	HL
 	LOAD	(HL),D
 	INC	HL
-	LOAD	DE,IP
+	LOAD	DE,BCIP
 	LOAD	(HL),E
 	INC	HL
 	LOAD	(HL),D
@@ -809,32 +843,27 @@ VMC_FL:	DEC	HL
 	PUSH	HL		;sauve addr slot
 	PUSH	AF		;sauve compteur
 	CALL	VPOP		;HL = valeur popped
-	POP	AF
+	POP	AF		;A = compteur (preserve dans toute la suite)
 	POP	DE		;DE = addr slot
-	LOAD	A,L
-	LOAD	(DE),A
-	INC	DE
-	LOAD	A,H
-	LOAD	(DE),A
-	DEC	DE		;DE = slot start
-	EX	HL,DE		;HL = slot start (pour decremmenter au prochain tour)
+	EX	HL,DE		;HL = slot addr, DE = valeur
+	LOAD	(HL),E		;ecrit octet bas (sans toucher a A)
+	INC	HL
+	LOAD	(HL),D		;ecrit octet haut
+	DEC	HL		;HL = slot start (pour DEC HL,DEC HL suivants)
 	DEC	A
 	JUMP	NE,VMC_FL
 VMC_NA:	;Sauter a la fonction
 	LOAD	HL,CALLAD
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	JUMP	VMLOOP
 
 
 ;FRAME <nlocals 1 octet> : etend la frame de N slots zeroes
 VM_FRAME:
-	.W	?TEXTIM
-	.ASCIZ	"VF<CR>"
-	.W	?GETCAR
-	LOAD	HL,IP
+	LOAD	HL,BCIP
 	LOAD	A,(HL)
 	INC	HL
-	LOAD	IP,HL
+	LOAD	BCIP,HL
 	OR	A,A
 	JUMP	EQ,VMF_DN
 	LOAD	HL,LSP
@@ -852,9 +881,6 @@ VMF_DN:	JUMP	VMLOOP
 
 ;RETN : pop valeur de retour, libere frame, restaure FP+IP, repush
 VM_RETN:
-	.W	?TEXTIM
-	.ASCIZ	"VR<CR>"
-	.W	?GETCAR
 	CALL	VPOP		;HL = valeur de retour
 	LOAD	RETVAL,HL
 	;LSP := FP - 4 (= debut header)
@@ -877,7 +903,7 @@ VM_RETN:
 	LOAD	D,(HL)
 	;DE = saved IP
 	EX	HL,DE		;HL = saved IP
-	LOAD	IP,HL		;IP := saved IP (forme LD (nn),HL = 22)
+	LOAD	BCIP,HL		;BCIP := saved IP
 	;Restaurer FP
 	POP	HL		;HL = saved FP
 	LOAD	FP,HL
@@ -900,10 +926,12 @@ CMP_F:	LOAD	HL,#0
 ;# ERREURS FATALES                                           #
 ;#############################################################
 
-VM_ILL:	LOAD	HL,#VMEM1
+VM_ILL:	ION			;reactive IT avant erreur fatale
+	LOAD	HL,#VMEM1
 	.W	?DITEXT
 	.W	?RTN
 
-DIV0:	LOAD	HL,#VMEM2
+DIV0:	ION
+	LOAD	HL,#VMEM2
 	.W	?DITEXT
 	.W	?RTN
