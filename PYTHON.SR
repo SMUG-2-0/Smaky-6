@@ -38,7 +38,7 @@ MBCD:	.ASCIZ	"<CR>Bytecode :<CR>"
 
 CANAL:	.BLKB	1
 ARGPTR:	.BLKB	2		;PTR LIGNE DE COMMANDE (DE A L'ENTREE)
-FILEBUF: .BLKB	12.		;NOM DE FICHIER COPIE (NULL-TERMINE)
+FILEBUF: .BLKB	40.		;NOM DE FICHIER + MARGE POUR EXPANSION SAMOS
 OPTLST:	.BLKB	1		;1 SI /L (affichage bytecode)
 OPTCNT:	.BLKB	1		;1 SI /C (pause clavier a chaque print)
 
@@ -142,7 +142,7 @@ OPTNXT:	INC	HL
 	JUMP	SKSPLP		;reprend, peut y avoir d'autres options
 COPNAM:	;Copie HL -> FILEBUF, arret a 0 / CR / espace
 	LOAD	DE,#FILEBUF
-	LOAD	B,#11.
+	LOAD	B,#30.
 CPLP:	LOAD	A,(HL)
 	OR	A,A
 	JUMP	EQ,CPDN
