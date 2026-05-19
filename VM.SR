@@ -25,17 +25,20 @@ PILZ80	= 176000	;sommet pile Z80, SP demarre ici
 
 ;Variables VM a adresses fixes (176000-176377, hors zone modifiable
 ;par Samos ou par les pushes Z80)
+;Convention registres dedies :
+;  IX = VSP (sommet pile VM) - VPUSH/VPOP utilisent IX directement.
+;       Aucune variable VSP en memoire ; IX est maintenu a travers
+;       toute l'execution VM (les syscalls Samos preservent IX).
 BCIP	= 176000	;POINTEUR D'INSTRUCTION BYTECODE (2)
-VSP	= 176002	;SOMMET PILE VM (2)
-FP	= 176004	;FRAME POINTER (2)
-LSP	= 176006	;PROCHAIN SLOT LIBRE LSTACK (2)
-RETVAL	= 176010	;VALEUR DE RETOUR TEMPORAIRE (2)
-CALLAD	= 176012	;ADRESSE CIBLE CALL (2)
-CALLNA	= 176014	;NB ARGS CALL (1)
-DVCNT	= 176015	;COMPTEUR DIV16 (1)
-DVDS	= 176016	;SIGNE DIVIDEND (1)
-DVQS	= 176017	;SIGNE QUOTIENT (1)
-VARS	= 176020	;VARIABLES GLOBALES (128 octets 176020-176217)
+FP	= 176002	;FRAME POINTER (2)
+LSP	= 176004	;PROCHAIN SLOT LIBRE LSTACK (2)
+RETVAL	= 176006	;VALEUR DE RETOUR TEMPORAIRE (2)
+CALLAD	= 176010	;ADRESSE CIBLE CALL (2)
+CALLNA	= 176012	;NB ARGS CALL (1)
+DVCNT	= 176013	;COMPTEUR DIV16 (1)
+DVDS	= 176014	;SIGNE DIVIDEND (1)
+DVQS	= 176015	;SIGNE QUOTIENT (1)
+VARS	= 176016	;VARIABLES GLOBALES (128 octets 176016-176215)
 
 
 
@@ -91,9 +94,8 @@ VMINIT:	;Remplit LSTACK (1024 octets) avec FILPAT pour diagnostic
 	LOAD	DE,#VSTAK+1
 	LOAD	BC,#1024.-1
 	LDIR
-	;VSP := VSTOP (sommet pile VM, croit vers le bas)
-	LOAD	HL,#VSTOP
-	LOAD	VSP,HL
+	;IX := VSTOP (IX dedie a VSP, croit vers le bas)
+	LOAD	IX,#VSTOP
 	;VARS := 0 (variables globales)
 	LOAD	HL,#VARS
 	XOR	A,A
@@ -112,28 +114,21 @@ VMINIT:	;Remplit LSTACK (1024 octets) avec FILPAT pour diagnostic
 
 
 ;#############################################################
-;# VPUSH / VPOP                                              #
+;# VPUSH / VPOP  (utilisent IX = VSP)                        #
 ;#############################################################
-;VPUSH : IN HL = VALEUR ; PRESERVE HL ; CLOBBERS DE
-;VPOP  : OUT HL = VALEUR ; CLOBBERS DE
+;VPUSH : IN HL = VALEUR ; modifie IX (= nouveau VSP) ; preserve HL.
+;VPOP  : OUT HL = VALEUR ; modifie IX (= nouveau VSP).
 
-VPUSH:	EX	HL,DE		;DE = VALEUR
-	LOAD	HL,VSP
-	DEC	HL
-	LOAD	(HL),D		;HIGH (ADRESSE HAUTE)
-	DEC	HL
-	LOAD	(HL),E		;LOW
-	LOAD	VSP,HL
-	EX	HL,DE
+VPUSH:	DEC	IX
+	LOAD	(IX),H		;HIGH (adresse haute)
+	DEC	IX
+	LOAD	(IX),L		;LOW (adresse basse)
 	RET
 
-VPOP:	LOAD	HL,VSP
-	LOAD	E,(HL)		;LOW
-	INC	HL
-	LOAD	D,(HL)		;HIGH
-	INC	HL
-	LOAD	VSP,HL
-	EX	HL,DE		;HL = VALEUR
+VPOP:	LOAD	L,(IX)		;LOW
+	INC	IX
+	LOAD	H,(IX)		;HIGH
+	INC	IX
 	RET
 
 
@@ -735,8 +730,11 @@ VM_PRSP:
 
 VM_PRNL:
 	.W	?RETURN
-	.W	?GETCAR		;pause apres chaque print (utile pour voir la sortie)
-	JUMP	VMLOOP
+	LOAD	A,OPTCNT	;pause clavier uniquement si /C
+	OR	A,A
+	JUMP	EQ,VPNDN
+	.W	?GETCAR
+VPNDN:	JUMP	VMLOOP
 
 VM_POP:	CALL	VPOP
 	JUMP	VMLOOP
@@ -828,30 +826,28 @@ VM_CALL:
 	LOAD	A,CALLNA
 	OR	A,A
 	JUMP	EQ,VMC_NA
+	LOAD	B,A
 VMC_AL:	INC	HL
 	INC	HL
-	DEC	A
-	JUMP	NE,VMC_AL
+	DECJ	NE,B,VMC_AL
 	LOAD	LSP,HL
 	;Remplir les slots avec les args (popper VSTACK).
 	;Top de VSTACK = dernier arg -> slot nargs-1 (= addr le plus haut)
-	;Travailler du haut vers le bas.
-	;HL = LSP (= FP + nargs*2). Decrementer pour chaque arg.
+	;Travailler du haut vers le bas. B = compteur (DECJ NE,B).
+	;VPOP modifie IX et HL, mais preserve B.
 	LOAD	A,CALLNA
+	LOAD	B,A
 VMC_FL:	DEC	HL
 	DEC	HL
 	PUSH	HL		;sauve addr slot
-	PUSH	AF		;sauve compteur
 	CALL	VPOP		;HL = valeur popped
-	POP	AF		;A = compteur (preserve dans toute la suite)
 	POP	DE		;DE = addr slot
 	EX	HL,DE		;HL = slot addr, DE = valeur
-	LOAD	(HL),E		;ecrit octet bas (sans toucher a A)
+	LOAD	(HL),E		;ecrit octet bas
 	INC	HL
 	LOAD	(HL),D		;ecrit octet haut
 	DEC	HL		;HL = slot start (pour DEC HL,DEC HL suivants)
-	DEC	A
-	JUMP	NE,VMC_FL
+	DECJ	NE,B,VMC_FL
 VMC_NA:	;Sauter a la fonction
 	LOAD	HL,CALLAD
 	LOAD	BCIP,HL
@@ -868,13 +864,12 @@ VM_FRAME:
 	JUMP	EQ,VMF_DN
 	LOAD	HL,LSP
 	LOAD	B,A
-VMF_LP:	XOR	A,A
-	LOAD	(HL),A
+	XOR	A,A		;A = 0 (sortie de la boucle pour gagner du temps)
+VMF_LP:	LOAD	(HL),A
 	INC	HL
 	LOAD	(HL),A
 	INC	HL
-	DEC	B
-	JUMP	NE,VMF_LP
+	DECJ	NE,B,VMF_LP
 	LOAD	LSP,HL
 VMF_DN:	JUMP	VMLOOP
 
@@ -929,9 +924,11 @@ CMP_F:	LOAD	HL,#0
 VM_ILL:	ION			;reactive IT avant erreur fatale
 	LOAD	HL,#VMEM1
 	.W	?DITEXT
+	.W	?GETCAR
 	.W	?RTN
 
 DIV0:	ION
 	LOAD	HL,#VMEM2
 	.W	?DITEXT
+	.W	?GETCAR
 	.W	?RTN

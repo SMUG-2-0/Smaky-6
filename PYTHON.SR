@@ -27,6 +27,8 @@ BCSIZE	= 4000		;TAILLE BUFFER BYTECODE EN OCTAL (2 KO)
 FNAME:	.ASCIZ	"TEST.PY"
 MERR:	.ASCIZ	"FICHIER .PY INTROUVABLE<CR>"
 MFIN:	.ASCIZ	"<CR>Fin du programme, pressez une touche pour quitter !<CR>"
+MBAN:	.ASCIZ	"Petit Python v.0.2<CR>"
+MBCD:	.ASCIZ	"<CR>Bytecode :<CR>"
 
 
 
@@ -37,6 +39,8 @@ MFIN:	.ASCIZ	"<CR>Fin du programme, pressez une touche pour quitter !<CR>"
 CANAL:	.BLKB	1
 ARGPTR:	.BLKB	2		;PTR LIGNE DE COMMANDE (DE A L'ENTREE)
 FILEBUF: .BLKB	12.		;NOM DE FICHIER COPIE (NULL-TERMINE)
+OPTLST:	.BLKB	1		;1 SI /L (affichage bytecode)
+OPTCNT:	.BLKB	1		;1 SI /C (pause clavier a chaque print)
 
 
 
@@ -74,14 +78,21 @@ START:				;POINT D'ENTREE
 	LOAD	SP,#PILZ80
 	;Samos passe le pointeur de la ligne de commande dans DE
 	LOAD	ARGPTR,DE
+	;Init options /L et /C a 0
+	XOR	A,A
+	LOAD	OPTLST,A
+	LOAD	OPTCNT,A
 
 
 ;==========================================================
-; ETAPE 0 : ECRAN ALPHA COMPLET
+; ETAPE 0 : ECRAN ALPHA COMPLET + BANNIERE
 ;==========================================================
 
 	LOAD	C,#20.
 	.W	?IDIS
+
+	LOAD	HL,#MBAN
+	.W	?DITEXT
 
 
 ;==========================================================
@@ -108,12 +119,28 @@ SKSPLP:	LOAD	A,(HL)
 	JUMP	NE,SKSPDN
 	INC	HL
 	JUMP	SKSPLP
-SKSPDN:	;Premier non-espace : si 0 ou CR -> argument vide
+SKSPDN:	;Premier non-espace : 0 ou CR -> argument vide
 	OR	A,A
 	JUMP	EQ,USDEF
 	COMP	A,#CR
 	JUMP	EQ,USDEF
-	;Copie HL -> FILEBUF, arret a 0 / CR / espace
+	;Slash option ? Format /L ou /C, peuvent etre cumules.
+	COMP	A,#'/
+	JUMP	NE,COPNAM
+	INC	HL
+	LOAD	A,(HL)
+	COMP	A,#'L		;/L = listing bytecode
+	JUMP	NE,OPTC
+	LOAD	A,#1
+	LOAD	OPTLST,A
+	JUMP	OPTNXT
+OPTC:	COMP	A,#'C		;/C = pause clavier a chaque print
+	JUMP	NE,OPTNXT
+	LOAD	A,#1
+	LOAD	OPTCNT,A
+OPTNXT:	INC	HL
+	JUMP	SKSPLP		;reprend, peut y avoir d'autres options
+COPNAM:	;Copie HL -> FILEBUF, arret a 0 / CR / espace
 	LOAD	DE,#FILEBUF
 	LOAD	B,#11.
 CPLP:	LOAD	A,(HL)
@@ -126,8 +153,7 @@ CPLP:	LOAD	A,(HL)
 	LOAD	(DE),A
 	INC	HL
 	INC	DE
-	DEC	B
-	JUMP	NE,CPLP
+	DECJ	NE,B,CPLP
 CPDN:	XOR	A,A
 	LOAD	(DE),A		;null-termine
 	;Ajoute .PY si le nom n'a pas d'extension (habitude Smaky 6)
@@ -183,22 +209,22 @@ OPNF:	.W	?OPEN
 
 
 ;==========================================================
-; ETAPE 4 : AFFICHE BYTECODE (DIAGNOSTIC)
+; ETAPE 4 : AFFICHE BYTECODE (uniquement si /L)
 ;==========================================================
-	.W	?TEXTIM
-	.ASCIZ	">>PARSE OK - BYTECODE :<CR>"
-
+	LOAD	A,OPTLST
+	OR	A,A
+	JUMP	EQ,SKPDSM
+	LOAD	HL,#MBCD
+	.W	?DITEXT
 	LOAD	HL,#BCBUF
 	LOAD	DE,BCPTR	;DE = ptr fin de bytecode emis
 	CALL	DISASM
+SKPDSM:
 
 
 ;==========================================================
 ; ETAPE 5 : EXECUTION DU BYTECODE
 ;==========================================================
-	.W	?TEXTIM
-	.ASCIZ	"<CR>VM START<CR>"
-
 	LOAD	HL,#BCBUF
 	CALL	VMRUN
 
@@ -225,6 +251,7 @@ OPNF:	.W	?OPEN
 
 STERR:	LOAD	HL,#MERR
 	.W	?DITEXT
+	.W	?GETCAR
 	.W	?RTN
 
 

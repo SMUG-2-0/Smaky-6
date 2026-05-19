@@ -56,8 +56,7 @@ DISML:	LOAD	A,(HL)
 	.W	?DICAR
 	POP	BC
 	INC	HL
-	DEC	B
-	JUMP	NE,DISML
+	DECJ	NE,B,DISML
 	.W	?SPACE
 
 	;Traite l'operande
