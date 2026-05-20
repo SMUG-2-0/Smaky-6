@@ -159,6 +159,7 @@ DSMTBL:
 	.B	BCCALL, 3, 'C, 'A, 'L, 'L
 	.B	BCRETN, 0, 'R, 'E, 'T, 'N
 	.B	BCFRAME,1, 'F, 'R, 'A, 'M
+	.B	BCPSHS, 2, 'P, 'S, 'H, 'S
 	.B	BCADD,  0, 'A, 'D, 'D, SPACE
 	.B	BCSUB,  0, 'S, 'U, 'B, SPACE
 	.B	BCMUL,  0, 'M, 'U, 'L, SPACE
@@ -177,7 +178,7 @@ DSMTBL:
 	.B	BCJMP,  2, 'J, 'M, 'P, SPACE
 	.B	BCJZ,   2, 'J, 'Z, SPACE, SPACE
 	.B	BCJNZ,  2, 'J, 'N, 'Z, SPACE
-	.B	BCPRTI, 0, 'P, 'R, 'T, 'I
+	.B	BCPRT,  0, 'P, 'R, 'T, SPACE
 	.B	BCPRSP, 0, 'P, 'R, 'S, 'P
 	.B	BCPRNL, 0, 'P, 'R, 'N, 'L
 	.B	BCPOP,  0, 'P, 'O, 'P, SPACE

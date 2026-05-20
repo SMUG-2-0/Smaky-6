@@ -10,7 +10,7 @@
 ;# CONSTANTES                                                #
 ;#############################################################
 
-VRSIZE	= 128.		;TABLEAU VARIABLES GLOBALES (64 SLOTS)
+VRSIZE	= 192.		;TABLEAU VARIABLES GLOBALES (64 SLOTS x 3 OCTETS)
 FILPAT	= 314		;PATTERN DE REMPLISSAGE (diag corruption)
 
 ;Adresses fixes des piles (en haut de RAM, 1 kB chacune)
@@ -38,7 +38,8 @@ CALLNA	= 176012	;NB ARGS CALL (1)
 DVCNT	= 176013	;COMPTEUR DIV16 (1)
 DVDS	= 176014	;SIGNE DIVIDEND (1)
 DVQS	= 176015	;SIGNE QUOTIENT (1)
-VARS	= 176016	;VARIABLES GLOBALES (128 octets 176016-176215)
+RETTAG	= 176016	;TAG DE LA VALEUR DE RETOUR (1)
+VARS	= 176017	;VARIABLES GLOBALES (192 octets : 64 slots x 3)
 
 
 
@@ -96,13 +97,17 @@ VMINIT:	;Remplit LSTACK (1024 octets) avec FILPAT pour diagnostic
 	LDIR
 	;IX := VSTOP (IX dedie a VSP, croit vers le bas)
 	LOAD	IX,#VSTOP
-	;VARS := 0 (variables globales)
+	;VARS := 0 (variables globales : tag=0 et valeur=0 partout)
 	LOAD	HL,#VARS
 	XOR	A,A
 	LOAD	(HL),A
 	LOAD	DE,#VARS+1
 	LOAD	BC,#VRSIZE-1
 	LDIR
+	;RETTAG := 0
+	XOR	A,A
+	LOAD	HL,#RETTAG
+	LOAD	(HL),A
 	;FP := 0 (hors fonction au depart)
 	LOAD	HL,#0
 	LOAD	FP,HL
@@ -116,18 +121,32 @@ VMINIT:	;Remplit LSTACK (1024 octets) avec FILPAT pour diagnostic
 ;#############################################################
 ;# VPUSH / VPOP  (utilisent IX = VSP)                        #
 ;#############################################################
-;VPUSH : IN HL = VALEUR ; modifie IX (= nouveau VSP) ; preserve HL.
-;VPOP  : OUT HL = VALEUR ; modifie IX (= nouveau VSP).
+;SLOT VSTACK = 3 OCTETS : LO, HI, TAG (DE L'ADRESSE BASSE A HAUTE)
+;TAG = 0 (INT) ou 1 (STRING REF, VALEUR = ADDR DANS STRBUF)
+;
+;VPUSH  : IN HL = VALEUR (TAG=0 PAR DEFAUT, INT)
+;VPUSHS : IN HL = VALEUR (TAG=1, STRING REF)
+;VPUSHT : IN A = TAG, HL = VALEUR
+;VPOP   : OUT HL = VALEUR, A = TAG
 
-VPUSH:	DEC	IX
-	LOAD	(IX),H		;HIGH (adresse haute)
+VPUSH:	XOR	A,A		;TAG = 0 (INT)
+	;fall through
+VPUSHT:	DEC	IX
+	LOAD	(IX),A		;TAG (ADRESSE HAUTE)
 	DEC	IX
-	LOAD	(IX),L		;LOW (adresse basse)
+	LOAD	(IX),H		;HIGH
+	DEC	IX
+	LOAD	(IX),L		;LOW
 	RET
+
+VPUSHS:	LOAD	A,#1		;TAG = 1 (STRING)
+	JUMP	VPUSHT
 
 VPOP:	LOAD	L,(IX)		;LOW
 	INC	IX
 	LOAD	H,(IX)		;HIGH
+	INC	IX
+	LOAD	A,(IX)		;TAG
 	INC	IX
 	RET
 
@@ -404,8 +423,9 @@ OPTBL:
 	.W	VM_CALL
 	.W	VM_RETN
 	.W	VM_FRAME
-	;011 - 017 : INUTILISES
-	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	;011 : PSHS ; 012 - 017 : INUTILISES
+	.W	VMPSHS
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	;020 - 025
 	.W	VM_ADD
 	.W	VM_SUB
@@ -443,7 +463,7 @@ OPTBL:
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	.W	VM_ILL,VM_ILL,VM_ILL
 	;0120 - 0124
-	.W	VM_PRTI
+	.W	VM_PRT
 	.W	VM_PRSP
 	.W	VM_PRNL
 	.W	VM_POP
@@ -475,17 +495,23 @@ VM_LOAD:
 	LOAD	A,(HL)
 	INC	HL
 	LOAD	BCIP,HL
-	;HL := VARS + A*2
-	LOAD	HL,#VARS
-	LOAD	D,#0
-	LOAD	E,A
+	;HL := VARS + slot*3
+	LOAD	H,#0
+	LOAD	L,A
+	LOAD	D,H
+	LOAD	E,L
+	ADD	HL,HL		;2*slot
+	ADD	HL,DE		;3*slot
+	LOAD	DE,#VARS
 	ADD	HL,DE
-	ADD	HL,DE
+	;LIRE TAG, LO, HI
+	LOAD	A,(HL)
+	INC	HL
 	LOAD	E,(HL)
 	INC	HL
 	LOAD	D,(HL)
 	EX	HL,DE
-	CALL	VPUSH
+	CALL	VPUSHT		;A = TAG, HL = VALEUR
 	JUMP	VMLOOP
 
 VM_STOR:
@@ -493,19 +519,24 @@ VM_STOR:
 	LOAD	A,(HL)
 	INC	HL
 	LOAD	BCIP,HL
-	LOAD	HL,#VARS
-	LOAD	D,#0
-	LOAD	E,A
+	LOAD	H,#0
+	LOAD	L,A
+	LOAD	D,H
+	LOAD	E,L
+	ADD	HL,HL
 	ADD	HL,DE
+	LOAD	DE,#VARS
 	ADD	HL,DE
-	PUSH	HL		;ADR CIBLE
-	CALL	VPOP		;HL = VALEUR
+	PUSH	HL		;ADR CIBLE (TAG)
+	CALL	VPOP		;HL = VALEUR, A = TAG
 	POP	DE		;DE = ADR CIBLE
-	LOAD	A,L
-	LOAD	(DE),A
-	INC	DE
-	LOAD	A,H
-	LOAD	(DE),A
+	LOAD	B,A		;SAUVE TAG DANS B
+	EX	HL,DE		;HL = ADR, DE = VALEUR
+	LOAD	(HL),B		;ECRIT TAG
+	INC	HL
+	LOAD	(HL),E		;ECRIT LO
+	INC	HL
+	LOAD	(HL),D		;ECRIT HI
 	JUMP	VMLOOP
 
 VM_ADD:	CALL	VPOP
@@ -720,9 +751,32 @@ VM_JNZ:	CALL	VPOP
 	LOAD	BCIP,HL
 	JUMP	VMLOOP
 
-VM_PRTI:
-	CALL	VPOP
+VM_PRT:	;PRINT GENERIQUE : DISPATCH SUR TAG
+	CALL	VPOP		;HL = VALEUR, A = TAG
+	OR	A,A
+	JUMP	NE,VPRT_S	;TAG != 0 -> STRING
 	CALL	PRDEC_S
+	JUMP	VMLOOP
+VPRT_S:	;HL = ADDR DEBUT CHAINE DANS STRBUF, AFFICHE JUSQU'AU NULL
+	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,VMLOOP
+	PUSH	HL
+	.W	?DICAR
+	POP	HL
+	INC	HL
+	JUMP	VPRT_S
+
+
+VMPSHS:	;PUSH STRING REF (LIT ADDR 2 OCTETS LE, PUSH AVEC TAG=1)
+	LOAD	HL,BCIP
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	EX	HL,DE
+	CALL	VPUSHS
 	JUMP	VMLOOP
 
 VM_PRSP:
@@ -822,47 +876,53 @@ VMI_PS:	CALL	VPUSH
 ;#############################################################
 
 
-;LOAD VARIABLE LOCALE : HL := LSTACK[FP + slot*2], push
+;LOAD VARIABLE LOCALE : lit 3 octets a LSTACK[FP + slot*3], push
 VM_LDL:
 	LOAD	HL,BCIP
 	LOAD	A,(HL)
 	INC	HL
 	LOAD	BCIP,HL
-	;HL := FP + A*2
+	;HL := FP + slot*3
 	LOAD	HL,FP
 	LOAD	D,#0
 	LOAD	E,A
 	ADD	HL,DE
 	ADD	HL,DE
-	;Lire 2 octets a (HL)
+	ADD	HL,DE
+	;Lire tag, lo, hi
+	LOAD	A,(HL)
+	INC	HL
 	LOAD	E,(HL)
 	INC	HL
 	LOAD	D,(HL)
 	EX	HL,DE
-	CALL	VPUSH
+	CALL	VPUSHT
 	JUMP	VMLOOP
 
 
-;STORE VARIABLE LOCALE : pop, store dans LSTACK[FP + slot*2]
+;STORE VARIABLE LOCALE : pop, store 3 octets dans LSTACK[FP + slot*3]
 VM_STL:
 	LOAD	HL,BCIP
 	LOAD	A,(HL)
 	INC	HL
 	LOAD	BCIP,HL
-	;HL := FP + A*2
+	;HL := FP + slot*3
 	LOAD	HL,FP
 	LOAD	D,#0
 	LOAD	E,A
 	ADD	HL,DE
 	ADD	HL,DE
+	ADD	HL,DE
 	PUSH	HL		;ADR CIBLE
-	CALL	VPOP		;HL = VALEUR
+	CALL	VPOP		;HL = VALEUR, A = TAG
 	POP	DE		;DE = ADR
-	LOAD	A,L
-	LOAD	(DE),A
-	INC	DE
-	LOAD	A,H
-	LOAD	(DE),A
+	LOAD	B,A		;SAUVE TAG
+	EX	HL,DE		;HL = ADR, DE = VALEUR
+	LOAD	(HL),B		;TAG
+	INC	HL
+	LOAD	(HL),E		;LO
+	INC	HL
+	LOAD	(HL),D		;HI
 	JUMP	VMLOOP
 
 
@@ -898,31 +958,37 @@ VM_CALL:
 	;HL = LSP + 4 = base de la frame (= nouveau FP)
 	LOAD	FP,HL
 	LOAD	LSP,HL
-	;Allouer nargs slots : LSP += nargs*2
+	;Allouer nargs slots : LSP += nargs*3
 	LOAD	A,CALLNA
 	OR	A,A
 	JUMP	EQ,VMC_NA
 	LOAD	B,A
 VMC_AL:	INC	HL
 	INC	HL
+	INC	HL
 	DECJ	NE,B,VMC_AL
 	LOAD	LSP,HL
 	;Remplir les slots avec les args (popper VSTACK).
 	;Top de VSTACK = dernier arg -> slot nargs-1 (= addr le plus haut)
 	;Travailler du haut vers le bas. B = compteur (DECJ NE,B).
-	;VPOP modifie IX et HL, mais preserve B.
+	;VPOP modifie IX, HL et A, mais preserve B.
 	LOAD	A,CALLNA
 	LOAD	B,A
 VMC_FL:	DEC	HL
 	DEC	HL
-	PUSH	HL		;sauve addr slot
-	CALL	VPOP		;HL = valeur popped
+	DEC	HL
+	PUSH	HL		;sauve addr slot (= tag byte)
+	CALL	VPOP		;HL = valeur, A = tag
 	POP	DE		;DE = addr slot
+	LOAD	C,A		;sauve tag dans C
 	EX	HL,DE		;HL = slot addr, DE = valeur
-	LOAD	(HL),E		;ecrit octet bas
+	LOAD	(HL),C		;ecrit tag
 	INC	HL
-	LOAD	(HL),D		;ecrit octet haut
-	DEC	HL		;HL = slot start (pour DEC HL,DEC HL suivants)
+	LOAD	(HL),E		;ecrit lo
+	INC	HL
+	LOAD	(HL),D		;ecrit hi
+	DEC	HL
+	DEC	HL		;HL = slot start (pour DEC x3 suivants)
 	DECJ	NE,B,VMC_FL
 VMC_NA:	;Sauter a la fonction
 	LOAD	HL,CALLAD
@@ -930,7 +996,7 @@ VMC_NA:	;Sauter a la fonction
 	JUMP	VMLOOP
 
 
-;FRAME <nlocals 1 octet> : etend la frame de N slots zeroes
+;FRAME <nlocals 1 octet> : etend la frame de N slots (3 octets) zeroes
 VM_FRAME:
 	LOAD	HL,BCIP
 	LOAD	A,(HL)
@@ -940,20 +1006,24 @@ VM_FRAME:
 	JUMP	EQ,VMF_DN
 	LOAD	HL,LSP
 	LOAD	B,A
-	XOR	A,A		;A = 0 (sortie de la boucle pour gagner du temps)
-VMF_LP:	LOAD	(HL),A
+	XOR	A,A
+VMF_LP:	LOAD	(HL),A		;TAG = 0 (INT)
 	INC	HL
-	LOAD	(HL),A
+	LOAD	(HL),A		;LO = 0
+	INC	HL
+	LOAD	(HL),A		;HI = 0
 	INC	HL
 	DECJ	NE,B,VMF_LP
 	LOAD	LSP,HL
 VMF_DN:	JUMP	VMLOOP
 
 
-;RETN : pop valeur de retour, libere frame, restaure FP+IP, repush
+;RETN : pop valeur de retour (avec tag), libere frame, restaure FP+IP,
+;repush la valeur avec son tag
 VM_RETN:
-	CALL	VPOP		;HL = valeur de retour
+	CALL	VPOP		;HL = valeur, A = tag
 	LOAD	RETVAL,HL
+	LOAD	RETTAG,A
 	;LSP := FP - 4 (= debut header)
 	LOAD	HL,FP
 	DEC	HL
@@ -978,9 +1048,10 @@ VM_RETN:
 	;Restaurer FP
 	POP	HL		;HL = saved FP
 	LOAD	FP,HL
-	;Push valeur de retour sur VSTACK
+	;Push valeur de retour sur VSTACK avec son tag
+	LOAD	A,RETTAG
 	LOAD	HL,RETVAL
-	CALL	VPUSH
+	CALL	VPUSHT
 	JUMP	VMLOOP
 
 CMP_T:	LOAD	HL,#1

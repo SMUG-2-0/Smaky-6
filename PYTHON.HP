@@ -1,0 +1,225 @@
+PETIT PYTHON sur SMAKY 6
+========================
+
+  Version 0.4 -- mai 2026
+
+
+PRESENTATION
+------------
+
+Petit Python est un langage inspiré de Python, écrit
+en CALM Z80 pour le Smaky 6. Le programme PYTHON.SM
+charge un fichier .PY, le compile en bytecode, puis
+l'exécute dans une machine virtuelle à pile.
+
+
+LANCER UN PROGRAMME
+-------------------
+
+  PYTHON FIBO       charge et exécute FIBO.PY
+  PYTHON FIBO.PY    idem (l'extension est facultative)
+  PYTHON            charge TEST.PY par défaut
+
+Options (cumulables, dans le style Smaky) :
+
+  /L                affiche le bytecode avant le run
+  /C                pause clavier à chaque print
+  /LC               cumule les deux
+
+Exemple : PYTHON/LC FIBO
+
+
+INSTRUCTIONS DU LANGAGE
+-----------------------
+
+  Assignation       n = 42
+                    s = "Bonjour"
+
+  Affichage         print(x)
+                    print("n =", n)
+
+  Saisie            n = input()    (entier décimal)
+
+  Conditionnelle    if x > 0:
+                        ...
+                    elif x == 0:
+                        ...
+                    else:
+                        ...
+
+  Boucle while      while n < 10:
+                        ...
+
+  Boucle for        for k in range(10):
+                        ...
+
+  Contrôle          break, continue, pass
+
+  Fonctions         def add(a, b):
+                        return a + b
+                    r = add(3, 4)
+
+
+OPERATEURS
+----------
+
+  Arithmétique    +  -  *  /  //  %
+  Comparaisons    ==  !=  <  <=  >  >=
+  Logique         and  or  not
+
+
+TYPES SUPPORTES
+---------------
+
+  Entier 16 bits signé   de -32768 à 32767
+  Chaîne littérale       "Bonjour", "Smaky 6"
+
+Une chaîne est limitée à 255 caractères. La concaté-
+nation et la fonction len() arriveront en v0.5.
+
+
+COMMENTAIRES ET INDENTATION
+---------------------------
+
+  # ce qui suit, jusqu'au saut de ligne
+
+Les blocs sont délimités par l'indentation, comme
+en Python. Utiliser des espaces (les tabulations
+sont refusées).
+
+
+EXEMPLES
+========
+
+
+1) Fibonacci itératif  (FIBO.PY)
+   -----------------------------
+
+   a = 0
+   b = 1
+   n = 0
+   while n < 20:
+       print(a)
+       c = a + b
+       a = b
+       b = c
+       n = n + 1
+
+
+2) Carré d'un nombre  (INPUT1.PY)
+   ------------------------------
+
+   print("Tape un nombre :")
+   n = input()
+   print("Son carré vaut", n * n)
+
+
+3) Boucle for  (FOR1.PY)
+   ---------------------
+
+   for n in range(10):
+       print(n)
+
+
+4) Fibonacci récursif  (FIBOR.PY)
+   ------------------------------
+
+   def fib(n):
+       if n < 2:
+           return n
+       return fib(n - 1) + fib(n - 2)
+
+   print(fib(10))
+
+
+5) Nombres premiers de 2 à 99  (FORPRI.PY)
+   ---------------------------------------
+
+   for k in range(98):
+       n = k + 2
+       p = 1
+       for j in range(n - 2):
+           d = j + 2
+           if n % d == 0:
+               p = 0
+       if p == 1:
+           print(n)
+
+
+6) Chaînes et saisie  (STR2.PY)
+   ----------------------------
+
+   s = "Salut"
+   t = "Smaky 6"
+   print(s, t)
+   print("Tape un nombre :")
+   n = input()
+   print("Tu as tapé", n)
+
+
+7) Table de multiplication  (nouveau)
+   ----------------------------------
+
+   print("Table de 7 :")
+   for k in range(10):
+       n = k + 1
+       print(n, "x 7 =", n * 7)
+
+
+8) Compteur à rebours  (nouveau)
+   -----------------------------
+
+   print("Décompte :")
+   n = input()
+   while n > 0:
+       print(n)
+       n = n - 1
+   print("Zéro !")
+
+
+9) Plus grand commun diviseur  (nouveau)
+   -------------------------------------
+
+   def pgcd(a, b):
+       while b != 0:
+           c = a % b
+           a = b
+           b = c
+       return a
+
+   print("Tape deux entiers :")
+   x = input()
+   y = input()
+   print("PGCD =", pgcd(x, y))
+
+
+LIMITES TECHNIQUES
+==================
+
+  Identificateurs       max 8 caractères
+  Variables globales    64 par programme
+  Variables locales     32 par fonction
+  Fonctions             16 par programme
+  Chaînes               255 caractères max
+  Pile VM, pile locaux  1 ko chacune
+  Pool de chaînes       1 ko
+
+
+HISTORIQUE
+==========
+
+  v0.1   if/while/print + arithmétique
+  v0.2   def/return + appels de fonction
+  v0.3   for/range + break/continue + input()
+  v0.4   chaînes littérales et variables string
+
+
+CREDITS
+=======
+
+  Petit Python pour Smaky 6
+
+  Pierre-Yves Rochat  pyr@pyr.ch
+  Epsitec SA
+
+  Présenté au Festival OCCC, Martigny - 6 juin 2026
