@@ -26,8 +26,8 @@ BCSIZE	= 4000		;TAILLE BUFFER BYTECODE EN OCTAL (2 KO)
 
 FNAME:	.ASCIZ	"TEST.PY"
 MERR:	.ASCIZ	"FICHIER .PY INTROUVABLE<CR>"
-MFIN:	.ASCIZ	"<CR>Fin du programme, pressez une touche pour quitter !<CR>"
-MBAN:	.ASCIZ	"Petit Python v.0.4<CR>"
+MFIN:	.ASCIZ	"<CR>Fin du programme<CR>"
+MBAN:	.ASCIZ	"Petit Python v.0.5<CR>"
 MBCD:	.ASCIZ	"<CR>Bytecode :<CR>"
 
 
@@ -231,17 +231,17 @@ SKPDSM:
 
 
 ;==========================================================
-; ETAPE 5 : MESSAGE FIN + ATTENTE TOUCHE
+; ETAPE 6 : MESSAGE DE FIN
 ;==========================================================
-;EVITE QUE LE CLI EFFACE LE RESULTAT AU RETOUR
+;PLUS D'ATTENTE DE TOUCHE : LE PROGRAMME REND LA MAIN A
+;SAMOS DIRECTEMENT. UTILISER getkey() DANS LE .PY SI BESOIN.
 
 	LOAD	HL,#MFIN
 	.W	?DITEXT
-	.W	?GETCAR
 
 
 ;==========================================================
-; ETAPE 6 : RETOUR SAMOS
+; ETAPE 7 : RETOUR SAMOS
 ;==========================================================
 
 	.W	?RTN

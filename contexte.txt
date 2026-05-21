@@ -47,3 +47,26 @@ Je me souviens d'une formation organisée par un professeur de l'EPFL pour des i
 
   Merci de l'avoir partagé.
 --------------------------
+Je continue ce projet Petit Python pour Smaky 6 (un ordinateur datant de 1978 dont je m'occupe de la préservation.
+J'ai déjà une carte émulateur de disque dur et surtout un simulateur parfaitement fonctionnel,
+que j'utilise pour assembler et tester Petit Python.
+Je pourrais continuer à developper le langage Python, mais je vais d'abord m'intéresser à la question des appels système.
+Le Smaky 6 a un système d'exploitation, Samos, avec une richesse d'appels systèmes.
+Le fichier flo_st_table.txt est une copie lisible de FLO.ST, avec tous les symboles offerts par Samos, dont les apples système.
+Prenons un exemple, ?SETCU. C'est en fait l'appel ?SETCURS (CALM version 1980 ne travaille que sur les 6 premiers
+caractères de chaque symbole, c'est un point à ne pas oublier).
+Il reçoit les coordonnées ligne-colonne, pour que le prochain affichage se positionne à cette coordonnée.
+Il faudra évidemment que je te fournisse la description des appels qu'on va incorporer à notre Petit Python.
+Mais comment le faire, quelle syntaxe adopter?
+Je continue ce projet Petit Python pour Smaky 6 (un ordinateur datant de 1978 dont je m'occupe de la préservation.
+J'ai déjà une cart émulateur de disque dur et surtout un simulateur parfaitement fonctionnel,
+que j'utilise pour assembler et tester Petit Python).
+Je pourrais continuer à developper le langage Python, mais je vais d'abord m'intéresser à la question des appels système.
+Le Smaky 6 a un système d'exploitation, Samos, avec une richesse d'appels systèmes.
+Le fichier flo_st_table.txt est une copie lisible de FLO.ST, avec tous les symboles offerts par Samos, dont les apples système.
+Prenons un exemple, ?SETCU. C'est en fait l'appel ?SETCURS (CALM version 1980 ne travaille que sur les 6 premiers
+caractères de chaque symbole, c'est un point à ne pas oublier).
+Il reçoit les coordonnées ligne-colonne, pour que le prochain affichage se positionne à cette coordonnée.
+Il faudra évidemment que je te fournisse la description des appels qu'on va incorporer à notre Petit Python.
+Mais comment le faire, quelle syntaxe adopter? Il faut à la fois rester dans l'esprit Python,
+mais rendre aussi pratique que possible l'accès à ces appels systèmes. Qu'en penses-tu?

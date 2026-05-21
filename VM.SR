@@ -423,9 +423,10 @@ OPTBL:
 	.W	VM_CALL
 	.W	VM_RETN
 	.W	VM_FRAME
-	;011 : PSHS ; 012 - 017 : INUTILISES
+	;011 : PSHS ; 012 : SYS ; 013 - 017 : INUTILISES
 	.W	VMPSHS
-	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VMSYS
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	;020 - 025
 	.W	VM_ADD
 	.W	VM_SUB
@@ -1059,6 +1060,90 @@ CMP_T:	LOAD	HL,#1
 	JUMP	VMLOOP
 
 CMP_F:	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# VMSYS : APPELS SYSTEME BUILTIN                            #
+;#############################################################
+;OPCODE BCSYS SUIVI D'UN OCTET INDEX. DISPATCH PAR SYSTBL.
+;CHAQUE STUB DEPILE SES ARGS DE VSTACK, FAIT L'APPEL SAMOS,
+;PUIS POUSSE UNE VALEUR (0 SI L'APPEL N'EN RETOURNE PAS).
+;TOUS LES VECTEURS UTILISES PRESERVENT IX (= VSP).
+
+VMSYS:	LOAD	HL,BCIP
+	LOAD	A,(HL)		;A = INDEX BUILTIN
+	INC	HL
+	LOAD	BCIP,HL
+	;HL := SYSTBL + INDEX*2
+	LOAD	HL,#SYSTBL
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	JUMP	(HL)
+
+SYSTBL:	.W	SCCLS		;0 = cls()
+	.W	SCGOXY		;1 = gotoxy(ligne,colonne)
+	.W	SCBEEP		;2 = beep()
+	.W	SCGKEY		;3 = getkey()
+	.W	SCDLY		;4 = delay(n)
+
+
+;cls() : efface l'ecran alpha. ?CLEAR n'a pas d'argument.
+SCCLS:	.W	?CLEAR
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;gotoxy(ligne,colonne) : place le curseur alpha.
+;?SETCURS : H = ligne (0..19), L = colonne (0..63).
+;VSTACK (du sommet vers le bas) : colonne, puis ligne.
+SCGOXY:	CALL	VPOP		;HL = colonne
+	LOAD	A,L
+	PUSH	AF		;SAUVE COLONNE
+	CALL	VPOP		;HL = ligne
+	LOAD	H,L		;H = ligne
+	POP	AF
+	LOAD	L,A		;L = colonne
+	.W	?SETCURS
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;beep() : bip sonore court. ?BEEP attend une valeur en A ;
+;203 (octal) est le bip standard de Samos. ?BEEP reactive
+;les interruptions en sortie -> on les recoupe (IOF).
+SCBEEP:	LOAD	A,#203
+	.W	?BEEP
+	IOF
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;getkey() : attend et lit une touche. ?GETCAR -> A = code.
+SCGKEY:	.W	?GETCAR
+	LOAD	H,#0
+	LOAD	L,A
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;delay(n) : pause d'environ n millisecondes (approximatif).
+;?HLDEL boucle HL fois. ?DELAY (sans suffixe) lirait son
+;delai dans l'argument de commande : pas ce qu'on veut.
+SCDLY:	CALL	VPOP		;HL = n
+	.W	?HLDEL
+	LOAD	HL,#0
 	CALL	VPUSH
 	JUMP	VMLOOP
 

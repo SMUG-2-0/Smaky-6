@@ -1,7 +1,7 @@
 PETIT PYTHON sur SMAKY 6
 ========================
 
-  Version 0.4 -- mai 2026
+  Version 0.5 -- mai 2026
 
 
 PRESENTATION
@@ -75,7 +75,7 @@ TYPES SUPPORTES
   Chaîne littérale       "Bonjour", "Smaky 6"
 
 Une chaîne est limitée à 255 caractères. La concaté-
-nation et la fonction len() arriveront en v0.5.
+nation et la fonction len() arriveront plus tard.
 
 
 COMMENTAIRES ET INDENTATION
@@ -86,6 +86,28 @@ COMMENTAIRES ET INDENTATION
 Les blocs sont délimités par l'indentation, comme
 en Python. Utiliser des espaces (les tabulations
 sont refusées).
+
+
+FONCTIONS SYSTEME
+-----------------
+
+Ces fonctions intégrées donnent accès au système
+Samos du Smaky 6 :
+
+  cls()              efface l'écran
+
+  gotoxy(lig, col)   place le curseur
+                     lig de 0 à 19, col de 0 à 63
+
+  beep()             émet un bip sonore
+
+  getkey()           attend une touche et retourne
+                     son code
+
+  delay(n)           pause d'environ n millisecondes
+
+Un appel utilisé seul est une instruction ; getkey()
+retourne une valeur que l'on peut affecter.
 
 
 EXEMPLES
@@ -193,6 +215,27 @@ EXEMPLES
    print("PGCD =", pgcd(x, y))
 
 
+10) Appels système  (SYS1.PY)
+   --------------------------
+
+   cls()
+   gotoxy(2, 8)
+   print("PETIT PYTHON")
+   gotoxy(4, 8)
+   print("Appels systeme Samos")
+   gotoxy(7, 4)
+   print("Presse une touche...")
+   k = getkey()
+   beep()
+   gotoxy(9, 4)
+   print("Code de la touche :", k)
+   gotoxy(11, 4)
+   print("Pause de 2 secondes...")
+   delay(2000)
+   gotoxy(13, 4)
+   print("Termine !")
+
+
 LIMITES TECHNIQUES
 ==================
 
@@ -212,6 +255,7 @@ HISTORIQUE
   v0.2   def/return + appels de fonction
   v0.3   for/range + break/continue + input()
   v0.4   chaînes littérales et variables string
+  v0.5   fonctions système : écran, son, clavier
 
 
 CREDITS
