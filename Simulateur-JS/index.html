@@ -35,6 +35,8 @@ body {
     border-radius: 3px;
     margin-bottom: 6px;
     flex-wrap: wrap;
+    position: relative;   /* au-dessus du conteneur 3D plein écran */
+    z-index: 10;
 }
 #load-bar label { color: #666; }
 #load-bar input[type=file] { color: #aaa; font: inherit; font-size: 11px; }
@@ -62,17 +64,56 @@ body {
     display: inline-block;
     line-height: 0;
 }
-#disk-panel {
+/* Conteneur 3D : occupe toute la fenêtre quelle que soit sa taille.
+   Les panneaux flottants et la zone touches fonction passent par-dessus. */
+#three-container {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: #1a1a1a;
+}
+/* ─── Panneaux flottants ─── */
+.float-panel {
+    position: fixed;
+    z-index: 50;
+    background: #131313;
+    border: 1px solid #444;
+    box-shadow: 0 5px 16px rgba(0,0,0,0.65);
+}
+.float-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: #262626;
+    color: #9a9a9a;
+    font: bold 10px 'Courier New', monospace;
+    padding: 2px 4px 2px 7px;
+    cursor: move;
+    border-bottom: 1px solid #3a3a3a;
+}
+.float-titlebar:hover { background: #2f2f2f; }
+.ft-close {
+    cursor: pointer;
+    color: #777;
+    font-weight: bold;
+    padding: 0 4px;
+    border-radius: 2px;
+}
+.ft-close:hover { color: #ff6666; background: #3a0000; }
+.float-body { font-size: 10px; font-family: 'Courier New', monospace; }
+/* corps « liste » (disque dur, floppy) */
+.fp-body-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
     padding: 3px 4px;
-    border: 1px solid #333;
-    background: #131313;
-    font-size: 10px;
-    font-family: 'Courier New', monospace;
     min-width: 148px;
 }
+/* corps « sections » ($PR/$PP, Affichage) */
+.sp-body { padding: 4px; min-width: 148px; }
+/* corps des panneaux 3D (géométrie, rendu) */
+.geom-body { padding: 8px 10px; width: 190px; }
 .dp-row {
     display: flex;
     align-items: center;
@@ -99,18 +140,7 @@ body {
 .dp-fkey { color: #3a5a3a; font-size: 9px; width: 16px; text-align: center; }
 .dp-ejected { color: #886633; background: #221a00; }
 
-/* ─── Panneau floppies ─── */
-#floppy-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 3px 4px;
-    border: 1px solid #333;
-    background: #131313;
-    font-size: 10px;
-    font-family: 'Courier New', monospace;
-    min-width: 148px;
-}
+/* ─── Cases à cocher (floppy, vue) ─── */
 .fp-cb {
     display: inline-flex; align-items: center; gap: 2px;
     cursor: pointer; color: #888; font-size: 9px;
@@ -121,15 +151,7 @@ body {
 .fp-cb input:disabled { cursor: default; }
 .fp-cb input:disabled + span { opacity: 0.4; }
 
-/* ─── Panneau série ─── */
-#serial-panel {
-    padding: 4px 4px;
-    border: 1px solid #333;
-    background: #131313;
-    font-size: 10px;
-    font-family: 'Courier New', monospace;
-    min-width: 148px;
-}
+/* ─── Sections internes des panneaux $PR/$PP et Affichage ─── */
 .sp-section { margin-bottom: 6px; }
 .sp-section:last-child { margin-bottom: 0; }
 .sp-title { color: #2277cc; font-weight: bold; font-size: 10px; margin-bottom: 3px; }
@@ -180,6 +202,30 @@ body {
 .fn-btn-key:hover { background: #005a2a; color: #44ffaa; }
 .fn-btn-zoom { background: #001a3a; color: #2277cc; border-color: #003a7a; }
 .fn-btn-zoom:hover { background: #002a5a; color: #44aaff; }
+
+/* ─── Zone touches fonction : collée en bas-gauche en mode 3D ─── */
+#fnkeys-zone.fnz-3d {
+    position: fixed;
+    left: 8px;
+    bottom: 8px;
+    z-index: 45;
+    max-width: calc(100vw - 16px);
+    background: rgba(18,18,18,0.9);
+    border: 1px solid #383838;
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+/* ─── Cases « Panneaux » de la barre du haut ─── */
+.lb-cb {
+    display: inline-flex; align-items: center; gap: 3px;
+    color: #888; font-size: 11px; cursor: pointer;
+}
+.lb-cb input { accent-color: #00cc00; cursor: pointer; }
+.lb-cb:hover { color: #ccc; }
+.lb-cb input:disabled { cursor: default; }
+.lb-cb input:disabled + span { opacity: 0.35; }
+#panel-toggles { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ─── Zone debug ─── */
 #debug-wrap {
@@ -321,6 +367,10 @@ body {
     <button id="audio-btn" onclick="toggleAudio()" title="Activer / couper le haut-parleur"
             style="margin-left:4px;font-size:13px;padding:1px 6px">🔊</button>
     <span id="load-status" style="margin-left:8px">Sélectionnez le dossier contenant SM6WIN0-7.DSK, puis Démarrer.</span>
+    <span style="color:#666;margin-left:6px">Panneaux :</span>
+    <span id="panel-toggles"></span>
+    <button onclick="resetPanelLayout()" title="Replacer tous les panneaux à leur position par défaut"
+            style="font-size:10px">⟲ positions</button>
 </div>
 
 <!-- ─── Modal aide ─────────────────────────────────────────────── -->
@@ -456,121 +506,106 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
       <canvas id="gfx-canvas"></canvas>
       <canvas id="text-canvas" tabindex="0"></canvas>
   </div>
-  <div id="three-container" style="display:none;width:800px;height:600px;background:#1a1a1a;position:relative">
-    <!-- Panneau de paramètres géométrie (overlay sur le canvas 3D) -->
-    <div id="geom-panel" style="
-        display:none;
-        position:absolute; top:8px; right:8px;
-        background:rgba(20,20,20,0.92); color:#ccc;
-        font:11px 'Courier New',monospace; padding:8px 10px;
-        border:1px solid #444; border-radius:3px;
-        z-index:10; width:180px;">
-      <div style="color:#88ccff;font-weight:bold;margin-bottom:5px">Géométrie boîtier (mm)</div>
-      <div id="geom-fields"></div>
+  <div id="three-container" style="display:none"></div>
+</div>
+
+<!-- ─── Panneaux flottants ───────────────────────────────────── -->
+<div id="disk-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Disque dur</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div id="disk-body" class="float-body fp-body-list"><!-- généré par buildDiskPanel() --></div>
+</div>
+
+<div id="floppy-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Floppy</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div id="floppy-body" class="float-body fp-body-list"><!-- généré par buildFloppyPanel() --></div>
+</div>
+
+<div id="pr-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>$PR / $PP — Ruban</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div class="float-body sp-body">
+    <div class="sp-section">
+      <div class="sp-title">$PR — Lecteur de ruban</div>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <button class="sp-btn" onclick="prChoose()">📂 Fichier…</button>
+        <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pr-binary"> binaire</label>
+        <label class="fn-cb" style="font-size:9px"
+               title="Émet automatiquement la touche Kill quand tout le fichier a été lu"><input type="checkbox" id="pr-eof" checked> EOF auto</label>
+      </div>
+      <div class="sp-status" id="pr-status">—</div>
+      <div style="color:#3a5a3a;font-size:9px;margin-top:2px">Kill termine le transfert</div>
     </div>
-    <!-- Panneau de paramètres de rendu -->
-    <div id="render-panel" style="
-        display:none;
-        position:absolute; top:8px; left:8px;
-        background:rgba(20,20,20,0.92); color:#ccc;
-        font:11px 'Courier New',monospace; padding:8px 10px;
-        border:1px solid #444; border-radius:3px;
-        z-index:10; width:180px;">
-      <div style="color:#ffaa66;font-weight:bold;margin-bottom:5px">Rendu</div>
-      <div id="render-fields"></div>
+    <div class="sp-section">
+      <div class="sp-title">$PP — Perforateur de ruban</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button class="sp-btn sp-btn-stop" onclick="ppSave()">💾 Enregistrer</button>
+        <button class="sp-btn sp-btn-stop" onclick="ppClear()">■ Effacer</button>
+        <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pp-binary"> binaire</label>
+      </div>
+      <div class="sp-status" id="pp-status">—</div>
     </div>
   </div>
-  <div style="display:flex;flex-direction:column;gap:6px">
-    <div id="disk-panel"><!-- généré par buildDiskPanel() --></div>
-    <div id="floppy-panel"><!-- généré par buildFloppyPanel() --></div>
-    <div id="serial-panel">
-      <div class="sp-section">
-        <div class="sp-title">$PR — Lecteur de ruban</div>
-        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
-          <button class="sp-btn" onclick="prChoose()">📂 Fichier…</button>
-          <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pr-binary"> binaire</label>
-          <label class="fn-cb" style="font-size:9px"
-                 title="Émet automatiquement la touche Kill quand tout le fichier a été lu"><input type="checkbox" id="pr-eof" checked> EOF auto</label>
-        </div>
-        <div class="sp-status" id="pr-status">—</div>
-        <div style="color:#3a5a3a;font-size:9px;margin-top:2px">Kill termine le transfert</div>
-      </div>
-      <div class="sp-section">
-        <div class="sp-title">$PP — Perforateur de ruban</div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <button class="sp-btn sp-btn-stop" onclick="ppSave()">💾 Enregistrer</button>
-          <button class="sp-btn sp-btn-stop" onclick="ppClear()">■ Effacer</button>
-          <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pp-binary"> binaire</label>
-        </div>
-        <div class="sp-status" id="pp-status">—</div>
+</div>
+
+<div id="display-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Vitesse · Affichage</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div class="float-body sp-body">
+    <div class="sp-section">
+      <div class="sp-title">Vitesse</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <input type="number" id="speed-input" value="100" min="1" max="9999"
+               title="Vitesse en % (100 = Z80 réel 2.5 MHz)"
+               oninput="onSpeedChange(this.value)">
+        <span style="color:#666;font-size:10px">%</span>
+        <button class="sp-btn" onclick="onSpeedChange(100)" title="Revenir à 100%">100%</button>
+        <button class="sp-btn" onclick="onSpeedChange(1000)" title="Mode rapide (assemblage de gros fichiers)">1000%</button>
       </div>
     </div>
-    <div id="serial-panel">
-      <div class="sp-section">
-        <div class="sp-title">Vitesse</div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input type="number" id="speed-input" value="100" min="1" max="9999"
-                 title="Vitesse en % (100 = Z80 réel 2.5 MHz)"
-                 oninput="onSpeedChange(this.value)">
-          <span style="color:#666;font-size:10px">%</span>
-          <button class="sp-btn" onclick="onSpeedChange(100)" title="Revenir à 100%">100%</button>
-          <button class="sp-btn" onclick="onSpeedChange(1000)" title="Mode rapide (assemblage de gros fichiers)">1000%</button>
-        </div>
+    <div class="sp-section">
+      <div class="sp-title">Phosphore</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <select id="palette-select" onchange="onPaletteChange(this.value)"
+                style="background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px">
+          <option value="green">Vert P31</option>
+          <option value="gray">Gris (prototype)</option>
+          <option value="amber">Ambre</option>
+        </select>
       </div>
-      <div class="sp-section">
-        <div class="sp-title">Phosphore</div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <select id="palette-select" onchange="onPaletteChange(this.value)"
-                  style="background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px">
-            <option value="green">Vert P31</option>
-            <option value="gray">Gris (prototype)</option>
-            <option value="amber">Ambre</option>
-          </select>
-        </div>
-      </div>
-      <div class="sp-section">
-        <div class="sp-title">Géométrie CRT</div>
-        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888">
-          <label title="Ratio Y/X du pixel élémentaire (1=carré, 1.6=CRT 4:3)">
-            Pixel Y/X
-            <input type="number" id="aspect-input" value="1.6" min="0.5" max="3.0" step="0.05"
-                   oninput="onAspectChange(this.value)"
-                   style="width:48px;background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px;text-align:right">
-          </label>
-        </div>
-        <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888;margin-top:3px">
-          <label title="Bordure non-utilisée autour de l'écran (% de la largeur)">
-            Bordure
-            <input type="number" id="border-input" value="5" min="0" max="20" step="1"
-                   oninput="onBorderChange(this.value)"
-                   style="width:42px;background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px;text-align:right">
-            <span style="color:#666">%</span>
-          </label>
-        </div>
-      </div>
-      <div class="sp-section" style="margin-bottom:0">
-        <div class="sp-title">Vue</div>
-        <label class="fp-cb" style="font-size:10px"
-               title="Affiche le boîtier en 3D — souris pour orbiter, molette pour zoomer">
-          <input type="checkbox" id="view3d-cb" onchange="onToggle3D(this.checked)">
-          <span>Boîtier 3D</span>
+    </div>
+    <div class="sp-section">
+      <div class="sp-title">Géométrie CRT</div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888">
+        <label title="Ratio Y/X du pixel élémentaire (1=carré, 1.6=CRT 4:3)">
+          Pixel Y/X
+          <input type="number" id="aspect-input" value="1.6" min="0.5" max="3.0" step="0.05"
+                 oninput="onAspectChange(this.value)"
+                 style="width:48px;background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px;text-align:right">
         </label>
-        <label class="fp-cb" style="font-size:10px;margin-top:3px"
-               title="Affiche un panneau pour modifier les dimensions en direct">
-          <input type="checkbox" id="geom-cb" onchange="onToggleGeomPanel(this.checked)">
-          <span>Géom.</span>
-        </label>
-        <label class="fp-cb" style="font-size:10px;margin-top:3px"
-               title="Affiche un panneau pour modifier les paramètres de rendu">
-          <input type="checkbox" id="render-cb" onchange="onToggleRenderPanel(this.checked)">
-          <span>Rendu</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888;margin-top:3px">
+        <label title="Bordure non-utilisée autour de l'écran (% de la largeur)">
+          Bordure
+          <input type="number" id="border-input" value="5" min="0" max="20" step="1"
+                 oninput="onBorderChange(this.value)"
+                 style="width:42px;background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px;text-align:right">
+          <span style="color:#666">%</span>
         </label>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ─── Touches fonction ─────────────────────────────────────── -->
+<div id="geom-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Géométrie boîtier (mm)</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div class="float-body geom-body"><div id="geom-fields"></div></div>
+</div>
+
+<div id="render-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Rendu 3D</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div class="float-body geom-body"><div id="render-fields"></div></div>
+</div>
+
+<!-- ─── Zone touches fonction (sous l'écran en 2D, bas-gauche en 3D) ── -->
+<div id="fnkeys-zone">
 <div id="fn-row">
     <label class="fn-cb"><input type="checkbox" data-mask="0x40"><span class="fn-label">CURSOR<span class="fn-key-hint">Ctrl</span></span></label>
     <label class="fn-cb"><input type="checkbox" data-mask="0x10"><span class="fn-label">KILL<span class="fn-key-hint">Alt</span></span></label>
@@ -604,7 +639,10 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
     <button class="fn-btn fn-btn-zoom" onclick="doZoom(+0.1)" title="Zoom avant (Ctrl++)">Zoom+</button>
     <button class="fn-btn fn-btn-zoom" onclick="doZoom(-0.1)" title="Zoom arrière (Ctrl-)">Zoom−</button>
     <button class="fn-btn fn-btn-zoom" onclick="doColler()" title="Coller le presse-papiers vers le Smaky">COLLER</button>
+    <span style="display:inline-block;width:10px"></span>
+    <label class="fn-cb" title="Affiche le boîtier en 3D — souris pour orbiter, molette pour zoomer"><input type="checkbox" id="view3d-cb" onchange="onToggle3D(this.checked)"> Boîtier 3D</label>
 </div>
+</div><!-- #fnkeys-zone -->
 
 <!-- ─── Zone debug ───────────────────────────────────────────── -->
 <div id="debug-wrap" style="display:none">
@@ -899,16 +937,8 @@ function onRenderChange(key, value) {
     if (typeof setRenderParam === 'function') setRenderParam(key, value);
 }
 
-function onToggleRenderPanel(on) {
-    const panel = document.getElementById('render-panel');
-    if (!panel) return;
-    if (on) {
-        _buildRenderFields();
-        panel.style.display = '';
-    } else {
-        panel.style.display = 'none';
-    }
-}
+// Affichage du panneau Rendu : géré par le système de panneaux
+// flottants (togglePanel) ; _buildRenderFields est appelé via onShow.
 
 function onRenderSave() {
     const params = {};
@@ -1010,19 +1040,12 @@ function onGeomChange(key, value) {
     if (typeof rebuildHousing  === 'function') rebuildHousing();
 }
 
-function onToggleGeomPanel(on) {
-    const panel = document.getElementById('geom-panel');
-    if (!panel) return;
-    if (on) {
-        _buildGeomFields();
-        panel.style.display = '';
-    } else {
-        panel.style.display = 'none';
-    }
-}
+// Affichage du panneau Géométrie : géré par le système de panneaux
+// flottants (togglePanel) ; _buildGeomFields est appelé via onShow.
 
 // ─── Bascule vue 2D / 3D ─────────────────────────────────────────
 let _3DInitialized = false;
+let is3D = false;
 function onToggle3D(on) {
     const wrap = document.getElementById('screen-wrap');
     const cont = document.getElementById('three-container');
@@ -1061,6 +1084,244 @@ function onToggle3D(on) {
         wrap.style.display = '';
         textCanvas.focus();
     }
+    is3D = on;
+    // La zone des touches fonction et les panneaux 3D suivent le mode.
+    if (typeof _updateFnZonePosition === 'function') _updateFnZonePosition();
+    if (typeof _updatePanel3DState  === 'function') _updatePanel3DState();
+}
+
+// ═══ Panneaux flottants ══════════════════════════════════════════
+// Chaque zone hors-Smaky (disques, floppy, $PR/$PP, affichage,
+// géométrie 3D, rendu 3D) est une fenêtre flottante : déplaçable par
+// sa barre de titre, affichable/masquable par une case de la barre du
+// haut. Position et visibilité sont mémorisées dans localStorage.
+// Un panneau « ancré » (jamais déplacé) suit son coin de référence
+// quand la fenêtre est redimensionnée ; dès qu'on le déplace, il
+// conserve sa position absolue.
+const PANELS = [
+    { id: 'disk-panel',    label: 'Disque dur', anchor: 'tr', defVisible: true,  only3D: false },
+    { id: 'floppy-panel',  label: 'Floppy',     anchor: 'tr', defVisible: true,  only3D: false },
+    { id: 'pr-panel',      label: '$PR/$PP',    anchor: 'tr', defVisible: true,  only3D: false },
+    { id: 'display-panel', label: 'Affichage',  anchor: 'tr', defVisible: true,  only3D: false },
+    { id: 'geom-panel',    label: 'Géom. 3D',   anchor: 'br', defVisible: false, only3D: true,  onShow: _buildGeomFields },
+    { id: 'render-panel',  label: 'Rendu 3D',   anchor: 'bl', defVisible: false, only3D: true,  onShow: _buildRenderFields },
+];
+const PANEL_LS_KEY = 'panelLayout-v2';   // -v2 : positions stockées en nombres
+const _panelWanted = {};   // intention d'affichage de l'utilisateur (par id)
+let   _panelZ      = 50;
+
+function _loadPanelLayout() {
+    try { return JSON.parse(localStorage.getItem(PANEL_LS_KEY)) || {}; }
+    catch (_) { return {}; }
+}
+
+function _savePanelLayout() {
+    const data = {};
+    for (const p of PANELS) {
+        // On mémorise la position VOULUE (p._left / p._top), jamais la
+        // position affichée : celle-ci peut être bornée à une fenêtre
+        // plus petite et corromprait la valeur enregistrée.
+        data[p.id] = {
+            left:    p._left,
+            top:     p._top,
+            visible: !!_panelWanted[p.id],
+            moved:   !!p._userMoved,
+        };
+    }
+    try { localStorage.setItem(PANEL_LS_KEY, JSON.stringify(data)); } catch (_) {}
+}
+
+function _bringPanelToFront(el) { el.style.zIndex = ++_panelZ; }
+
+// Affiche un panneau à sa position voulue (p._left / p._top), bornée à
+// la fenêtre courante. Le bornage n'affecte que l'affichage : la
+// position voulue elle-même n'est jamais modifiée.
+function _renderPanelPos(p) {
+    const el = document.getElementById(p.id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const left = Math.max(0, Math.min(p._left, window.innerWidth  - r.width));
+    const top  = Math.max(0, Math.min(p._top,  window.innerHeight - r.height));
+    el.style.left = left + 'px';
+    el.style.top  = top  + 'px';
+}
+
+// Position par défaut d'un panneau, calculée depuis son coin d'ancrage.
+function _panelDefaultPos(p, el) {
+    const M = 8, GAP = 6;
+    const W = window.innerWidth, H = window.innerHeight;
+    const r = el.getBoundingClientRect();
+    if (p.anchor === 'tr') {
+        // Sous la barre du haut, empilés verticalement.
+        const lb = document.getElementById('load-bar');
+        let top = lb ? lb.getBoundingClientRect().bottom + GAP : M;
+        for (const q of PANELS) {
+            if (q === p) break;
+            if (q.anchor !== 'tr') continue;
+            const qe = document.getElementById(q.id);
+            if (qe && qe.style.display !== 'none') {
+                top += qe.getBoundingClientRect().height + GAP;
+            }
+        }
+        return { left: W - r.width - M, top: top };
+    }
+    if (p.anchor === 'br') return { left: W - r.width - M, top: H - r.height - M };
+    if (p.anchor === 'bl') {
+        // Au-dessus de la zone des touches fonction si celle-ci est
+        // collée en bas (mode 3D), sinon dans le coin bas-gauche.
+        let bottom = H - M;
+        const fz = document.getElementById('fnkeys-zone');
+        if (fz && fz.classList.contains('fnz-3d')) {
+            bottom = fz.getBoundingClientRect().top - GAP;
+        }
+        return { left: M, top: bottom - r.height };
+    }
+    return { left: M, top: M };
+}
+
+// (Re)calcule la position voulue d'un panneau puis l'affiche. Panneau
+// ancré : position recalculée depuis son coin de référence. Panneau
+// déplacé : p._left / p._top sont conservés tels quels.
+function _resolvePanelPos(p) {
+    const el = document.getElementById(p.id);
+    if (!el) return;
+    if (!p._userMoved) {
+        const d = _panelDefaultPos(p, el);
+        p._left = d.left;
+        p._top  = d.top;
+    }
+    _renderPanelPos(p);
+}
+
+// Affichage effectif = intention utilisateur ET (panneau non-3D OU mode 3D).
+function _applyPanelVisibility(p) {
+    const el = document.getElementById(p.id);
+    if (!el) return;
+    const show = _panelWanted[p.id] && (!p.only3D || is3D);
+    if (show) {
+        if (p.onShow) p.onShow();
+        el.style.display = '';
+        _resolvePanelPos(p);
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+function togglePanel(id, visible) {
+    _panelWanted[id] = visible;
+    const p = PANELS.find(x => x.id === id);
+    if (p) _applyPanelVisibility(p);
+    const cb = document.getElementById('pt-' + id);
+    if (cb) cb.checked = visible;
+    _savePanelLayout();
+}
+
+function _makeDraggable(p, el) {
+    const bar = el.querySelector('.float-titlebar');
+    if (!bar) return;
+    let ox = 0, oy = 0, dragging = false;
+    bar.addEventListener('mousedown', e => {
+        if (e.target.classList.contains('ft-close')) return;
+        dragging = true;
+        const r = el.getBoundingClientRect();
+        ox = e.clientX - r.left;
+        oy = e.clientY - r.top;
+        _bringPanelToFront(el);
+        e.preventDefault();   // ne pas voler le focus au canvas Smaky
+    });
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const r = el.getBoundingClientRect();
+        let left = e.clientX - ox, top = e.clientY - oy;
+        left = Math.max(0, Math.min(left, window.innerWidth  - r.width));
+        top  = Math.max(0, Math.min(top,  window.innerHeight - r.height));
+        p._left = left;       // mémorise la position voulue
+        p._top  = top;
+        el.style.left = left + 'px';
+        el.style.top  = top  + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        p._userMoved = true;
+        _savePanelLayout();
+    });
+    // Cliquer n'importe où sur le panneau le ramène au premier plan.
+    el.addEventListener('mousedown', () => _bringPanelToFront(el));
+}
+
+// Active/désactive les cases des panneaux 3D selon le mode courant.
+function _updatePanel3DState() {
+    for (const p of PANELS) {
+        if (!p.only3D) continue;
+        const cb = document.getElementById('pt-' + p.id);
+        if (cb) cb.disabled = !is3D;
+        _applyPanelVisibility(p);
+    }
+}
+
+// Place la zone des touches fonction : dans le flux sous l'écran en
+// 2D, collée en bas-gauche en 3D.
+function _updateFnZonePosition() {
+    const z = document.getElementById('fnkeys-zone');
+    if (z) z.classList.toggle('fnz-3d', is3D);
+}
+
+// Bouton « ⟲ positions » : tout remettre aux valeurs par défaut.
+function resetPanelLayout() {
+    try { localStorage.removeItem(PANEL_LS_KEY); } catch (_) {}
+    for (const p of PANELS) {
+        p._userMoved = false;
+        _panelWanted[p.id] = p.defVisible;
+        const cb = document.getElementById('pt-' + p.id);
+        if (cb) cb.checked = p.defVisible;
+    }
+    for (const p of PANELS) _applyPanelVisibility(p);
+    _savePanelLayout();
+}
+
+function initPanels() {
+    const saved   = _loadPanelLayout();
+    const toggles = document.getElementById('panel-toggles');
+    for (const p of PANELS) {
+        const el = document.getElementById(p.id);
+        if (!el) continue;
+        _makeDraggable(p, el);
+        const close = el.querySelector('.ft-close');
+        if (close) close.addEventListener('click', () => togglePanel(p.id, false));
+        if (toggles) {
+            const lbl = document.createElement('label');
+            lbl.className = 'lb-cb';
+            lbl.innerHTML = '<input type="checkbox" id="pt-' + p.id + '"><span>' +
+                            p.label + '</span>';
+            toggles.appendChild(lbl);
+            lbl.querySelector('input').addEventListener('change', function () {
+                togglePanel(p.id, this.checked);
+            });
+        }
+        const s = saved[p.id];
+        p._userMoved       = !!(s && s.moved);
+        p._left            = s ? (parseFloat(s.left) || 0) : 0;
+        p._top             = s ? (parseFloat(s.top)  || 0) : 0;
+        _panelWanted[p.id] = s ? !!s.visible : p.defVisible;
+        const cb = document.getElementById('pt-' + p.id);
+        if (cb) cb.checked = _panelWanted[p.id];
+    }
+    // Afficher/placer dans l'ordre du registre (empilage haut-droite).
+    for (const p of PANELS) _applyPanelVisibility(p);
+    _updateFnZonePosition();
+    _updatePanel3DState();
+    // Suivi du redimensionnement de la fenêtre (ex. maximisation au
+    // démarrage) : chaque panneau visible recalcule son affichage — les
+    // ancrés suivent leur coin, les déplacés gardent leur position
+    // voulue, ré-appliquée puis bornée à la nouvelle taille.
+    window.addEventListener('resize', () => {
+        for (const p of PANELS) {
+            const el = document.getElementById(p.id);
+            if (!el || el.style.display === 'none') continue;
+            _resolvePanelPos(p);
+        }
+    });
 }
 
 // ─── Géométrie écran (ratio + bordure) ───────────────────────────
@@ -1759,7 +2020,7 @@ const DISK_FKEY = ['F8','F1','F2','F3','F4','F5','F6','F7'];
 
 // ─── Panneau disques ──────────────────────────────────────────────
 function buildDiskPanel() {
-    const panel = document.getElementById('disk-panel');
+    const panel = document.getElementById('disk-body');
     panel.innerHTML = '';
     for (let i = 0; i <= 7; i++) {
         const name = `SM6WIN${i}.DSK`;
@@ -1797,7 +2058,7 @@ function updateDiskPanel() {
 
 // ─── Panneau floppies ─────────────────────────────────────────────
 function buildFloppyPanel() {
-    const panel = document.getElementById('floppy-panel');
+    const panel = document.getElementById('floppy-body');
     panel.innerHTML = '';
     for (let i = 0; i <= 1; i++) {
         const name = `SM6FLO${i}.DSK`;
@@ -2243,6 +2504,7 @@ initCanvas();
 buildDiskPanel();
 buildFloppyPanel();
 updateFloppyPanel();
+initPanels();
 
 // Sélecteur de palette : restaure le choix sauvegardé.
 {

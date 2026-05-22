@@ -191,7 +191,7 @@ function init3D(container, sourceCanvas) {
     _controls.dampingFactor = 0.08;
     _controls.minDistance   = 4.0;
     _controls.maxDistance   = 25;
-    _controls.zoomSpeed     = 0.3;       // molette plus douce (défaut: 1.0)
+    _controls.zoomSpeed     = 0.35;      // molette plus douce (défaut: 1.0)
     _controls.update();
 
     window.addEventListener('resize', _onResize);
@@ -1236,6 +1236,7 @@ function _renderLoop() {
 function start3D() {
     if (_animating || !_renderer) return;
     _animating = true;
+    _onResize();          // adapter le rendu à la taille courante de la fenêtre
     _renderLoop();
 }
 
@@ -1250,22 +1251,38 @@ function playIntroAnimation(durationMs) {
     const startPos    = new THREE.Vector3(-24, 16, 12);
     const startTarget = new THREE.Vector3(-3,  0.5, 0);
 
-    // Pose finale : 2× plus loin que la pose par défaut, donc Smaky 2× plus
-    // petit dans le cadre que ce qu'on avait avant.
-    const endPos    = new THREE.Vector3(0, 2.2, 15);
-    const endTarget = new THREE.Vector3(0, 1.0, 0);
+    // Boîte englobante du boîtier (constante pendant l'intro).
+    const box    = new THREE.Box3().setFromObject(_housingGroup);
+    const center = box.getCenter(new THREE.Vector3());
+    const size   = box.getSize(new THREE.Vector3());
+
+    // Direction de visée finale : de face, légèrement en plongée.
+    const viewDir = new THREE.Vector3(0, 1.2, 15).normalize();
+
+    // Fraction de la fenêtre occupée par le boîtier en fin d'intro.
+    // 0.72 : laisse une marge pour que le panneau « Disque dur » ne
+    // recouvre pas l'écran du Smaky.
+    const FILL = 0.72;
 
     _controls.enabled = false;
     const t0 = performance.now();
 
     function step() {
         const elapsed = performance.now() - t0;
-        let t = Math.min(elapsed / dur, 1);
+        const t = Math.min(elapsed / dur, 1);
         // Ease-out cubic : ralentit en arrivant
         const e = 1 - Math.pow(1 - t, 3);
 
+        // Pose finale recalculée chaque frame : suit la taille de la
+        // fenêtre pour que le boîtier occupe ~FILL en largeur ET hauteur.
+        const tanV   = Math.tan(_camera.fov * Math.PI / 360);
+        const dH     = size.y / (FILL * 2 * tanV);
+        const dW     = size.x / (FILL * 2 * tanV * _camera.aspect);
+        const dist   = Math.max(dH, dW);
+        const endPos = center.clone().addScaledVector(viewDir, dist);
+
         _camera.position.lerpVectors(startPos, endPos, e);
-        _controls.target.lerpVectors(startTarget, endTarget, e);
+        _controls.target.lerpVectors(startTarget, center, e);
         _controls.update();
 
         if (t < 1) {
