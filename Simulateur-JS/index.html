@@ -486,9 +486,11 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
     <div id="serial-panel">
       <div class="sp-section">
         <div class="sp-title">$PR — Lecteur de ruban</div>
-        <div style="display:flex;align-items:center;gap:4px">
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
           <button class="sp-btn" onclick="prChoose()">📂 Fichier…</button>
           <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pr-binary"> binaire</label>
+          <label class="fn-cb" style="font-size:9px"
+                 title="Émet automatiquement la touche Kill quand tout le fichier a été lu"><input type="checkbox" id="pr-eof" checked> EOF auto</label>
         </div>
         <div class="sp-status" id="pr-status">—</div>
         <div style="color:#3a5a3a;font-size:9px;margin-top:2px">Kill termine le transfert</div>
@@ -1268,7 +1270,14 @@ async function prChoose() {
         }
     }
     sim._prFifo = fifo;
-    sim.onPrEmpty = () => { updatePrStatus(); };
+    sim.onPrEmpty = () => {
+        updatePrStatus();
+        // EOF automatique : émettre la touche fonction Kill pour
+        // terminer le transfert une fois tout le fichier envoyé.
+        if (document.getElementById('pr-eof').checked) {
+            sim.pressFnKey(0x10);   // 0x10 = touche fonction KILL
+        }
+    };
     document.getElementById('pr-status').textContent = result.name;
     document.getElementById('pr-status').className = 'sp-status active';
     updatePrStatus();

@@ -112,6 +112,14 @@ class Smaky {
         // auto-repeat de chars identiques).
         this.kbFnHoldGapTicks = 4;
 
+        // Appui automatique d'une touche fonction (EOF auto du $PR).
+        // _autoFnKeys est OR-é avec fn_keys à la lecture du port $0,
+        // puis relâché après autoFnPressTicks périodes 50 Hz — comme
+        // un bref appui physique sur la touche.
+        this._autoFnKeys      = 0;
+        this._autoFnLeft      = 0;
+        this.autoFnPressTicks = 10;   // ~200 ms à 50 Hz
+
         // ── USART 8251 (ports 4-5) ───────────────────────────────
         this._8251phase = 'mode';  // 'mode' | 'cmd' (après reset)
         this._prFifo    = [];      // Paper Reader : octets en attente (entrée)
@@ -514,6 +522,12 @@ class Smaky {
 
     /** Avancer la FSM clavier d'un tick 50 Hz. */
     _kbTick() {
+        // Appui automatique d'une touche fonction : relâcher au terme
+        // du délai imparti (EOF auto du $PR).
+        if (this._autoFnLeft > 0 && --this._autoFnLeft === 0) {
+            this._autoFnKeys = 0;
+        }
+
         // Tant que le strobe n'a pas été lu, on attend.
         if (this._kbState === 'pending') return;
 
@@ -563,6 +577,17 @@ class Smaky {
     /** Définir fn_keys directement. */
     setFnKeys(val) {
         this._fnKeys = val & 0x7F;
+    }
+
+    /**
+     * Simuler un bref appui sur une ou plusieurs touches fonction.
+     * Les bits `mask` sont forcés dans fn_keys pendant `ticks` périodes
+     * 50 Hz, puis relâchés automatiquement. Utilisé par l'EOF auto du
+     * $PR pour émettre Kill en fin de transfert.
+     */
+    pressFnKey(mask, ticks = this.autoFnPressTicks) {
+        this._autoFnKeys = mask & 0x7F;
+        this._autoFnLeft = Math.max(1, ticks | 0);
     }
 
     /** Déclencher un NMI → push PC, IFF1=0, PC=0x0066. */
@@ -622,7 +647,7 @@ class Smaky {
                 head: this._wdHead, mode: this._wdMode, idx: this._wdDataIdx,
             },
             eni50:  this.eni50,
-            fnKeys: this._fnKeys,
+            fnKeys: this._fnKeys | this._autoFnKeys,
             kbFifoLen: this._kbFifo.length,
         };
     }
@@ -691,7 +716,7 @@ class Smaky {
                 return code | 0x80;
             }
             if (this._kbState === 'fn_expose') {
-                return this._kbCurFn & 0x7F;
+                return (this._kbCurFn | this._autoFnKeys) & 0x7F;
             }
             // Pendant 'gap' (juste après lecture du char), garder le bit
             // cursor co-tenu : sur le vrai Smaky 6, la flèche maintient
@@ -699,9 +724,9 @@ class Smaky {
             // est lue. Sans ça, la ROM relit fn_keys=0 et traite le char
             // comme un littéral.
             if (this._kbState === 'gap' && this._kbCurFn !== null) {
-                return this._kbCurFn & 0x7F;
+                return (this._kbCurFn | this._autoFnKeys) & 0x7F;
             }
-            return this._fnKeys & 0x7F;
+            return (this._fnKeys | this._autoFnKeys) & 0x7F;
         }
 
         if (p === 0x01) {
