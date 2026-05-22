@@ -1467,6 +1467,18 @@ BLTTBL:
 	.B	0, 5
 	.ASCIZ	"putc"
 	.B	1, 6
+	.ASCIZ	"graph"
+	.B	0, 7.
+	.ASCIZ	"text"
+	.B	0, 8.
+	.ASCIZ	"gcls"
+	.B	0, 9.
+	.ASCIZ	"plot"
+	.B	2, 10.
+	.ASCIZ	"clrp"
+	.B	2, 11.
+	.ASCIZ	"line"
+	.B	5, 12.
 	.B	0		;SENTINELLE FIN DE TABLE
 
 

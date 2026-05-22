@@ -1,7 +1,7 @@
 PETIT PYTHON sur SMAKY 6
 ========================
 
-  Version 0.6 -- mai 2026
+  Version 0.7 -- mai 2026
 
 
 PRESENTATION
@@ -45,10 +45,10 @@ aussitôt.
 Les variables sont conservées d'une ligne à l'autre.
 La touche END termine la session.
 
-En v0.6, le mode interactif accepte une instruction
-par ligne, sans indentation : pas encore de blocs
-if / while / def. Pour afficher une valeur, on
-utilise print().
+Pour l'instant, le mode interactif accepte une
+instruction par ligne, sans indentation : pas encore
+de blocs if / while / def. Pour afficher une valeur,
+on utilise print().
 
 
 INSTRUCTIONS DU LANGAGE
@@ -136,6 +136,28 @@ Samos du Smaky 6 :
 
 Un appel utilisé seul est une instruction ; getkey()
 et inkey() retournent une valeur que l'on peut affecter.
+
+
+GRAPHISME
+---------
+
+L'écran graphique fait 256 × 120 pixels, superposé en
+OU à l'écran texte.
+
+  graph()            active l'écran graphique
+
+  text()             revient à l'affichage texte seul
+
+  gcls()             efface l'écran graphique
+
+  plot(x, y)         allume un pixel
+                     x de 0 à 255, y de 0 à 119
+
+  clrp(x, y)         éteint un pixel
+
+  line(x1, y1, x2, y2, m)
+                     trace un segment ; m vaut
+                     0 (efface), 1 (fin) ou 2 (gras)
 
 
 EXEMPLES
@@ -264,6 +286,27 @@ EXEMPLES
    print("Termine !")
 
 
+11) Graphisme  (GR1.PY)
+   --------------------
+
+   cls()
+   graph()
+   gcls()
+   line(20, 10, 230, 10, 2)
+   line(20, 110, 230, 110, 2)
+   line(20, 10, 20, 110, 2)
+   line(230, 10, 230, 110, 2)
+   plot(120, 55)
+   plot(125, 55)
+   plot(130, 55)
+   getkey()
+   text()
+
+Deux jeux complets accompagnent ce manuel : PONGA.PY
+(ping-pong en mode texte) et PONGG.PY (ping-pong
+graphique).
+
+
 LIMITES TECHNIQUES
 ==================
 
@@ -285,6 +328,7 @@ HISTORIQUE
   v0.4   chaînes littérales et variables string
   v0.5   fonctions système : écran, son, clavier
   v0.6   inkey/putc + mode interactif (REPL)
+  v0.7   mode graphique : pixels, lignes, jeu PONGG
 
 
 CREDITS

@@ -1135,6 +1135,12 @@ SYSTBL:	.W	SCCLS		;0 = cls()
 	.W	SCDLY		;4 = delay(n)
 	.W	SCINKY		;5 = inkey()
 	.W	SCPUTC		;6 = putc(code)
+	.W	SCGRAF		;7 = graph()
+	.W	SCTEXT		;8 = text()
+	.W	SCGCLS		;9 = gcls()
+	.W	SCPLOT		;10 = plot(x,y)
+	.W	SCCLRP		;11 = clrp(x,y)
+	.W	SCLINE		;12 = line(x1,y1,x2,y2,m)
 
 
 ;cls() : efface l'ecran alpha. ?CLEAR n'a pas d'argument.
@@ -1208,6 +1214,94 @@ SCINK0:	LOAD	HL,#0
 SCPUTC:	CALL	VPOP		;HL = code
 	LOAD	A,L
 	.W	?DICAR
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;graph() : mode alpha + graphique, pixels gros. On ecrit
+;directement LAMODI et le port video $0, comme le fait la
+;queue ?IALPHA/?IGRA : pas de dependance au carry.
+SCGRAF:	LOAD	A,LAMODI
+	AND	A,#365		;b3=0 alpha visible, b1=0 gros
+	OR	A,#4		;b2=1 graphique visible
+	LOAD	LAMODI,A
+	LOAD	$0,A		;ecrit le registre video
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;text() : revient en mode alphanumerique seul.
+SCTEXT:	LOAD	A,LAMODI
+	AND	A,#363		;b2=0 graphique masque, b3=0 alpha visible
+	LOAD	LAMODI,A
+	LOAD	$0,A
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;gcls() : efface l'ecran graphique.
+SCGCLS:	.W	?CGRA
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;plot(x,y) : allume un pixel. SETP attend D=y, E=x.
+;x : 0..255, y : 0..119.
+SCPLOT:	CALL	VPOP		;HL = y
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = x
+	LOAD	E,L		;E = x
+	POP	AF
+	LOAD	D,A		;D = y
+	CALL	SETP
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;clrp(x,y) : eteint un pixel.
+SCCLRP:	CALL	VPOP		;HL = y
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = x
+	LOAD	E,L
+	POP	AF
+	LOAD	D,A
+	CALL	CLRP
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;line(x1,y1,x2,y2,m) : trace un segment de droite.
+;m = mode (0 efface, 1 fin, 2 gras). SEGA : DE = depart,
+;HL = arrivee ; un point = octet haut y, octet bas x.
+SCLINE:	CALL	VPOP		;HL = m
+	LOAD	A,L
+	CALL	CMOD		;regle le mode (A)
+	CALL	VPOP		;HL = y2
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = x2
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = y1
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = x1
+	LOAD	E,L		;E = x1
+	POP	AF
+	LOAD	D,A		;D = y1  -> DE = depart
+	POP	AF
+	LOAD	L,A		;L = x2
+	POP	AF
+	LOAD	H,A		;H = y2  -> HL = arrivee
+	CALL	SEGA
 	LOAD	HL,#0
 	CALL	VPUSH
 	JUMP	VMLOOP

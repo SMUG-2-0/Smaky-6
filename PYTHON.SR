@@ -28,7 +28,7 @@ REPLLEN	= 200		;TAILLE LIGNE INTERACTIVE EN OCTAL (128 OCTETS)
 
 MERR:	.ASCIZ	"FICHIER .PY INTROUVABLE<CR>"
 MFIN:	.ASCIZ	"<CR>Fin du programme<CR>"
-MBAN:	.ASCIZ	"Petit Python v.0.6<CR>"
+MBAN:	.ASCIZ	"Petit Python v.0.7<CR>"
 MBCD:	.ASCIZ	"<CR>Bytecode :<CR>"
 MREPL:	.ASCIZ	"Mode interactif - END pour quitter<CR>"
 MPROM:	.ASCIZ	">>> "

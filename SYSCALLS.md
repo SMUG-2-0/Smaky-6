@@ -1,8 +1,8 @@
 # Appels système Samos dans Petit Python
 
 **Auteur** : Pierre-Yves Rochat (PYR), avec Claude
-**Date** : 21 mai 2026
-**Statut** : infrastructure v0.5 — 7 appels
+**Date** : 22 mai 2026
+**Statut** : 13 builtins — système et graphique
 
 ---
 
@@ -57,7 +57,7 @@ Z80 pendant le parsing : les appels imbriqués dans les arguments
 
 ---
 
-## 3. Fiches des 5 appels (lot v0.5)
+## 3. Fiches des builtins
 
 Spécifications extraites de `../Simulateur-JS/samos_disasm/SYS.SR`.
 
@@ -137,6 +137,69 @@ Spécifications extraites de `../Simulateur-JS/samos_disasm/SYS.SR`.
 | Entrée | `A` = code (octet bas de l'argument) |
 | Sortie | aucune (pousse 0) |
 | Détail | complément de `print`, qui termine toujours par un saut de ligne. `putc` + `gotoxy` permettent de dessiner à l'écran sans effet de bord. |
+
+### Builtins graphiques
+
+L'écran graphique du Smaky 6 fait **256 × 120 pixels**, VRAM
+`0x4600`–`0x54FF`, superposé en OU à l'écran texte. Les routines
+de dessin ne sont pas des appels `?xxx` : ce sont des entrées
+d'une table de sauts à `0x0600` (`SETP`, `CLRP`, `CMOD`, `SEGA`…),
+appelées par un `CALL` direct. `graph`/`text` écrivent le registre
+vidéo `LAMODI` et le port `$0`.
+
+### graph() — index 7
+
+| | |
+|---|---|
+| Rôle | active l'affichage graphique (superposé au texte, pixels gros 2×2) |
+| Arguments | aucun |
+| Mécanisme | `LAMODI` : b2=1 graphique, b3=0 alpha visible, b1=0 gros ; recopié au port `$0` |
+| Sortie | aucune (pousse 0) |
+
+### text() — index 8
+
+| | |
+|---|---|
+| Rôle | revient à l'affichage alphanumérique seul |
+| Arguments | aucun |
+| Mécanisme | `LAMODI` &= masque (b2=0, b3=0) ; recopié au port `$0` |
+| Sortie | aucune (pousse 0) |
+
+### gcls() — index 9
+
+| | |
+|---|---|
+| Rôle | efface l'écran graphique |
+| Arguments | aucun |
+| Vecteur Samos | `?CGRA` (code 0x19) |
+| Sortie | aucune (pousse 0) |
+
+### plot(x, y) — index 10
+
+| | |
+|---|---|
+| Rôle | allume un pixel |
+| Arguments | `x` 0–255, `y` 0–119 |
+| Routine | `SETP` (table 0x0600) ; entrée `D` = y, `E` = x |
+| Sortie | aucune (pousse 0) |
+
+### clrp(x, y) — index 11
+
+| | |
+|---|---|
+| Rôle | éteint un pixel |
+| Arguments | `x` 0–255, `y` 0–119 |
+| Routine | `CLRP` (table 0x0603) ; entrée `D` = y, `E` = x |
+| Sortie | aucune (pousse 0) |
+
+### line(x1, y1, x2, y2, m) — index 12
+
+| | |
+|---|---|
+| Rôle | trace un segment de droite |
+| Arguments | extrémités `(x1,y1)`–`(x2,y2)` ; `m` = mode : 0 efface, 1 fin, 2 gras |
+| Routine | `CMOD` (0x060C) règle le mode, puis `SEGA` (0x060F) ; un point = octet haut `y`, octet bas `x` |
+| Sortie | aucune (pousse 0) |
 
 ---
 
