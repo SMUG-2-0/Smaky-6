@@ -682,6 +682,7 @@ let romBuffer   = null;
 let diskBuffer  = null;
 let hdEnabled        = true;            // disque dur actif (sinon : boot disquette)
 let selectedDiskName = 'SM6WIN0.DSK';   // image disque dur sélectionnée
+let diskVolatile     = false;           // disque dur embarqué (.JS) → RAM, non sauvé
 let breakpoints = new Set();
 let fnKeysMouse = 0;   // bits actifs via cases à cocher
 let fnKeysKbd   = 0;   // bits actifs via clavier
@@ -2023,6 +2024,16 @@ function _arrayBufferToB64(buf) {
     return btoa(bin);
 }
 
+// Décode une image embarquée tronquée (zéros de fin retirés) en
+// ArrayBuffer pleine taille : la zone est créée à `fullSize`, remplie
+// de zéros, puis les octets utiles sont copiés au début.
+function _b64ToImage(b64, fullSize) {
+    const data = new Uint8Array(_b64ToArrayBuffer(b64));
+    const buf  = new ArrayBuffer(Math.max(fullSize | 0, data.length));
+    new Uint8Array(buf).set(data, 0);
+    return buf;
+}
+
 // ROM embarquée : décode ROM18_B64 (défini dans rom18.js).
 function _decodeROM() {
     return _b64ToArrayBuffer(ROM18_B64);
@@ -2054,6 +2065,7 @@ function buildDiskPanel() {
             `<button class="dp-btn" onclick="requestDiskChange('${name}')" title="${fkey}">SÉLECT.</button>` +
             `<button class="dp-btn dp-btn-take" onclick="diskTake('${name}')" title="Charger un fichier .DSK dans cet emplacement">Prend</button>` +
             `<button class="dp-btn" id="dp-dl-${i}" onclick="diskDownload('${name}')" title="Télécharger l'image actuelle" disabled>⬇</button>` +
+            `<button class="dp-btn" id="dp-js-${i}" onclick="diskExportJS(${i})" title="Exporter l'image en fichier HD${i}.JS (disque embarquable)" disabled>.JS</button>` +
             `<span class="dp-fkey">${fkey}</span>`;
         panel.appendChild(row);
     }
@@ -2067,14 +2079,16 @@ function updateDiskPanel() {
         const present = availableDisks.has(name);
         const isSel   = (name === selectedDiskName);
         let cls, txt;
-        if (isSel && !hdEnabled)     { cls = 'dp-ejected';  txt = 'désact.'; }
-        else if (isSel && hdEnabled) { cls = 'dp-selected'; txt = 'sélect.'; }
-        else if (present)            { cls = 'dp-present';  txt = 'présent'; }
-        else                         { cls = 'dp-absent';   txt = 'absent';  }
+        if (!present)                 { cls = 'dp-absent';   txt = 'absent';  }
+        else if (isSel && !hdEnabled) { cls = 'dp-ejected';  txt = 'désact.'; }
+        else if (isSel)               { cls = 'dp-selected'; txt = 'sélect.'; }
+        else                          { cls = 'dp-present';  txt = 'présent'; }
         badge.className   = 'dp-badge ' + cls;
         badge.textContent = txt;
         const dlBtn = document.getElementById(`dp-dl-${i}`);
         if (dlBtn) dlBtn.disabled = !present && !isSel;
+        const jsBtn = document.getElementById(`dp-js-${i}`);
+        if (jsBtn) jsBtn.disabled = !present && !isSel;
     }
 }
 
@@ -2196,25 +2210,39 @@ function floppyExportJS(idx) {
     textCanvas.focus();
 }
 
-// Charge dynamiquement FLO0.JS / FLO1.JS s'ils sont présents à côté de
-// index.html, puis appelle done(). Un fichier absent est simplement
-// ignoré (onerror) — aucune erreur bloquante.
-function loadEmbeddedFloppies(done) {
-    let pending = 2;
+// Charge dynamiquement HD0.JS / FLO0.JS / FLO1.JS s'ils sont présents
+// à côté de index.html, puis appelle done(). Un fichier absent est
+// simplement ignoré (onerror) — aucune erreur bloquante.
+function loadEmbeddedImages(done) {
+    const files = ['HD0.JS', 'FLO0.JS', 'FLO1.JS'];
+    let pending = files.length;
     const finish = () => { if (--pending === 0) done(); };
-    for (const idx of [0, 1]) {
+    for (const f of files) {
         const s = document.createElement('script');
-        s.src = 'FLO' + idx + '.JS';
+        s.src = f;
         s.onload = s.onerror = finish;
         document.head.appendChild(s);
     }
 }
 
-// Démo « sans dossier » : tente de charger les disquettes embarquées.
-// Si aucune n'est présente, exécute onAbsent() (comportement habituel).
-function tryEmbeddedFloppies(onAbsent) {
-    loadEmbeddedFloppies(function () {
+// Démo « sans dossier » : tente de charger les images embarquées
+// (disque dur HD0.JS et/ou disquettes FLOx.JS). Les images embarquées
+// sont volatiles (modifiables en RAM, jamais sauvegardées). Si aucune
+// n'est présente, exécute onAbsent() (comportement habituel).
+function tryEmbeddedImages(onAbsent) {
+    loadEmbeddedImages(function () {
         let any = false;
+        // Disque dur embarqué : zone RAM pleine taille, zéros restitués.
+        if (window.HD0 && typeof window.HD0.data === 'string') {
+            diskBuffer = _b64ToImage(window.HD0.data, window.HD0.size);
+            diskFiles['SM6WIN0.DSK'] = diskBuffer;
+            availableDisks.add('SM6WIN0.DSK');
+            selectedDiskName = 'SM6WIN0.DSK';
+            hdEnabled    = true;
+            diskVolatile = true;   // image embarquée : modifiable en RAM, non sauvée
+            any = true;
+        }
+        // Disquettes embarquées.
         if (typeof window.FLO0_B64 === 'string') {
             floppyBuffer  = _b64ToArrayBuffer(window.FLO0_B64);   any = true;
         }
@@ -2222,11 +2250,12 @@ function tryEmbeddedFloppies(onAbsent) {
             floppyBuffer2 = _b64ToArrayBuffer(window.FLO1_B64);   any = true;
         }
         if (any) {
-            hdEnabled = false;          // démo disquette : pas de disque dur
+            if (!diskBuffer) hdEnabled = false;   // que des disquettes
             updateFloppyPanel();
             updateDiskPanel();
-            document.getElementById('load-status').textContent =
-                'Disquettes de démonstration embarquées (sans disque dur) — cliquez ▶ Démarrer.';
+            document.getElementById('load-status').textContent = diskBuffer
+                ? 'Disque de référence embarqué — cliquez ▶ Démarrer.'
+                : 'Disquettes de démonstration embarquées (sans disque dur) — cliquez ▶ Démarrer.';
         } else if (onAbsent) {
             onAbsent();
         }
@@ -2402,6 +2431,7 @@ async function pickDiskDirElectron() {
 
 async function loadDiskElectron(name) {
     var upper = name.toUpperCase();
+    diskVolatile = false;   // disque issu d'un dossier → persistant
     var data  = await window.electronAPI.readDisk(upper);
     if (data) {
         // data est un Uint8Array (IPC sérialise Buffer → Uint8Array)
@@ -2506,6 +2536,33 @@ function diskDownload(name) {
     textCanvas.focus();
 }
 
+// Exporte l'image disque dur en fichier HDx.JS embarquable. Les zéros
+// de fin ne sont pas stockés ; la taille réelle est conservée pour
+// reconstituer la zone pleine taille au chargement.
+function diskExportJS(idx) {
+    const upper = `SM6WIN${idx}.DSK`;
+    let buf = null;
+    if (sim && sim.diskName && sim.diskName.toUpperCase() === upper)
+        buf = sim._wdImage;
+    if (!buf) buf = diskFiles[upper] || null;
+    if (!buf) return;
+    const bytes = new Uint8Array(buf);
+    let end = bytes.length;
+    while (end > 0 && bytes[end - 1] === 0) end--;   // retirer les zéros de fin
+    const size = Math.max(bytes.length, 16 * 1024 * 1024);
+    const content =
+        '// Image disque dur Smaky 6 — fichier embarquable, généré par le simulateur.\n' +
+        '// Capacité ' + size + ' octets ; ' + end + ' octets utiles (zéros de fin omis).\n' +
+        'window.HD' + idx + ' = { size: ' + size + ', data: "' +
+        _arrayBufferToB64(bytes.subarray(0, end)) + '" };\n';
+    const blob = new Blob([content], { type: 'text/javascript' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;  a.download = 'HD' + idx + '.JS';  a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    textCanvas.focus();
+}
+
 // ─── Vitesse ─────────────────────────────────────────────────────
 function onSpeedChange(val) {
     const pct = Math.min(9999, Math.max(1, Math.round(parseFloat(val))));
@@ -2568,8 +2625,10 @@ function startSimulation() {
     speaker.resume();
     sim.onSpeakerChunk = (events, ticks, levelStart, tStateSec) =>
         speaker.feed(events, ticks, levelStart, tStateSec);
-    // Electron : persister les écritures disque sur le système de fichiers
-    if (window.electronAPI) {
+    // Electron : persister les écritures disque sur le système de fichiers,
+    // sauf si le disque est une image embarquée (.JS) volatile, ou si
+    // aucun dossier disque n'est configuré.
+    if (window.electronAPI && !diskVolatile && localStorage.getItem('diskDir')) {
         sim.onDiskWrite = (name, buf) => window.electronAPI.writeDisk(name, buf);
     }
     sim.onStopped = (reason) => {
@@ -2660,18 +2719,21 @@ if (window.electronAPI) {
                 await loadDiskElectron('SM6WIN0.DSK');
                 if (availableDisks.has('SM6FLO0.DSK')) await loadFloppyElectron(0, 'SM6FLO0.dsk');
                 if (availableDisks.has('SM6FLO1.DSK')) await loadFloppyElectron(1, 'SM6FLO1.dsk');
-                return;
             }
         }
-        tryEmbeddedFloppies(function () {
-            document.getElementById('load-status').textContent =
-                'Choisissez le dossier disques, puis Démarrer.';
-            openHelp();
-        });
+        // Aucune image utilisable depuis le dossier (dossier absent OU
+        // vide) → repli sur les images embarquées HD0.JS / FLOx.JS.
+        if (!diskBuffer && !floppyBuffer && !floppyBuffer2) {
+            tryEmbeddedImages(function () {
+                document.getElementById('load-status').textContent =
+                    'Choisissez le dossier disques, puis Démarrer.';
+                openHelp();
+            });
+        }
     })();
 } else {
     tryRestoreDiskDir().then(function() {
-        if (!diskBuffer) tryEmbeddedFloppies(function () { openHelp(); });
+        if (!diskBuffer) tryEmbeddedImages(function () { openHelp(); });
     });
 }
 setDebug('Chargez ROM18.bin pour démarrer.\n\nCommandes (mode arrêt) :\n' +
