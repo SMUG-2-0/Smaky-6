@@ -1,7 +1,7 @@
 PETIT PYTHON sur SMAKY 6
 ========================
 
-  Version 0.7 -- mai 2026
+  Version 0.8 -- mai 2026
 
 
 PRESENTATION
@@ -45,10 +45,23 @@ aussitôt.
 Les variables sont conservées d'une ligne à l'autre.
 La touche END termine la session.
 
-Pour l'instant, le mode interactif accepte une
-instruction par ligne, sans indentation : pas encore
-de blocs if / while / def. Pour afficher une valeur,
-on utilise print().
+Les blocs (if / while / for / def) sont acceptés. Dès
+qu'une ligne se termine par ':', le prompt devient
+"... " et l'on saisit le corps du bloc, indenté comme
+d'habitude. Une ligne vide termine et exécute le bloc :
+
+  >>> for i in range(3):
+  ...     print(i, i * i)
+  ...
+  0 0
+  1 1
+  2 4
+  >>>
+
+Comme dans Python, on ne peut pas laisser de ligne
+vide à l'intérieur du bloc : la première ligne vide
+clôt la saisie. Pour afficher une valeur, on utilise
+print().
 
 
 INSTRUCTIONS DU LANGAGE
@@ -329,6 +342,7 @@ HISTORIQUE
   v0.5   fonctions système : écran, son, clavier
   v0.6   inkey/putc + mode interactif (REPL)
   v0.7   mode graphique : pixels, lignes, jeu PONGG
+  v0.8   REPL multi-lignes : blocs if/while/for/def
 
 
 CREDITS
