@@ -10,6 +10,11 @@ download/
 # Build HTML autonome — produit par `node build.js`
 smaky6.html
 
+# Fichiers temporaires — contrôle de la fidélité bit à bit du
+# réassemblage de samos.sr / sys.sr (produits par check_roundtrip.js)
+samos_disasm/samos.sm
+samos_disasm/sys.sy
+
 # Raccourci Firefox (lien personnel)
 url
 
