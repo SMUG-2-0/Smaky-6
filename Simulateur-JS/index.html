@@ -680,6 +680,8 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
 let sim         = null;
 let romBuffer   = null;
 let diskBuffer  = null;
+let hdEnabled        = true;            // disque dur actif (sinon : boot disquette)
+let selectedDiskName = 'SM6WIN0.DSK';   // image disque dur sélectionnée
 let breakpoints = new Set();
 let fnKeysMouse = 0;   // bits actifs via cases à cocher
 let fnKeysKbd   = 0;   // bits actifs via clavier
@@ -1999,14 +2001,31 @@ function requestDiskChange(path) {
     inp.click();
 }
 
-// ─── ROM embarquée ───────────────────────────────────────────────
-// Décoder ROM18_B64 (défini dans rom18.js) en ArrayBuffer
-function _decodeROM() {
-    var bin = atob(ROM18_B64);
-    var buf = new ArrayBuffer(bin.length);
-    var u8  = new Uint8Array(buf);
-    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+// ─── ROM / images embarquées ─────────────────────────────────────
+// Décode une chaîne base64 en ArrayBuffer.
+function _b64ToArrayBuffer(b64) {
+    const bin = atob(b64);
+    const buf = new ArrayBuffer(bin.length);
+    const u8  = new Uint8Array(buf);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     return buf;
+}
+
+// Encode un ArrayBuffer en base64. Par blocs : String.fromCharCode
+// déborde la pile d'appels au-delà de ~100 k arguments.
+function _arrayBufferToB64(buf) {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(bin);
+}
+
+// ROM embarquée : décode ROM18_B64 (défini dans rom18.js).
+function _decodeROM() {
+    return _b64ToArrayBuffer(ROM18_B64);
 }
 
 // ─── Disques : Map nom→ArrayBuffer chargée depuis le dossier ─────
@@ -2041,18 +2060,21 @@ function buildDiskPanel() {
 }
 
 function updateDiskPanel() {
-    const activeName = (sim && sim.diskName) ? sim.diskName.toUpperCase() : null;
     for (let i = 0; i <= 7; i++) {
         const name  = `SM6WIN${i}.DSK`;
         const badge = document.getElementById(`dp-badge-${i}`);
         if (!badge) continue;
-        const present  = availableDisks.has(name);
-        const selected = activeName === name;
-        badge.className = 'dp-badge ' +
-            (selected ? 'dp-selected' : present ? 'dp-present' : 'dp-absent');
-        badge.textContent = selected ? 'sélect.' : present ? 'présent' : 'absent';
+        const present = availableDisks.has(name);
+        const isSel   = (name === selectedDiskName);
+        let cls, txt;
+        if (isSel && !hdEnabled)     { cls = 'dp-ejected';  txt = 'désact.'; }
+        else if (isSel && hdEnabled) { cls = 'dp-selected'; txt = 'sélect.'; }
+        else if (present)            { cls = 'dp-present';  txt = 'présent'; }
+        else                         { cls = 'dp-absent';   txt = 'absent';  }
+        badge.className   = 'dp-badge ' + cls;
+        badge.textContent = txt;
         const dlBtn = document.getElementById(`dp-dl-${i}`);
-        if (dlBtn) dlBtn.disabled = !present && !selected;
+        if (dlBtn) dlBtn.disabled = !present && !isSel;
     }
 }
 
@@ -2071,6 +2093,7 @@ function buildFloppyPanel() {
             `<span class="dp-badge dp-absent" id="fp-badge-${i}">absent</span>` +
             `<button class="dp-btn dp-btn-take" onclick="floppyTake(${i})" title="Charger un fichier .DSK dans Flo${i}">Prend</button>` +
             `<button class="dp-btn" id="fp-dl-${i}" onclick="floppyDownload(${i})" title="Télécharger l'image actuelle" disabled>⬇</button>` +
+            `<button class="dp-btn" id="fp-js-${i}" onclick="floppyExportJS(${i})" title="Exporter l'image en fichier FLO${i}.JS (disquette embarquable)" disabled>.JS</button>` +
             `<label class="fp-cb" title="Floppy inséré dans le lecteur"><input type="checkbox" id="fp-ins-${i}" checked onchange="floppyToggleInserted(${i}, this)"><span>Ins.</span></label>` +
             `<label class="fp-cb" title="Tab Write-Protect"><input type="checkbox" id="fp-wp-${i}" onchange="floppyToggleWP(${i}, this)"><span>WP</span></label>`;
         panel.appendChild(row);
@@ -2099,6 +2122,8 @@ function updateFloppyPanel() {
         }
         const dlBtn = document.getElementById(`fp-dl-${i}`);
         if (dlBtn) dlBtn.disabled = !present;
+        const jsBtn = document.getElementById(`fp-js-${i}`);
+        if (jsBtn) jsBtn.disabled = !present;
         // Inséré désactivé si pas d'image. WP désactivé si pas d'image (mais
         // pas si éjecté : on peut préparer la TAB avant ré-insertion).
         if (inserted) inserted.disabled = !present;
@@ -2152,6 +2177,60 @@ function floppyDownload(idx) {
     a.href = url;  a.download = fname;  a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     textCanvas.focus();
+}
+
+// ─── Disquettes embarquées (FLO0.JS / FLO1.JS) ───────────────────
+// Exporte la disquette courante en fichier FLOx.JS embarquable, à
+// déposer à côté de index.html.
+function floppyExportJS(idx) {
+    const buf = (idx === 0 ? floppyBuffer : floppyBuffer2);
+    if (!buf) return;
+    const content =
+        '// Image disquette Smaky 6 — fichier embarquable, généré par le simulateur.\n' +
+        'window.FLO' + idx + '_B64 = "' + _arrayBufferToB64(buf) + '";\n';
+    const blob = new Blob([content], { type: 'text/javascript' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;  a.download = 'FLO' + idx + '.JS';  a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    textCanvas.focus();
+}
+
+// Charge dynamiquement FLO0.JS / FLO1.JS s'ils sont présents à côté de
+// index.html, puis appelle done(). Un fichier absent est simplement
+// ignoré (onerror) — aucune erreur bloquante.
+function loadEmbeddedFloppies(done) {
+    let pending = 2;
+    const finish = () => { if (--pending === 0) done(); };
+    for (const idx of [0, 1]) {
+        const s = document.createElement('script');
+        s.src = 'FLO' + idx + '.JS';
+        s.onload = s.onerror = finish;
+        document.head.appendChild(s);
+    }
+}
+
+// Démo « sans dossier » : tente de charger les disquettes embarquées.
+// Si aucune n'est présente, exécute onAbsent() (comportement habituel).
+function tryEmbeddedFloppies(onAbsent) {
+    loadEmbeddedFloppies(function () {
+        let any = false;
+        if (typeof window.FLO0_B64 === 'string') {
+            floppyBuffer  = _b64ToArrayBuffer(window.FLO0_B64);   any = true;
+        }
+        if (typeof window.FLO1_B64 === 'string') {
+            floppyBuffer2 = _b64ToArrayBuffer(window.FLO1_B64);   any = true;
+        }
+        if (any) {
+            hdEnabled = false;          // démo disquette : pas de disque dur
+            updateFloppyPanel();
+            updateDiskPanel();
+            document.getElementById('load-status').textContent =
+                'Disquettes de démonstration embarquées (sans disque dur) — cliquez ▶ Démarrer.';
+        } else if (onAbsent) {
+            onAbsent();
+        }
+    });
 }
 
 // Lecture d'un File en ArrayBuffer
@@ -2353,15 +2432,35 @@ async function loadFloppyElectron(index, name) {
     return buf;
 }
 
-// ─── Changement de disque (F1-F8) ────────────────────────────────
+// ─── Sélection de disque dur / désactivation (SÉLECT., F1-F8) ─────
+// Cliquer SÉLECT. sur l'image déjà sélectionnée désactive le disque
+// dur (ports WD1002 → 0x00) : le Smaky démarre alors sur disquette.
+// Un nouveau clic — ou le choix d'une autre image — le réactive.
 async function requestDiskChange(name) {
-    var upper  = name.toUpperCase();
-    var status = document.getElementById('load-status');
+    const upper  = name.toUpperCase();
+    const status = document.getElementById('load-status');
+
+    if (hdEnabled && upper === selectedDiskName) {
+        // Deuxième clic sur le disque sélectionné → désactiver.
+        hdEnabled = false;
+        if (sim) sim.hdEnabled = false;
+        status.textContent =
+            'Disque dur désactivé — démarrage sur disquette ' +
+            '(FLO0, ou FLO1 si Kill est activé au démarrage).';
+        updateDiskPanel();
+        textCanvas.focus();
+        return;
+    }
+
+    // Sinon : (ré)activer le disque dur et sélectionner cette image.
+    hdEnabled        = true;
+    selectedDiskName = upper;
+    if (sim) sim.hdEnabled = true;
     if (window.electronAPI) {
         await loadDiskElectron(upper);
         status.textContent = 'Disque : ' + upper + (diskBuffer ? '' : ' (absent)');
     } else {
-        var buf = diskFiles[upper] || null;
+        const buf = diskFiles[upper] || null;
         diskBuffer = buf;
         if (sim) { sim.diskName = upper; sim.loadDisk(buf); }
         status.textContent = 'Disque : ' + upper + (buf ? '' : ' (absent)');
@@ -2435,11 +2534,16 @@ function onStart() {
 function startSimulation() {
 
     const pct = parseFloat(document.getElementById('speed-input').value);
+    // Touches fonction actives au démarrage (ex. Kill → boot sur FLO1) :
+    // capturées avant leur remise à zéro plus bas.
+    const bootFn = (fnKeysKbd | fnKeysMouse) & 0x7F;
 
     // Créer le simulateur
     sim = new Smaky();
     sim.speed = (isNaN(pct) ? 100 : pct) / 100 * 2.5;
     sim.loadROM(romBuffer);
+    sim.hdEnabled = hdEnabled;
+    if (bootFn) sim.pressFnKey(bootFn);   // touches fn maintenues le temps du boot
     if (diskBuffer) sim.loadDisk(diskBuffer);
     if (floppyBuffer)  sim.loadFloppy(0, floppyBuffer,  'SM6FLO0.dsk');
     if (floppyBuffer2) sim.loadFloppy(1, floppyBuffer2, 'SM6FLO1.dsk');
@@ -2451,7 +2555,7 @@ function startSimulation() {
         if (wpCb)  sim.setFloppyWriteProtect(i, wpCb.checked);
     }
 
-    sim.diskName  = 'SM6WIN0.DSK';
+    sim.diskName  = selectedDiskName;
     sim.onPpByte  = () => updatePpStatus();
     updateDiskPanel();
     updateFloppyPanel();
@@ -2559,13 +2663,15 @@ if (window.electronAPI) {
                 return;
             }
         }
-        document.getElementById('load-status').textContent =
-            'Choisissez le dossier disques, puis Démarrer.';
-        openHelp();
+        tryEmbeddedFloppies(function () {
+            document.getElementById('load-status').textContent =
+                'Choisissez le dossier disques, puis Démarrer.';
+            openHelp();
+        });
     })();
 } else {
     tryRestoreDiskDir().then(function() {
-        if (!diskBuffer) openHelp();
+        if (!diskBuffer) tryEmbeddedFloppies(function () { openHelp(); });
     });
 }
 setDebug('Chargez ROM18.bin pour démarrer.\n\nCommandes (mode arrêt) :\n' +

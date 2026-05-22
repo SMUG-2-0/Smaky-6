@@ -247,6 +247,10 @@ class Smaky {
 
         // ── Nom du disque courant (pour onDiskWrite) ─────────────
         this.diskName     = null;   // ex. 'SM6WIN0.DSK'
+
+        // Disque dur activé. false → les ports WD1002 ($20–$27) renvoient
+        // 0x00 (contrôleur vu comme absent) → la ROM démarre sur disquette.
+        this.hdEnabled    = true;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -809,7 +813,7 @@ class Smaky {
 
         if (p === 0x08) { this._rtcOut(v); return; }
 
-        if (p >= 0x20 && p <= 0x27) { this._wd1002Out(p, v); return; }
+        if (p >= 0x20 && p <= 0x27) { if (this.hdEnabled) this._wd1002Out(p, v); return; }
 
         if (p >= 0x18 && p <= 0x1B) { this._fdcOut(p, v); return; }
     }
@@ -867,7 +871,15 @@ class Smaky {
         if (p === 0x24) return this._wdCylLow       & 0xFF;
         if (p === 0x25) return this._wdCylHigh      & 0xFF;
         if (p === 0x26) return this._wdHead         & 0xFF;
-        if (p === 0x27) return 0x50;   // DRDY + DSC, toujours prêt
+        if (p === 0x27) {
+            // Registre de statut. 0x50 (DRDY+DSC, prêt) seulement si le
+            // disque dur est actif ET une image est chargée. Sinon 0x11
+            // (DSC=1, ERR=1, DRDY=0, BSY=0) : la ROM18 ($030C) comme SAMOS
+            // (L_1F89) y concluent « pas de disque dur » — sans rester
+            // bloqués (un statut sans bit 4 ferait boucler L_1F89 à
+            // l'infini ; avec bit 7 il bouclerait aussi).
+            return (this.hdEnabled && this._wdImage) ? 0x50 : 0x11;
+        }
         return 0;
     }
 
@@ -955,17 +967,27 @@ class Smaky {
     }
 
     /**
-     * Décodage de la commande écrite sur $19 (CONTR) :
-     *   bits 6-7 = drive_mask ($40 = FD1, $80 = FD2)
-     *   bits 0-4 = opcode (sélection seule, $02 wait, $0A seek, $0C read,
-     *              $0E write, $12 init/calibrate, $0F reset, etc.)
-     * Retourne l'index du drive (0 ou 1), ou -1 si masque invalide (ex. $00 ou
-     * masque HD $20 qui n'arrive pas ici, c'est le WD1002 qui le gère).
+     * Décodage de la commande écrite sur $19 (CONTR) : bits 0-4 = opcode,
+     * bits de poids fort = sélection du LECTEUR. L'encodage diffère selon
+     * la phase de boot :
+     *   - ROM phantom (chargement) : bit 5 ($20) = 1er floppy (drive 0),
+     *     bit 6 ($40) = 2e floppy (drive 1).
+     *   - SAMOS : bit 6 ($40) = DX1 (drive 0), bit 7 ($80) = DX2 (drive 1).
+     * Retourne l'index du lecteur (0 ou 1), ou -1 si aucun lecteur visé.
+     * La présence d'une DISQUETTE dans le lecteur est, elle, vérifiée
+     * séparément (_fdcImages / _fdcInserted) — distinction lecteur/disquette.
      */
     _fdcDriveFromMask(mask) {
+        if (!this._sysSyActive) {
+            // Phase ROM phantom : lecteurs sur les bits 5-6.
+            if (mask & 0x20) return 0;
+            if (mask & 0x40) return 1;
+            return -1;
+        }
+        // Phase SAMOS : lecteurs sur les bits 6-7.
         switch (mask & 0xC0) {
-            case 0x40: return 0;  // FD1
-            case 0x80: return 1;  // FD2
+            case 0x40: return 0;  // FD1 / DX1
+            case 0x80: return 1;  // FD2 / DX2
             default:   return -1;
         }
     }
@@ -1046,26 +1068,28 @@ class Smaky {
                 val = this._fdcXferBuf[this._fdcXferPos++];
                 if (this._fdcXferPos >= this._fdcXferBuf.length) {
                     this._fdcXferActive = false;
-                    // Annule l'IT fantôme du re-issue intra-L_2169.
-                    this._fdcIntPending = false;
                     console.log(`FDC: transfert fini (E=${this._fdcXferE}, ${this._fdcXferBuf.length} octets)`);
-                    // L_2169 va clear le bit du bloc courant juste après notre
-                    // finalize (lignes 020660-666). On calcule donc le masque
-                    // AVEC ce bit déjà retiré pour décider de la suite.
-                    const wantMask      = this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8);
-                    const remainingMask = wantMask & ~(1 << this._fdcXferE);
-                    // En mode read-after-write : déclencher IT pour le bloc
-                    // suivant (le handler $2135 ne fait pas L_22B4). Sinon,
-                    // le handler $2107 (read normal) re-issue lui-même via
-                    // L_22B4 → notre _fdcOut re-set pending.
-                    if (this._fdcReadVerifyMode && remainingMask !== 0) {
-                        this._fdcIntPending = true;
+                    if (this._sysSyActive) {
+                        // Annule l'IT fantôme du re-issue intra-L_2169.
+                        this._fdcIntPending = false;
+                        // L_2169 va clear le bit du bloc courant juste après
+                        // notre finalize. On calcule le masque AVEC ce bit
+                        // déjà retiré pour décider de la suite.
+                        const wantMask      = this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8);
+                        const remainingMask = wantMask & ~(1 << this._fdcXferE);
+                        // En mode read-after-write : déclencher IT pour le
+                        // bloc suivant (le handler $2135 ne fait pas L_22B4) ;
+                        // sinon le handler $2107 re-issue via L_22B4.
+                        if (this._fdcReadVerifyMode && remainingMask !== 0) {
+                            this._fdcIntPending = true;
+                        }
+                        if (remainingMask === 0) {
+                            this._fdcReadVerifyMode = false;
+                        }
                     }
-                    if (remainingMask === 0) {
-                        // Fin de séquence (read normal ou verify) : on sort
-                        // du mode verify si on y était.
-                        this._fdcReadVerifyMode = false;
-                    }
+                    // Phase ROM phantom (boot) : ne pas toucher _fdcIntPending
+                    // — le gestionnaire de boot ($025A) ré-arme lui-même via
+                    // son OUT $19,$0C suivant.
                 }
             } else {
                 val = 0xFF;
@@ -1109,12 +1133,22 @@ class Smaky {
                 // dans la table $244F (= 1<<n). Donc E ∈ {0..15} et chaque
                 // valeur de E correspond directement à un bit du masque
                 // 16-bit complet.
-                const wantMask = this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8);
-                if (img && wantMask !== 0) {
-                    let E = 0;
+                // Choix du secteur E selon la phase de boot :
+                //  - SAMOS actif : 1er bit set du masque "secteurs voulus".
+                //  - ROM phantom (avant JP 0) : secteur voulu dans mem[$4503]
+                //    (la ROM de chargement a son propre protocole de lecture).
+                const wantMask = this._sysSyActive
+                    ? (this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8))
+                    : 0;
+                let E = -1;
+                if (this._sysSyActive) {
                     for (let i = 0; i < 16; i++) {
                         if (wantMask & (1 << i)) { E = i; break; }
                     }
+                } else {
+                    E = this.cpu.mem[0x4503] & 0x0F;
+                }
+                if (img && E >= 0) {
                     // Floppy Micropolis Smaky 6 : 1 pulse STPCMD = 1 track,
                     // 16 secteurs par track (= 32 sec/track c'était pour le HD).
                     // Confirmé par PYR : bloc 128 = 8 pulses = track 8.
@@ -1129,7 +1163,7 @@ class Smaky {
                         // recevoir (mem[$2B8C+drive_offset]). Si ça diverge,
                         // c'est qu'on a un bug de tracking.
                         const samosExpected = drive === 0 ? this.cpu.mem[0x2B8C] : this.cpu.mem[0x2B8D];
-                        const markerWarning = (expectedMarker !== samosExpected)
+                        const markerWarning = (this._sysSyActive && expectedMarker !== samosExpected)
                             ? ` ⚠ SAMOS attend $${samosExpected.toString(16).toUpperCase().padStart(2,'0')}`
                             : '';
                         const buf = new Uint8Array(259);
