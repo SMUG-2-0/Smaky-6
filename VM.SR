@@ -119,6 +119,45 @@ VMINIT:	;Remplit LSTACK (1024 octets) avec FILPAT pour diagnostic
 
 
 ;#############################################################
+;# VMRUNR : EXECUTE UNE LIGNE EN MODE INTERACTIF (REPL)      #
+;#############################################################
+;COMME VMRUN, MAIS NE REMET PAS A ZERO LES VARIABLES GLOBALES
+;(ELLES PERSISTENT D'UNE LIGNE REPL A LA SUIVANTE). LES PILES
+;SONT VIDES ENTRE DEUX INSTRUCTIONS : ON LES RE-ARME.
+;IN : HL = ADRESSE DEBUT BYTECODE
+
+VMRUNR:	IOF
+	LOAD	IX,#VSTOP
+	PUSH	HL
+	LOAD	HL,#0
+	LOAD	FP,HL
+	LOAD	HL,#LSTACK
+	LOAD	LSP,HL
+	XOR	A,A
+	LOAD	HL,#RETTAG
+	LOAD	(HL),A
+	POP	HL
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# VMZVAR : MET A ZERO LES VARIABLES GLOBALES                #
+;#############################################################
+;APPELE UNE SEULE FOIS AU DEMARRAGE DU MODE REPL.
+
+VMZVAR:	LOAD	HL,#VARS
+	XOR	A,A
+	LOAD	(HL),A
+	LOAD	DE,#VARS+1
+	LOAD	BC,#VRSIZE-1
+	LDIR
+	RET
+
+
+
+;#############################################################
 ;# VPUSH / VPOP  (utilisent IX = VSP)                        #
 ;#############################################################
 ;SLOT VSTACK = 3 OCTETS : LO, HI, TAG (DE L'ADRESSE BASSE A HAUTE)
@@ -159,7 +198,7 @@ VPOP:	LOAD	L,(IX)		;LOW
 NEG_HL:	XOR	A,A
 	SUB	A,L
 	LOAD	L,A
-	XOR	A,A
+	LOAD	A,#0		;A=0 SANS TOUCHER AU CARRY (XOR L'EFFACERAIT)
 	SUBC	A,H
 	LOAD	H,A
 	RET
@@ -258,7 +297,7 @@ DV_AHL:	;ABS(DE)
 	XOR	A,A
 	SUB	A,E
 	LOAD	E,A
-	XOR	A,A
+	LOAD	A,#0		;A=0 SANS TOUCHER AU CARRY
 	SUBC	A,D
 	LOAD	D,A
 DV_ADE:	CALL	DIV16
@@ -275,7 +314,7 @@ DV_RM:	;SIGNE REMAINDER (SUIT DIVIDEND)
 	XOR	A,A
 	SUB	A,E
 	LOAD	E,A
-	XOR	A,A
+	LOAD	A,#0		;A=0 SANS TOUCHER AU CARRY
 	SUBC	A,D
 	LOAD	D,A
 	POP	HL
@@ -1094,6 +1133,8 @@ SYSTBL:	.W	SCCLS		;0 = cls()
 	.W	SCBEEP		;2 = beep()
 	.W	SCGKEY		;3 = getkey()
 	.W	SCDLY		;4 = delay(n)
+	.W	SCINKY		;5 = inkey()
+	.W	SCPUTC		;6 = putc(code)
 
 
 ;cls() : efface l'ecran alpha. ?CLEAR n'a pas d'argument.
@@ -1148,19 +1189,39 @@ SCDLY:	CALL	VPOP		;HL = n
 	JUMP	VMLOOP
 
 
+;inkey() : lecture clavier NON bloquante. ?IFCAR rend la
+;touche (carry clair) ou rien (carry positionne). On pousse
+;le code, ou 0 si aucune touche n'attend.
+SCINKY:	.W	?IFCAR
+	JUMP	CS,SCINK0
+	LOAD	H,#0
+	LOAD	L,A
+	CALL	VPUSH
+	JUMP	VMLOOP
+SCINK0:	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;putc(code) : affiche un seul caractere, sans saut de ligne.
+;le code ASCII est l'octet bas de l'argument.
+SCPUTC:	CALL	VPOP		;HL = code
+	LOAD	A,L
+	.W	?DICAR
+	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
 
 ;#############################################################
 ;# ERREURS FATALES                                           #
 ;#############################################################
 
-VM_ILL:	ION			;reactive IT avant erreur fatale
+VM_ILL:	ION			;reactive IT avant erreur
 	LOAD	HL,#VMEM1
-	.W	?DITEXT
-	.W	?GETCAR
-	.W	?RTN
+	JUMP	ERRDIE
 
 DIV0:	ION
 	LOAD	HL,#VMEM2
-	.W	?DITEXT
-	.W	?GETCAR
-	.W	?RTN
+	JUMP	ERRDIE

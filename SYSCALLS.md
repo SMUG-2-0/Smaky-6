@@ -2,7 +2,7 @@
 
 **Auteur** : Pierre-Yves Rochat (PYR), avec Claude
 **Date** : 21 mai 2026
-**Statut** : infrastructure v0.5 — premier lot de 5 appels
+**Statut** : infrastructure v0.5 — 7 appels
 
 ---
 
@@ -115,6 +115,28 @@ Spécifications extraites de `../Simulateur-JS/samos_disasm/SYS.SR`.
 | Entrée | `HL` = nombre d'itérations |
 | Sortie | aucune (pousse 0) |
 | Détail | `n` ≈ millisecondes (approximatif, dépend de l'horloge Z80). **`?DELAY` n'est pas utilisé** : il lit son délai depuis l'argument de la ligne de commande, pas depuis un registre. C'est `?HLDEL` qui délaie selon `HL`. |
+
+### inkey() — index 5
+
+| | |
+|---|---|
+| Rôle | lit le clavier sans attendre (non bloquant) |
+| Arguments | aucun |
+| Vecteur Samos | `?IFCAR` (code 0x0D) |
+| Entrée | — |
+| Sortie | code de la touche, ou **0** si aucune touche n'attend |
+| Détail | `?IFCAR` rend la touche avec carry clair, ou carry positionné si le tampon clavier est vide. Indispensable pour les programmes temps réel (jeux). À comparer à `getkey()` qui, lui, bloque. |
+
+### putc(code) — index 6
+
+| | |
+|---|---|
+| Rôle | affiche un seul caractère, sans saut de ligne |
+| Arguments | `code` = code ASCII du caractère |
+| Vecteur Samos | `?DICAR` (code 0x00) |
+| Entrée | `A` = code (octet bas de l'argument) |
+| Sortie | aucune (pousse 0) |
+| Détail | complément de `print`, qui termine toujours par un saut de ligne. `putc` + `gotoxy` permettent de dessiner à l'écran sans effet de bord. |
 
 ---
 

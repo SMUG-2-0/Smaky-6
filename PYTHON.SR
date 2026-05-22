@@ -3,8 +3,9 @@
 	.REF	FLO
 
 ;PYR 18 MAI 2026
-;PETIT-PYTHON V0.1 -- COMMANDE PYTHON.SM SUR SAMOS.
-;CHARGE TEST.PY, COMPILE EN BYTECODE, EXECUTE DANS LA VM.
+;PETIT-PYTHON -- COMMANDE PYTHON.SM SUR SAMOS.
+;PYTHON <fichier> : compile et execute un .PY.
+;PYTHON (sans argument) : mode interactif (REPL).
 
 
 
@@ -12,8 +13,9 @@
 ;# CONSTANTES                                                #
 ;#############################################################
 
-BUFSIZ	= 4000		;TAILLE BUFFER SOURCE EN OCTAL (2 KO)
+BUFSIZ	= 10000		;TAILLE BUFFER SOURCE EN OCTAL (4 KO)
 BCSIZE	= 4000		;TAILLE BUFFER BYTECODE EN OCTAL (2 KO)
+REPLLEN	= 200		;TAILLE LIGNE INTERACTIVE EN OCTAL (128 OCTETS)
 
 
 	.LOC	53000
@@ -24,11 +26,12 @@ BCSIZE	= 4000		;TAILLE BUFFER BYTECODE EN OCTAL (2 KO)
 ;# TEXTES                                                    #
 ;#############################################################
 
-FNAME:	.ASCIZ	"TEST.PY"
 MERR:	.ASCIZ	"FICHIER .PY INTROUVABLE<CR>"
 MFIN:	.ASCIZ	"<CR>Fin du programme<CR>"
-MBAN:	.ASCIZ	"Petit Python v.0.5<CR>"
+MBAN:	.ASCIZ	"Petit Python v.0.6<CR>"
 MBCD:	.ASCIZ	"<CR>Bytecode :<CR>"
+MREPL:	.ASCIZ	"Mode interactif - END pour quitter<CR>"
+MPROM:	.ASCIZ	">>> "
 
 
 
@@ -41,6 +44,7 @@ ARGPTR:	.BLKB	2		;PTR LIGNE DE COMMANDE (DE A L'ENTREE)
 FILEBUF: .BLKB	40.		;NOM DE FICHIER + MARGE POUR EXPANSION SAMOS
 OPTLST:	.BLKB	1		;1 SI /L (affichage bytecode)
 OPTCNT:	.BLKB	1		;1 SI /C (pause clavier a chaque print)
+REPLMOD: .BLKB	1		;1 SI MODE INTERACTIF (REPL)
 
 
 
@@ -53,6 +57,7 @@ ENDSRC:	.B	0
 BCBUF:	.BLKB	BCSIZE
 SYMTBL:	.BLKB	512.
 STRBUF:	.BLKB	1000.		;POOL DE CHAINES LITERALES (1000 OCTETS)
+REPLBUF: .BLKB	REPLLEN		;LIGNE DE SAISIE DU MODE INTERACTIF
 
 
 
@@ -83,6 +88,7 @@ START:				;POINT D'ENTREE
 	XOR	A,A
 	LOAD	OPTLST,A
 	LOAD	OPTCNT,A
+	LOAD	REPLMOD,A
 
 
 ;==========================================================
@@ -112,7 +118,7 @@ START:				;POINT D'ENTREE
 ; ETAPE 2 : DETERMINER LE NOM DE FICHIER
 ;==========================================================
 ;Si ARGPTR pointe sur un nom non-vide, on le copie dans FILEBUF.
-;Sinon on utilise TEST.PY par defaut.
+;Sinon (pas d'argument), on entre en mode interactif (REPL).
 
 	LOAD	HL,ARGPTR
 SKSPLP:	LOAD	A,(HL)
@@ -120,11 +126,11 @@ SKSPLP:	LOAD	A,(HL)
 	JUMP	NE,SKSPDN
 	INC	HL
 	JUMP	SKSPLP
-SKSPDN:	;Premier non-espace : 0 ou CR -> argument vide
+SKSPDN:	;Premier non-espace : 0 ou CR -> pas de fichier -> REPL
 	OR	A,A
-	JUMP	EQ,USDEF
+	JUMP	EQ,REPLST
 	COMP	A,#CR
-	JUMP	EQ,USDEF
+	JUMP	EQ,REPLST
 	;Slash option ? Format /L ou /C, peuvent etre cumules.
 	COMP	A,#'/
 	JUMP	NE,COPNAM
@@ -179,8 +185,6 @@ APYE:	;HL pointe sur le 0 ; ajoute .PY puis 0
 	XOR	A,A
 	LOAD	(HL),A
 HASDOT:	LOAD	DE,#FILEBUF
-	JUMP	OPNF
-USDEF:	LOAD	DE,#FNAME	;defaut
 
 
 ;==========================================================
@@ -254,6 +258,144 @@ STERR:	LOAD	HL,#MERR
 	.W	?DITEXT
 	.W	?GETCAR
 	.W	?RTN
+
+
+
+;==========================================================
+; MODE INTERACTIF (REPL)
+;==========================================================
+;LIT UNE LIGNE, LA COMPILE, L'EXECUTE, RECOMMENCE. LES
+;VARIABLES PERSISTENT ENTRE LES LIGNES. END POUR SORTIR.
+;V1 : UNE INSTRUCTION PAR LIGNE, SANS INDENTATION.
+
+REPLST:	LOAD	A,#1
+	LOAD	REPLMOD,A
+	LOAD	HL,#MREPL
+	.W	?DITEXT
+	;INIT COMPLET, UNE SEULE FOIS
+	CALL	PSINIT
+	CALL	VMZVAR
+
+REPLLP:	;AFFICHE LE PROMPT
+	LOAD	HL,#MPROM
+	.W	?DITEXT
+	;LIT UNE LIGNE AU CLAVIER
+	CALL	RLINE
+	OR	A,A
+	JUMP	NE,REPLQ	;END PRESSEE -> SORTIE
+	;LIGNE VIDE -> RE-PROMPT
+	LOAD	HL,#REPLBUF
+	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,REPLLP
+	;COMPILE ET EXECUTE LA LIGNE
+	LOAD	HL,#REPLBUF
+	CALL	LXINIT
+	CALL	PSREPL
+	CALL	PSPARS
+	LOAD	HL,#BCBUF
+	CALL	VMRUNR
+	JUMP	REPLLP
+
+REPLQ:	.W	?RETURN
+	.W	?RTN
+
+
+
+;==========================================================
+; RLINE : LIT UNE LIGNE AU CLAVIER DANS REPLBUF
+;==========================================================
+;OUT : A = 0 LIGNE NORMALE (REPLBUF NULL-TERMINEE)
+;      A = 1 TOUCHE END PRESSEE
+;ECHO DES CARACTERES, GESTION DU BACKSPACE.
+
+RLINE:	LOAD	HL,#REPLBUF
+	LOAD	C,#0		;C = NB DE CARACTERES SAISIS
+RL_LP:	PUSH	HL
+	PUSH	BC
+	.W	?GETCAR		;A = CARACTERE
+	POP	BC
+	POP	HL
+	COMP	A,#END
+	JUMP	EQ,RL_END
+	COMP	A,#CR
+	JUMP	EQ,RL_CR
+	COMP	A,#BS
+	JUMP	EQ,RL_BS
+	COMP	A,#SPACE
+	JUMP	LO,RL_LP	;CARACTERE DE CONTROLE -> IGNORE
+	;CARACTERE IMPRIMABLE : SAUVE DANS D
+	LOAD	D,A
+	;TAMPON PLEIN ?
+	LOAD	A,C
+	COMP	A,#REPLLEN-1
+	JUMP	CC,RL_LP	;C >= REPLLEN-1 -> PLEIN, IGNORE
+	;STOCKE
+	LOAD	A,D
+	LOAD	(HL),A
+	INC	HL
+	INC	C
+	;ECHO
+	PUSH	HL
+	PUSH	BC
+	LOAD	A,D
+	.W	?DICAR
+	POP	BC
+	POP	HL
+	JUMP	RL_LP
+
+RL_BS:	;BACKSPACE
+	LOAD	A,C
+	OR	A,A
+	JUMP	EQ,RL_LP	;RIEN A EFFACER
+	DEC	HL
+	DEC	C
+	PUSH	HL
+	PUSH	BC
+	LOAD	A,#BS
+	.W	?DICAR
+	LOAD	A,#SPACE
+	.W	?DICAR
+	LOAD	A,#BS
+	.W	?DICAR
+	POP	BC
+	POP	HL
+	JUMP	RL_LP
+
+RL_CR:	;FIN DE LIGNE
+	XOR	A,A
+	LOAD	(HL),A		;NULL-TERMINE
+	LOAD	A,#CR
+	.W	?DICAR		;ECHO DU CR
+	XOR	A,A		;A = 0 : LIGNE NORMALE
+	RET
+
+RL_END:	;TOUCHE END
+	XOR	A,A
+	LOAD	(HL),A		;NULL-TERMINE
+	LOAD	A,#1		;A = 1 : QUITTER
+	RET
+
+
+
+;==========================================================
+; ERRDIE : SORTIE COMMUNE DES ERREURS LX / PS / VM
+;==========================================================
+;IN : HL = MESSAGE D'ERREUR (NULL-TERMINE)
+;MODE FICHIER : AFFICHE, ATTEND UNE TOUCHE, REND LA MAIN.
+;MODE REPL    : AFFICHE ET RETOURNE A LA BOUCLE.
+
+ERRDIE:	.W	?DITEXT
+	LOAD	A,REPLMOD
+	OR	A,A
+	JUMP	NE,ERRREP
+	;MODE FICHIER : COMPORTEMENT D'ORIGINE
+	.W	?GETCAR
+	.W	?RTN
+ERRREP:	;MODE REPL : ON REVIENT A LA BOUCLE
+	ION
+	LOAD	SP,#PILZ80
+	JUMP	REPLLP
 
 
 

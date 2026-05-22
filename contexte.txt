@@ -70,3 +70,13 @@ Il reçoit les coordonnées ligne-colonne, pour que le prochain affichage se pos
 Il faudra évidemment que je te fournisse la description des appels qu'on va incorporer à notre Petit Python.
 Mais comment le faire, quelle syntaxe adopter? Il faut à la fois rester dans l'esprit Python,
 mais rendre aussi pratique que possible l'accès à ces appels systèmes. Qu'en penses-tu?
+---------------------------
+Deux ans avant le Smaky 6, environ en 1976, j'avais créé un Ping-Pong électronique,
+avec des circuits logiques série 74LS, qui pilotait un écran cathodique.
+Peux-tu écrire 50 ans plus tard un programme ping-pong en Petit Python? 
+La touche espace lance  une balle sous forme de la lettre 0, depuis le coin en haut à gauche,
+qui se déplace à vitesse constante à 45 degrés et qui rebondit sur les bords du haut et du bas.
+Prévois une raquette de chaque côté de 4 caractères de haut, au milieu de chaque bord.
+La touche R fait monter la raquette de gauche, la touche C la fait descendre.
+La touche I fait monter la raquette de gauche, la touche M la fait descendre.
+Le touche CR termine la partie.

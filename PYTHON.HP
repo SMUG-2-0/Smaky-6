@@ -1,7 +1,7 @@
 PETIT PYTHON sur SMAKY 6
 ========================
 
-  Version 0.5 -- mai 2026
+  Version 0.6 -- mai 2026
 
 
 PRESENTATION
@@ -18,7 +18,7 @@ LANCER UN PROGRAMME
 
   PYTHON FIBO       charge et exécute FIBO.PY
   PYTHON FIBO.PY    idem (l'extension est facultative)
-  PYTHON            charge TEST.PY par défaut
+  PYTHON            sans argument : mode interactif
 
 Options (cumulables, dans le style Smaky) :
 
@@ -27,6 +27,28 @@ Options (cumulables, dans le style Smaky) :
   /LC               cumule les deux
 
 Exemple : PYTHON/LC FIBO
+
+
+MODE INTERACTIF
+---------------
+
+PYTHON lancé sans argument ouvre un interpréteur
+interactif : on tape une instruction, elle s'exécute
+aussitôt.
+
+  >>> print(2 + 3)
+  5
+  >>> n = 10
+  >>> print(n * n)
+  100
+
+Les variables sont conservées d'une ligne à l'autre.
+La touche END termine la session.
+
+En v0.6, le mode interactif accepte une instruction
+par ligne, sans indentation : pas encore de blocs
+if / while / def. Pour afficher une valeur, on
+utilise print().
 
 
 INSTRUCTIONS DU LANGAGE
@@ -106,8 +128,14 @@ Samos du Smaky 6 :
 
   delay(n)           pause d'environ n millisecondes
 
+  inkey()            lit une touche sans attendre ;
+                     retourne 0 si aucune touche
+
+  putc(code)         affiche un caractère (code ASCII)
+                     sans saut de ligne
+
 Un appel utilisé seul est une instruction ; getkey()
-retourne une valeur que l'on peut affecter.
+et inkey() retournent une valeur que l'on peut affecter.
 
 
 EXEMPLES
@@ -256,6 +284,7 @@ HISTORIQUE
   v0.3   for/range + break/continue + input()
   v0.4   chaînes littérales et variables string
   v0.5   fonctions système : écran, son, clavier
+  v0.6   inkey/putc + mode interactif (REPL)
 
 
 CREDITS
