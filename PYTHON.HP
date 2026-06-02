@@ -1,7 +1,7 @@
 PETIT PYTHON sur SMAKY 6
 ========================
 
-  Version 0.8 -- mai 2026
+  Version 0.9 -- juin 2026
 
 
 PRESENTATION
@@ -36,11 +36,21 @@ PYTHON lancé sans argument ouvre un interpréteur
 interactif : on tape une instruction, elle s'exécute
 aussitôt.
 
-  >>> print(2 + 3)
+Quand on tape une expression seule, sa valeur s'affiche
+automatiquement (le « P » de REPL), comme en Python :
+
+  >>> 2 + 3
   5
   >>> n = 10
-  >>> print(n * n)
+  >>> n * n
   100
+  >>> "Bonjour"
+  Bonjour
+
+Une affectation (n = 10) n'affiche rien. Un appel qui
+ne retourne pas de valeur (cls(), beep()...) n'affiche
+rien non plus. print() reste disponible et n'a pas
+changé.
 
 Les variables sont conservées d'une ligne à l'autre.
 La touche END termine la session.
@@ -60,8 +70,9 @@ d'habitude. Une ligne vide termine et exécute le bloc :
 
 Comme dans Python, on ne peut pas laisser de ligne
 vide à l'intérieur du bloc : la première ligne vide
-clôt la saisie. Pour afficher une valeur, on utilise
-print().
+clôt la saisie. L'affichage automatique ne concerne
+que les expressions tapées au premier niveau : à
+l'intérieur d'un bloc, on utilise print().
 
 
 INSTRUCTIONS DU LANGAGE
@@ -343,6 +354,7 @@ HISTORIQUE
   v0.6   inkey/putc + mode interactif (REPL)
   v0.7   mode graphique : pixels, lignes, jeu PONGG
   v0.8   REPL multi-lignes : blocs if/while/for/def
+  v0.9   REPL : affichage automatique des expressions
 
 
 CREDITS

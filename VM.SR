@@ -181,6 +181,10 @@ VPUSHT:	DEC	IX
 VPUSHS:	LOAD	A,#1		;TAG = 1 (STRING)
 	JUMP	VPUSHT
 
+VPUSHN:	LOAD	A,#2		;TAG = 2 (NONE)
+	LOAD	HL,#0
+	JUMP	VPUSHT
+
 VPOP:	LOAD	L,(IX)		;LOW
 	INC	IX
 	LOAD	H,(IX)		;HIGH
@@ -462,10 +466,10 @@ OPTBL:
 	.W	VM_CALL
 	.W	VM_RETN
 	.W	VM_FRAME
-	;011 : PSHS ; 012 : SYS ; 013 - 017 : INUTILISES
+	;011 : PSHS ; 012 : SYS ; 013 : PSHN ; 014 - 017 : INUTILISES
 	.W	VMPSHS
 	.W	VMSYS
-	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VMPSHN,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	;020 - 025
 	.W	VM_ADD
 	.W	VM_SUB
@@ -502,12 +506,13 @@ OPTBL:
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
 	.W	VM_ILL,VM_ILL,VM_ILL
-	;0120 - 0124
+	;0120 - 0125
 	.W	VM_PRT
 	.W	VM_PRSP
 	.W	VM_PRNL
 	.W	VM_POP
 	.W	VM_INPT
+	.W	VMPRTR
 
 
 
@@ -793,6 +798,8 @@ VM_JNZ:	CALL	VPOP
 
 VM_PRT:	;PRINT GENERIQUE : DISPATCH SUR TAG
 	CALL	VPOP		;HL = VALEUR, A = TAG
+	COMP	A,#2
+	JUMP	EQ,VMLOOP	;NONE -> RIEN
 	OR	A,A
 	JUMP	NE,VPRT_S	;TAG != 0 -> STRING
 	CALL	PRDEC_S
@@ -806,6 +813,32 @@ VPRT_S:	;HL = ADDR DEBUT CHAINE DANS STRBUF, AFFICHE JUSQU'AU NULL
 	POP	HL
 	INC	HL
 	JUMP	VPRT_S
+
+
+VMPSHN:	;PUSH NONE
+	CALL	VPUSHN
+	JUMP	VMLOOP
+
+
+VMPRTR:	;AFFICHE LE RESULTAT D'UNE EXPRESSION REPL (LE "P" DE REPL).
+	;NONE (TAG 2) -> RIEN DU TOUT ; SINON AFFICHE LA VALEUR + CR.
+	CALL	VPOP		;HL = VALEUR, A = TAG
+	COMP	A,#2
+	JUMP	EQ,VPTR_DN	;NONE -> AUCUNE SORTIE
+	OR	A,A
+	JUMP	NE,VPTR_S	;TAG != 0 -> STRING
+	CALL	PRDEC_S
+	JUMP	VPTR_NL
+VPTR_S:	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,VPTR_NL
+	PUSH	HL
+	.W	?DICAR
+	POP	HL
+	INC	HL
+	JUMP	VPTR_S
+VPTR_NL:	.W	?RETURN
+VPTR_DN:	JUMP	VMLOOP
 
 
 VMPSHS:	;PUSH STRING REF (LIT ADDR 2 OCTETS LE, PUSH AVEC TAG=1)
@@ -1145,8 +1178,7 @@ SYSTBL:	.W	SCCLS		;0 = cls()
 
 ;cls() : efface l'ecran alpha. ?CLEAR n'a pas d'argument.
 SCCLS:	.W	?CLEAR
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;cls() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
@@ -1161,8 +1193,7 @@ SCGOXY:	CALL	VPOP		;HL = colonne
 	POP	AF
 	LOAD	L,A		;L = colonne
 	.W	?SETCURS
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;gotoxy() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
@@ -1172,8 +1203,7 @@ SCGOXY:	CALL	VPOP		;HL = colonne
 SCBEEP:	LOAD	A,#203
 	.W	?BEEP
 	IOF
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;beep() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
@@ -1190,8 +1220,7 @@ SCGKEY:	.W	?GETCAR
 ;delai dans l'argument de commande : pas ce qu'on veut.
 SCDLY:	CALL	VPOP		;HL = n
 	.W	?HLDEL
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;delay() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
@@ -1214,8 +1243,7 @@ SCINK0:	LOAD	HL,#0
 SCPUTC:	CALL	VPOP		;HL = code
 	LOAD	A,L
 	.W	?DICAR
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;putc() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
@@ -1227,8 +1255,7 @@ SCGRAF:	LOAD	A,LAMODI
 	OR	A,#4		;b2=1 graphique visible
 	LOAD	LAMODI,A
 	LOAD	$0,A		;ecrit le registre video
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;graph() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
@@ -1237,15 +1264,13 @@ SCTEXT:	LOAD	A,LAMODI
 	AND	A,#363		;b2=0 graphique masque, b3=0 alpha visible
 	LOAD	LAMODI,A
 	LOAD	$0,A
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;text() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
 ;gcls() : efface l'ecran graphique.
 SCGCLS:	.W	?CGRA
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;gcls() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
@@ -1259,8 +1284,7 @@ SCPLOT:	CALL	VPOP		;HL = y
 	POP	AF
 	LOAD	D,A		;D = y
 	CALL	SETP
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;plot() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
@@ -1273,8 +1297,7 @@ SCCLRP:	CALL	VPOP		;HL = y
 	POP	AF
 	LOAD	D,A
 	CALL	CLRP
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;clrp() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 
@@ -1302,8 +1325,7 @@ SCLINE:	CALL	VPOP		;HL = m
 	POP	AF
 	LOAD	H,A		;H = y2  -> HL = arrivee
 	CALL	SEGA
-	LOAD	HL,#0
-	CALL	VPUSH
+	CALL	VPUSHN		;line() ne renvoie rien -> None
 	JUMP	VMLOOP
 
 

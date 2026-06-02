@@ -184,4 +184,6 @@ DSMTBL:
 	.B	BCPOP,  0, 'P, 'O, 'P, SPACE
 	.B	BCINPT, 0, 'I, 'N, 'P, 'T
 	.B	BCSYS,  1, 'S, 'Y, 'S, SPACE
+	.B	BCPSHN, 0, 'P, 'S, 'H, 'N
+	.B	BCPRTR, 0, 'P, 'R, 'T, 'R
 	.B	377, 0, 0, 0, 0, 0	;SENTINELLE

@@ -29,7 +29,7 @@ REPLMXL	= 30.		;NB MAX DE LIGNES D'UN BLOC INTERACTIF
 
 MERR:	.ASCIZ	"FICHIER .PY INTROUVABLE<CR>"
 MFIN:	.ASCIZ	"<CR>Fin du programme<CR>"
-MBAN:	.ASCIZ	"Petit Python v.0.8<CR>"
+MBAN:	.ASCIZ	"Petit Python v.0.9<CR>"
 MBCD:	.ASCIZ	"<CR>Bytecode :<CR>"
 MREPL:	.ASCIZ	"Mode interactif - END pour quitter<CR>"
 MPROM:	.ASCIZ	">>> "
