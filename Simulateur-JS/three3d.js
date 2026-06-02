@@ -68,8 +68,8 @@ const RENDER_PARAMS = {
 // arrière des flancs. Base au bord arrière du fond (suit les 2 segments
 // F = portion latérale arrière), rétrécit en montant vers le sommet du V.
 const SHEET_BACK = {
-    TILT_BACK_DEG: 1,    // inclinaison vers l'arrière (depuis vertical)
-    HEIGHT:        200,  // longueur de la section haute le long de sa pente
+    TILT_BACK_DEG: 10,   // inclinaison vers l'arrière (depuis vertical)
+    HEIGHT:        175,  // longueur de la section haute le long de sa pente
 };
 
 // Tôle « écran-disques » : pièce plate trapézoïdale, monte presque
@@ -98,8 +98,10 @@ const SHEET_SCREEN_DISK = {
     BEZEL_DEPTH:  7,    // épaisseur (= relief vers l'avant, mm)
 
     // Découpe disques (rectangulaire, commune aux 2 emplacements).
+    // Hauteur exprimée en % de la hauteur de la tôle (HEIGHT), centrée
+    // sur DISKS_CENTER_Y. Réglable par le panneau Géométrie.
     DISKS_W:         180,
-    DISKS_H:         135,
+    DISKS_H_PCT:     75,
     DISKS_CENTER_X:  -110,
     DISKS_CENTER_Y:  +100,
 };
@@ -134,9 +136,12 @@ const COLOR_BEZEL   = 0x202020;   // cadre du moniteur, presque noir
 const COLOR_DRIVE   = 0x141414;   // boîtier des lecteurs (noir mat)
 const COLOR_SLOT    = 0x050505;   // fente d'insertion disquette
 const COLOR_LATCH   = 0xc8c4b8;   // levier de fermeture du floppy
+const COLOR_BAND    = 0xf5f1e6;   // bande blanche du Micropolis 1re génération
+const COLOR_STRIPE  = 0x2050b0;   // traits bleus sur la bande blanche
 const COLOR_LED_OFF = 0x401010;   // LED rouge éteinte (sombre, presque noire)
 const COLOR_LED_ON  = 0xff2828;   // LED rouge allumée
 const LED_PULSE_MS  = 100;        // durée d'allumage après un accès
+const LED_RADIUS    = 0.022;      // rayon de la LED ronde (scene units)
 const COLOR_ALU     = 0xb0b0b0;   // cache aluminium brossé
 
 let _renderer    = null;
@@ -298,6 +303,7 @@ function setHousingParam(key, value) {
         case 'BETA_ARR': SHEET_BACK.TILT_BACK_DEG = v; break;
         case 'SHRINK':   SHEET_SCREEN_DISK.SHRINK_DEG = v; break;
         case 'OVERLAP':  SHEET_SCREEN_DISK.OVERLAP = v; break;
+        case 'DISKS_H_PCT': SHEET_SCREEN_DISK.DISKS_H_PCT = v; break;
         case 'THICKNESS':   SHEET_THICKNESS_MM = v; break;
         case 'BEZEL_TOP':   SHEET_SCREEN_DISK.BEZEL_TOP   = v; break;
         case 'BEZEL_BOT':   SHEET_SCREEN_DISK.BEZEL_BOT   = v; break;
@@ -323,6 +329,7 @@ function getHousingParam(key) {
         case 'BETA_ARR': return SHEET_BACK.TILT_BACK_DEG;
         case 'SHRINK':   return SHEET_SCREEN_DISK.SHRINK_DEG;
         case 'OVERLAP':  return SHEET_SCREEN_DISK.OVERLAP;
+        case 'DISKS_H_PCT': return SHEET_SCREEN_DISK.DISKS_H_PCT;
         case 'THICKNESS':   return SHEET_THICKNESS_MM;
         case 'BEZEL_TOP':   return SHEET_SCREEN_DISK.BEZEL_TOP;
         case 'BEZEL_BOT':   return SHEET_SCREEN_DISK.BEZEL_BOT;
@@ -358,7 +365,7 @@ function _buildDrives() {
     const cx  = SD.DISKS_CENTER_X * MM;
     const cy  = SD.DISKS_CENTER_Y * MM;
     const bw  = SD.DISKS_W * MM;
-    const bh  = SD.DISKS_H * MM;
+    const bh  = SD.HEIGHT * SD.DISKS_H_PCT / 100 * MM;
     const gap = 4 * MM;
     const driveH = (bh - gap) / 2;
 
@@ -715,7 +722,7 @@ function _buildScreenDiskSheet() {
     const dCx = SD.DISKS_CENTER_X * MM;
     const dCy = SD.DISKS_CENTER_Y * MM;
     const dW2 = SD.DISKS_W * MM / 2;
-    const dH2 = SD.DISKS_H * MM / 2;
+    const dH2 = SD.HEIGHT * SD.DISKS_H_PCT / 100 * MM / 2;
     const disksHole = new THREE.Path();
     disksHole.moveTo(dCx - dW2, dCy - dH2);
     disksHole.lineTo(dCx + dW2, dCy - dH2);
@@ -920,10 +927,12 @@ function _buildKeyboard() {
     kb.rotation.x = Math.atan2(-Tp, Hp);
 
     // Grille de touches. Toutes les dimensions multipliées par KB_SCALE pour
-    // ajuster la taille globale du clavier.
-    const KB_SCALE = 0.8;
-    const cols     = 20;
-    const rows     = 6;
+    // ajuster la taille globale du clavier. 4 rangées régulières + 1 rangée
+    // du bas (rouges + espace) = 5 rangées au total. KB_SCALE compensé pour
+    // que les touches deviennent plus grandes (≈ +20 %).
+    const KB_SCALE = 0.96;
+    const cols     = 16;
+    const rows     = 5;
     const keySize  = 18 * KB_SCALE * MM;
     const keyGap   =  3 * KB_SCALE * MM;
     const keyDepth =  8 * KB_SCALE * MM;
@@ -1122,28 +1131,181 @@ function _buildDriveFloppy(parent, w, h) {
     );
     parent.add(face);
 
-    // Fente horizontale (légèrement au-dessus du milieu, comme sur un Micropolis).
-    const slotW = w * 0.66;
+    // Décalage vertical : la partie inférieure du lecteur est masquée par
+    // la tôle du boîtier ; on monte tous les motifs de 2 × la hauteur de
+    // la fente, puis on redescend l'ensemble de 2 × le diamètre de la LED
+    // pour centrer dans l'ouverture visible.
     const slotH = h * 0.10;
+    const yDescend = -2 * (2 * LED_RADIUS);
+    const yOffset = h * 0.05 + 2 * slotH + yDescend;
+
+    // Zone plate centrale qui permet de descendre la disquette (levier).
+    // Dessinée AVANT la fente pour que celle-ci passe par-dessus.
+    const latchW = w * 0.14 * 1.30;     // largeur +30 %
+    const latchH = h * 0.39 * 1.30;     // hauteur +30 %
+    const latch = new THREE.Mesh(
+        new THREE.PlaneGeometry(latchW, latchH),
+        new THREE.MeshBasicMaterial({ color: COLOR_SLOT }),
+    );
+    latch.position.set(0, yOffset, 0.002);
+    parent.add(latch);
+
+    // Bande blanche caractéristique des Micropolis 1re génération : du bas
+    // du levier jusqu'au bas de la façade, sur toute la largeur du lecteur.
+    const latchBotY = yOffset - latchH / 2;
+    const faceBotY  = -h * 0.46;
+    const bandH     = latchBotY - faceBotY;
+    const bandY     = (latchBotY + faceBotY) / 2;
+    const bandW     = w * 0.96;
+    const band = new THREE.Mesh(
+        new THREE.PlaneGeometry(bandW, bandH),
+        new THREE.MeshBasicMaterial({ color: COLOR_BAND }),
+    );
+    band.position.set(0, bandY, 0.0015);
+    parent.add(band);
+
+    // 4 traits bleus sur la bande (1 épaisse + 3 fines), positions en %
+    // depuis le haut de la bande [start, start+height].
+    const STRIPES = [
+        { start: 0.05, height: 0.15 },   // épaisse
+        { start: 0.25, height: 0.05 },   // fine
+        { start: 0.35, height: 0.05 },   // fine
+        { start: 0.45, height: 0.05 },   // fine
+    ];
+    for (const s of STRIPES) {
+        const stripeH = s.height * bandH;
+        const stripeY = latchBotY - (s.start + s.height / 2) * bandH;
+        const stripe = new THREE.Mesh(
+            new THREE.PlaneGeometry(bandW, stripeH),
+            new THREE.MeshBasicMaterial({ color: COLOR_STRIPE }),
+        );
+        stripe.position.set(0, stripeY, 0.0017);
+        parent.add(stripe);
+    }
+
+    // Logo MICROPOLIS dans la zone blanche du bas, centré sur la moitié
+    // droite de la bande. M stylisé (pattes écartées vers le bas) + Ω
+    // capital à la place du 2ᵉ O, lettres en noir.
+    const logoY = bandY - bandH / 4;          // centre de la zone blanche du bas
+    const logoW = bandW / 2 * 0.85 * 0.80;    // demi-bande × 85 %, puis −20 %
+    const logoTex = _makeMicropolisTexture();
+    const logoH = logoW * (logoTex.image.height / logoTex.image.width);
+    const logo = new THREE.Mesh(
+        new THREE.PlaneGeometry(logoW, logoH),
+        new THREE.MeshBasicMaterial({ map: logoTex, transparent: true, alphaTest: 0.1 }),
+    );
+    logo.position.set(+bandW / 4, logoY, 0.0019);
+    parent.add(logo);
+
+    // Fente horizontale d'introduction, symétrique : de 5 % à 95 % de la
+    // largeur de la façade (centrée, presque pleine largeur). Dessinée en
+    // dernier pour qu'elle reste continue par-dessus la zone de levier.
+    const slotW = w * 0.96 * 0.90;
     const slotMesh = new THREE.Mesh(
         new THREE.PlaneGeometry(slotW, slotH),
         new THREE.MeshBasicMaterial({ color: COLOR_SLOT }),
     );
-    slotMesh.position.set(-w * 0.05, h * 0.05, 0.002);
+    slotMesh.position.set(0, yOffset, 0.003);
     parent.add(slotMesh);
 
-    // Levier de fermeture clair, à droite de la fente.
-    const latchW = w * 0.07;
-    const latchH = h * 0.30;
-    const latch = new THREE.Mesh(
-        new THREE.BoxGeometry(latchW, latchH, 0.018),
-        new THREE.MeshStandardMaterial({ color: COLOR_LATCH, roughness: 0.4, metalness: 0.15 }),
-    );
-    latch.position.set(w * 0.36, h * 0.05, 0.012);
-    parent.add(latch);
+    // LED ronde rouge au milieu de la moitié droite (typique des Micropolis).
+    _addLED(parent, w * 0.25, h * 0.32 + 2 * slotH + yDescend, 'round', 'floppy');
+}
 
-    // LED ronde rouge en bas à gauche (typique des Micropolis).
-    _addLED(parent, -w * 0.40, -h * 0.32, 'round', 'floppy');
+// Texture canvas pour le logo « MICROPOLIS » des lecteurs 1re génération :
+// M dessiné en polygones (pattes écartées vers le bas), reste du mot en
+// gras sans-serif, avec Ω (oméga capital) à la place du 2ᵉ O. Texture
+// transparente : seules les lettres sont peintes, le blanc de la bande
+// transparaît à travers le reste.
+let _micropolisTex = null;
+function _makeMicropolisTexture() {
+    if (_micropolisTex) return _micropolisTex;
+    const W = 512, H = 80;
+    const cnv = document.createElement('canvas');
+    cnv.width = W; cnv.height = H;
+    const ctx = cnv.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.fillStyle = '#000000';
+
+    const fontSize = 56;
+    ctx.font = 'bold ' + fontSize + 'px Helvetica, Arial, sans-serif';
+    ctx.textBaseline = 'alphabetic';
+
+    // « ICROPΩLIS » dessiné lettre à lettre pour serrer fortement le mot
+    // (style logo Micropolis). Le M est plus distant : petit gap M-I.
+    const rest    = 'ICROPΩLIS';
+    const tighten = 0.78;                  // resserrement (1.0 = espacement normal)
+    const chW     = [];
+    let restW     = 0;
+    for (const ch of rest) {
+        const wch = ctx.measureText(ch).width;
+        chW.push(wch);
+        restW += wch * tighten;
+    }
+    restW -= chW[chW.length - 1] * (tighten - 1);   // dernier caractère pleine largeur
+    const mW    = fontSize * 0.85;
+    const gapMI = fontSize * 0.06;          // léger espace entre M et I
+    const totalW = mW + gapMI + restW;
+    const baseX = (W - totalW) / 2;
+    const baseY = H * 0.82;
+
+    _drawSplayedM(ctx, baseX, baseY - fontSize * 0.72, mW, fontSize * 0.72);
+    let cx = baseX + mW + gapMI;
+    for (let i = 0; i < rest.length; i++) {
+        ctx.fillText(rest[i], cx, baseY);
+        cx += chW[i] * tighten;
+    }
+
+    _micropolisTex = new THREE.CanvasTexture(cnv);
+    _micropolisTex.needsUpdate = true;
+    return _micropolisTex;
+}
+
+// M stylisé : 2 pattes (trapézoïdes écartés vers le bas) + V central
+// formé de 2 obliques. Dessiné dans un rectangle (x, y, w, h) du canvas.
+function _drawSplayedM(ctx, x, y, w, h) {
+    const sw    = w * 0.18;   // largeur des pattes en haut
+    const splay = w * 0.12;   // écartement vers le bas
+    const vY    = y + h * 0.55;
+    const cx    = x + w / 2;
+    const vSw   = sw;         // V de même épaisseur que les pattes
+
+    // Patte gauche
+    ctx.beginPath();
+    ctx.moveTo(x,              y);
+    ctx.lineTo(x + sw,         y);
+    ctx.lineTo(x + sw - splay, y + h);
+    ctx.lineTo(x - splay,      y + h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Patte droite (miroir)
+    ctx.beginPath();
+    ctx.moveTo(x + w - sw,         y);
+    ctx.lineTo(x + w,              y);
+    ctx.lineTo(x + w + splay,      y + h);
+    ctx.lineTo(x + w - sw + splay, y + h);
+    ctx.closePath();
+    ctx.fill();
+
+    // Oblique gauche du V
+    ctx.beginPath();
+    ctx.moveTo(x + sw,         y);
+    ctx.lineTo(x + sw + vSw,   y);
+    ctx.lineTo(cx + vSw * 0.3, vY);
+    ctx.lineTo(cx - vSw * 0.3, vY);
+    ctx.closePath();
+    ctx.fill();
+
+    // Oblique droite du V (miroir)
+    ctx.beginPath();
+    ctx.moveTo(x + w - sw - vSw, y);
+    ctx.lineTo(x + w - sw,       y);
+    ctx.lineTo(cx + vSw * 0.3,   vY);
+    ctx.lineTo(cx - vSw * 0.3,   vY);
+    ctx.closePath();
+    ctx.fill();
 }
 
 function _buildDriveHD(parent, w, h) {
@@ -1169,7 +1331,7 @@ function _buildDriveBlank(parent, w, h) {
 
 function _addLED(parent, xLocal, yLocal, shape, type) {
     const geo = (shape === 'round')
-        ? new THREE.CircleGeometry(0.022, 18)
+        ? new THREE.CircleGeometry(LED_RADIUS, 18)
         : new THREE.PlaneGeometry(0.07, 0.025);
     const mat = new THREE.MeshBasicMaterial({ color: COLOR_LED_OFF });
     const led = new THREE.Mesh(geo, mat);

@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, screen } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -9,9 +9,15 @@ let zoomFactor = 1.0;
 
 // ─── Fenêtre principale ───────────────────────────────────────────
 function createWindow() {
+    // Dimensionner d'emblée à la zone utile de l'écran principal pour éviter
+    // un flash de fenêtre 960x860 avant maximisation — utile en particulier
+    // sous GNOME/Wayland où `maximize()` avant `show()` est parfois ignoré.
+    const { workArea } = screen.getPrimaryDisplay();
     mainWindow = new BrowserWindow({
-        width:  960,
-        height: 860,
+        x:      workArea.x,
+        y:      workArea.y,
+        width:  workArea.width,
+        height: workArea.height,
         minWidth:  800,
         minHeight: 700,
         show:    false,              // affichée plus bas, après maximize, pour éviter le flash
@@ -33,9 +39,11 @@ function createWindow() {
     // fermeture restent visibles) et forcer le focus au démarrage — sinon,
     // un lancement via `npm start` depuis un terminal laisse celui-ci
     // par-dessus, masquant l'animation d'intro 3D.
+    // Sur GNOME (testé sur Zorin OS) il faut appeler `maximize()` APRÈS
+    // `show()`, sinon la requête est ignorée par le compositeur.
     mainWindow.once('ready-to-show', () => {
-        mainWindow.maximize();
         mainWindow.show();
+        mainWindow.maximize();
         mainWindow.focus();
         // Astuce Windows : alwaysOnTop bref pour passer devant le terminal
         mainWindow.setAlwaysOnTop(true);

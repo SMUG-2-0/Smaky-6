@@ -874,6 +874,7 @@ const GEOM_PARAMS = [
     { key: 'BETA_ED',  label: 'β_ed (incl.°)',  min: 0,   max: 45,  step: 1 },
     { key: 'L_ARR',    label: 'L_arr (arrière)', min: 50,  max: 400, step: 5 },
     { key: 'BETA_ARR', label: 'β_arr (incl.°)', min: 0,   max: 45,  step: 1 },
+    { key: 'DISKS_H_PCT', label: 'h. découpe disques %', min: 30, max: 95, step: 1 },
     { key: 'SHRINK',   label: 'rétréc. capot°', min: 0,   max: 30,  step: 1 },
     { key: 'OVERLAP',     label: 'recouv. capot',   min: 0,   max: 50,  step: 1 },
     { key: 'THICKNESS',   label: 't (épaisseur)',   min: 0.5, max: 5,   step: 0.1 },
@@ -2316,7 +2317,7 @@ async function loadFromDirHandle(dirHandle) {
     var loaded = Object.keys(diskFiles).sort();
     document.getElementById('disk-dir-name').textContent = dirHandle.name;
     if (loaded.length) {
-        status.textContent = 'OK — ' + loaded.length + ' image(s) : ' + loaded.join(', ');
+        status.textContent = 'OK — ' + loaded.length + ' image(s)';
         diskBuffer    = diskFiles['SM6WIN0.DSK'] || null;
         floppyBuffer  = diskFiles['SM6FLO0.DSK'] || null;
         floppyBuffer2 = diskFiles['SM6FLO1.DSK'] || null;
@@ -2391,9 +2392,8 @@ function onDiskDirSelected(input) {
             readFile(f).then(function(buf) {
                 diskFiles[name] = buf;
                 if (--pending === 0) {
-                    var loaded = Object.keys(diskFiles).sort().join(', ');
                     document.getElementById('disk-dir-name').textContent = dirName;
-                    status.textContent = 'OK — ' + Object.keys(diskFiles).length + ' image(s) : ' + loaded;
+                    status.textContent = 'OK — ' + Object.keys(diskFiles).length + ' image(s)';
                     diskBuffer    = diskFiles['SM6WIN0.DSK'] || null;
                     floppyBuffer  = diskFiles['SM6FLO0.DSK'] || null;
                     floppyBuffer2 = diskFiles['SM6FLO1.DSK'] || null;
@@ -2421,7 +2421,7 @@ async function pickDiskDirElectron() {
     if (!result) return;
     localStorage.setItem('diskDir', result.dir);
     document.getElementById('disk-dir-name').textContent = result.dir.replace(/.*[\\/]/, '');
-    status.textContent = 'OK — ' + result.disks.length + ' image(s) : ' + result.disks.join(', ');
+    status.textContent = 'OK — ' + result.disks.length + ' image(s)';
     availableDisks = new Set(result.disks.map(d => d.toUpperCase()));
     updateDiskPanel();
     await loadDiskElectron('SM6WIN0.DSK');
@@ -2713,7 +2713,7 @@ if (window.electronAPI) {
             if (result) {
                 document.getElementById('disk-dir-name').textContent = result.dir.replace(/.*[\\/]/, '');
                 document.getElementById('load-status').textContent =
-                    'OK — ' + result.disks.length + ' image(s) : ' + result.disks.join(', ');
+                    'OK — ' + result.disks.length + ' image(s)';
                 availableDisks = new Set(result.disks.map(d => d.toUpperCase()));
                 updateDiskPanel();
                 await loadDiskElectron('SM6WIN0.DSK');
