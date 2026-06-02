@@ -356,6 +356,70 @@ EXEMPLES
    getkey()
    text()
 
+
+12) Biorythme graphique  (BIORYG.PY)
+   ---------------------------------
+
+   cls()
+   print("B I O R Y T H M E")
+   print()
+   print("Date de naissance")
+   print("Jour:")
+   jn = input()
+   print("Mois:")
+   mn = input()
+   print("Annee:")
+   an = input()
+   if an < 100:
+       an = an + 1900
+   print()
+   print("Date du calcul")
+   print("Jour:")
+   jc = input()
+   print("Mois:")
+   mc = input()
+   print("Annee:")
+   ac = input()
+   if ac < 100:
+       ac = ac + 1900
+
+   # Numero de jour (en flottant : depasse 32767)
+   if mn < 3:
+       xb = 365.0*an + jn + 31.0*(mn-1) + int((an-1)/4.0) - int(0.75 * (int((an-1)/100.0) + 1.0))
+   else:
+       xb = 365.0*an + jn + 31.0*(mn-1) - int(0.4*mn + 2.3) + int(an/4.0) - int(0.75 * (int(an/100.0) + 1.0))
+   if mc < 3:
+       xc = 365.0*ac + jc + 31.0*(mc-1) + int((ac-1)/4.0) - int(0.75 * (int((ac-1)/100.0) + 1.0))
+   else:
+       xc = 365.0*ac + jc + 31.0*(mc-1) - int(0.4*mc + 2.3) + int(ac/4.0) - int(0.75 * (int(ac/100.0) + 1.0))
+   z = xc - xb
+
+   # Les trois cycles se superposent (23, 28, 33 jours)
+   graph()
+   cls()
+   gcls()
+   line(0, 63, 248, 63, 1)        # axe horizontal (cycle = 0)
+   line(128, 15, 128, 111, 1)     # marqueur de la date du calcul
+   for c in range(3):
+       per = 23 + 5 * c
+       if c == 0:
+           print("Physique  (23 jours)")
+       elif c == 1:
+           print("Emotif    (28 jours)")
+       else:
+           print("Intellect (33 jours)")
+       for i in range(32):
+           x = i * 8
+           d = z - 16.0 + i
+           y = 63 - int(sin(frac(d / per) * 2.0 * pi()) * 43.0)
+           if i > 0:
+               line(ox, oy, x, y, 1)
+           ox = x
+           oy = y
+       getkey()
+   text()
+
+
 Deux jeux complets accompagnent ce manuel : PONGA.PY
 (ping-pong en mode texte) et PONGG.PY (ping-pong
 graphique).
