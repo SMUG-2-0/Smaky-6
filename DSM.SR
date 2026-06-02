@@ -66,6 +66,8 @@ DISML:	LOAD	A,(HL)
 	JUMP	EQ,DISFLN	;opsize=0
 	COMP	A,#1
 	JUMP	EQ,DISOP1	;opsize=1
+	COMP	A,#4
+	JUMP	CC,DISOPN	;opsize>=4 : N octets bruts (ex. BCPSHF=8)
 	;opsize=2 ou 3 : 16-bit little-endian
 	LOAD	A,(HL)
 	INC	HL
@@ -97,6 +99,15 @@ DISOP1:	LOAD	A,(HL)
 	LOAD	L,A
 	.W	?AFOHL
 	POP	HL
+	JUMP	DISFLN
+
+DISOPN:	;operande de C octets : on les saute (HL avance de C)
+	LOAD	A,C
+	OR	A,A
+	JUMP	EQ,DISFLN
+	LOAD	B,A
+DISOPL:	INC	HL
+	DECJ	NE,B,DISOPL
 	JUMP	DISFLN
 
 DISUNK:	POP	HL		;HL = apres opcode
@@ -186,4 +197,5 @@ DSMTBL:
 	.B	BCSYS,  1, 'S, 'Y, 'S, SPACE
 	.B	BCPSHN, 0, 'P, 'S, 'H, 'N
 	.B	BCPRTR, 0, 'P, 'R, 'T, 'R
+	.B	BCPSHF, 8., 'P, 'S, 'H, 'F
 	.B	377, 0, 0, 0, 0, 0	;SENTINELLE

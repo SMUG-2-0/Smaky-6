@@ -1,7 +1,7 @@
 PETIT PYTHON sur SMAKY 6
 ========================
 
-  Version 0.9 -- juin 2026
+  Version 0.10 -- juin 2026
 
 
 PRESENTATION
@@ -119,6 +119,17 @@ TYPES SUPPORTES
 
   Entier 16 bits signé   de -32768 à 32767
   Chaîne littérale       "Bonjour", "Smaky 6"
+  Nombre flottant        13 chiffres signif., 10^-127 à 10^126
+
+Un littéral flottant contient un point ou un exposant
+(3.14, 0.5, 12.96E-3). Arithmétique, comparaisons et
+variables globales sont gérées ; entier et flottant se
+mélangent (2 + 1.5 donne 3.5). Les flottants reposent
+sur la bibliothèque MATPAC.SY, chargée au démarrage et
+qui doit donc être présente sur le disque. Les fonctions
+mathématiques (sin, cos...) et la saisie flottante
+arriveront ensuite ; pas encore de flottant en variable
+locale / paramètre de fonction (utiliser des globales).
 
 Une chaîne est limitée à 255 caractères. La concaté-
 nation et la fonction len() arriveront plus tard.
@@ -355,6 +366,8 @@ HISTORIQUE
   v0.7   mode graphique : pixels, lignes, jeu PONGG
   v0.8   REPL multi-lignes : blocs if/while/for/def
   v0.9   REPL : affichage automatique des expressions
+  v0.10  virgule flottante (MATPAC) : littéraux, arithmétique,
+         comparaisons, variables globales
 
 
 CREDITS
