@@ -1,7 +1,7 @@
 PETIT PYTHON sur SMAKY 6
 ========================
 
-  Version 0.10 -- juin 2026
+  Version 0.11 -- juin 2026
 
 
 PRESENTATION
@@ -126,10 +126,9 @@ Un littéral flottant contient un point ou un exposant
 variables globales sont gérées ; entier et flottant se
 mélangent (2 + 1.5 donne 3.5). Les flottants reposent
 sur la bibliothèque MATPAC.SY, chargée au démarrage et
-qui doit donc être présente sur le disque. Les fonctions
-mathématiques (sin, cos...) et la saisie flottante
-arriveront ensuite ; pas encore de flottant en variable
-locale / paramètre de fonction (utiliser des globales).
+qui doit donc être présente sur le disque. Pas encore
+de flottant en variable locale ou paramètre de fonction
+(utiliser des variables globales).
 
 Une chaîne est limitée à 255 caractères. La concaté-
 nation et la fonction len() arriveront plus tard.
@@ -171,6 +170,26 @@ Samos du Smaky 6 :
 
 Un appel utilisé seul est une instruction ; getkey()
 et inkey() retournent une valeur que l'on peut affecter.
+
+
+FONCTIONS MATHEMATIQUES
+-----------------------
+
+Ces fonctions opèrent sur des nombres flottants (un
+argument entier est converti automatiquement).
+
+  sin(x)             sinus (x en radians)
+  cos(x)             cosinus
+  sqrt(x)            racine carrée
+  frac(x)            partie fractionnaire
+  pi()               la constante pi (3.14159...)
+
+  int(x)             partie entière, retournée comme
+                     entier (int(3.7) vaut 3)
+
+  inputf()           lit un nombre flottant au clavier
+
+Exemple : sin(pi() / 2.0) vaut 1.
 
 
 GRAPHISME
@@ -368,6 +387,8 @@ HISTORIQUE
   v0.9   REPL : affichage automatique des expressions
   v0.10  virgule flottante (MATPAC) : littéraux, arithmétique,
          comparaisons, variables globales
+  v0.11  fonctions mathématiques (sin, cos, sqrt, int, frac,
+         pi) et saisie flottante (inputf)
 
 
 CREDITS

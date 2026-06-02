@@ -218,13 +218,13 @@ On peut également forcer dans tous les cas la notation scientifique ou sélecti
 | `?DECBIN` | chaîne ASCII → binaire | `HL` → ASCII | `DE` → binaire | `AF` | 40, 41, 42 |
 | `?HLTBIN` | entier 16 bits signé → binaire BCD | `HL` = entier | `(DE)` = binaire | rien | — |
 | `?BINTHL` | binaire BCD → entier 16 bits | `(DE)` = binaire | `HL` = entier | `AF` | dépassement sup./inf. `[?]` |
-| `?GETDEB` | saisie clavier (avec écho) → binaire | clavier | `(DE)` = binaire | `AF` | 40, 41, 42 |
+| `?GEDEBI` | saisie clavier (avec écho) → binaire | clavier | `(DE)` = binaire | `AF` | 40, 41, 42 |
 | `?DECFOR` | règle le format d'affichage | `B` = nb max de digits, `C` = nb de décimales | — | `BC` | — |
 
 Notes :
 
 - `?DECFOR` : on peut sélectionner au maximum **13 digits** et **12 décimales**. Si le nombre de décimales dépasse les digits, on a un cas respecté des règles : l'appel corrige automatiquement. Si l'on spécifie 0 digit et un nombre de décimales non nul, on force l'affichage permanent en notation scientifique. Si l'on spécifie 0 digit et 0 décimale, on sélectionne l'affichage en virgule flottante.
-- `?GETDEB` : la touche `DEL` permet de revenir jusqu'au début de la saisie ; la saisie se termine au premier caractère hors syntaxe.
+- `?GEDEBI` : la touche `DEL` permet de revenir jusqu'au début de la saisie ; la saisie se termine au premier caractère hors syntaxe.
 
 #### Opérations binaires (deux opérandes)
 
@@ -466,7 +466,7 @@ Structure d'une entrée `.st` (8 octets, identique à `flo.st`) : **2 octets de 
 | 0x81 | `?DIBIDE` (DIBID) | | 0x96 | `?FRANDOM` (RANDO) |
 | 0x82 | `?WRBIDE` (WRBID) | | 0x97 | `?FINT` |
 | 0x83 | `?DECBIN` (DECBI) | | 0x98 | `?FFRAC` |
-| 0x84 | `?GETDEB` (GEDEB) | | 0x99 | `?FCLR` |
+| 0x84 | `?GEDEBI` (GEDEB) | | 0x99 | `?FCLR` |
 | 0x85 | `?HLTBIN` (HLTBI) | | 0x9A | `?FPI` |
 | 0x86 | `?BINTHL` (BINTH) | | 0x9B | `?FABS` |
 | 0x87 | `?DECFOR` (DECFO) | | 0x9C | `?FCHSIG` (FCHSI) |

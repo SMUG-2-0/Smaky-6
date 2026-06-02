@@ -1565,6 +1565,20 @@ BLTTBL:
 	.B	2, 11.
 	.ASCIZ	"line"
 	.B	5, 12.
+	.ASCIZ	"sin"
+	.B	1, 13.
+	.ASCIZ	"cos"
+	.B	1, 14.
+	.ASCIZ	"sqrt"
+	.B	1, 15.
+	.ASCIZ	"int"
+	.B	1, 16.
+	.ASCIZ	"frac"
+	.B	1, 17.
+	.ASCIZ	"pi"
+	.B	0, 18.
+	.ASCIZ	"inputf"
+	.B	0, 19.
 	.B	0		;SENTINELLE FIN DE TABLE
 
 

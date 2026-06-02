@@ -32,7 +32,7 @@ FTMPSZ	= 200		;TAILLE PILE FLOTTANTS EN OCTAL (128 OCTETS = 16 CELLULES)
 
 MERR:	.ASCIZ	"FICHIER .PY INTROUVABLE<CR>"
 MFIN:	.ASCIZ	"<CR>Fin du programme<CR>"
-MBAN:	.ASCIZ	"Petit Python v.0.10<CR>"
+MBAN:	.ASCIZ	"Petit Python v.0.11<CR>"
 MBCD:	.ASCIZ	"<CR>Bytecode :<CR>"
 MREPL:	.ASCIZ	"Mode interactif - END pour quitter<CR>"
 MPROM:	.ASCIZ	">>> "
