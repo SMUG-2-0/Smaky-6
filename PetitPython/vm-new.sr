@@ -1,0 +1,1020 @@
+;#############################################################
+;# VM.SR  --  INTERPRETEUR BYTECODE PETIT-PYTHON             #
+;#############################################################
+;PYR 18 MAI 2026
+;A INCLURE PAR .INS VM. VM A PILE, DISPATCH PAR TABLE INDEXEE.
+
+
+
+;#############################################################
+;# CONSTANTES                                                #
+;#############################################################
+
+VRSIZE	= 128.		;TABLEAU VARIABLES GLOBALES (64 SLOTS)
+FILPAT	= 0 		;PATTERN DE REMPLISSAGE (diag corruption)
+
+;Adresses fixes des piles (en haut de RAM, 1 kB chacune)
+;Zones :  170000-173777 LSTACK (frames, grandit vers le haut)
+;         172000-173777 VSTAK  (VPUSH/VPOP, grandit vers le bas)
+;         174000-175777 zone pile Z80 (SP grandit vers le bas)
+;         176000-176377 variables VM (au-dessus pile, hors corruption)
+LSTACK	= 170000	;base de LSTACK, LSP demarre ici
+VSTAK	= 172000	;base de VSTAK (low addr)
+VSTOP	= 174000	;sommet de VSTAK, VSP demarre ici
+PILZ80	= 176000	;sommet pile Z80, SP demarre ici
+
+;Variables VM a adresses fixes (176000-176377, hors zone modifiable
+;par Samos ou par les pushes Z80)
+BCIP	= 176000	;POINTEUR D'INSTRUCTION BYTECODE (2)
+VSP	= 176002	;SOMMET PILE VM (2)
+FP	= 176004	;FRAME POINTER (2)
+LSP	= 176006	;PROCHAIN SLOT LIBRE LSTACK (2)
+RETVAL	= 176010	;VALEUR DE RETOUR TEMPORAIRE (2)
+CALLAD	= 176012	;ADRESSE CIBLE CALL (2)
+CALLNA	= 176014	;NB ARGS CALL (1)
+DVCNT	= 176015	;COMPTEUR DIV16 (1)
+DVDS	= 176016	;SIGNE DIVIDEND (1)
+DVQS	= 176017	;SIGNE QUOTIENT (1)
+VARS	= 176020	;VARIABLES GLOBALES (128 octets 176020-176217)
+
+
+
+;#############################################################
+;# MESSAGES D'ERREUR                                         #
+;#############################################################
+
+VMEM1:	.ASCIZ	"VM ERR: OPCODE INCONNU<CR>"
+VMEM2:	.ASCIZ	"VM ERR: DIVISION PAR ZERO<CR>"
+VMEM3:	.ASCIZ	"VM ERR: PILE LOCAUX PLEINE<CR>"
+
+
+
+;#############################################################
+;# VARIABLES D'ETAT                                          #
+;#############################################################
+;Toutes les variables VM sont maintenant a adresses fixes 0xFC00+
+;(declarees comme constantes plus haut). Pas de .BLKB ici.
+
+
+
+;#############################################################
+;# VMRUN : EXECUTE LE BYTECODE                               #
+;#############################################################
+;IN  : HL = ADRESSE DEBUT BYTECODE
+;SORT QUAND HALT EXECUTE OU ERREUR FATALE.
+
+VMRUN:	IOF			;coupe interruptions 50 Hz pendant l'execution VM
+				;(SP est deja sur notre pile Z80, init dans PYTHON.SR)
+	PUSH	HL
+	CALL	VMINIT
+	POP	HL
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# VMINIT : INIT PILE + TABLEAU VARIABLES                    #
+;#############################################################
+
+VMINIT:	;Remplit LSTACK (1024 octets) avec FILPAT pour diagnostic
+	LOAD	HL,#LSTACK
+	LOAD	A,#FILPAT
+	LOAD	(HL),A
+	LOAD	DE,#LSTACK+1
+	LOAD	BC,#1024.-1
+	LDIR
+	;Remplit VSTAK (1024 octets) avec FILPAT
+	LOAD	HL,#VSTAK
+	LOAD	A,#FILPAT
+	LOAD	(HL),A
+	LOAD	DE,#VSTAK+1
+	LOAD	BC,#1024.-1
+	LDIR
+	;VSP := VSTOP (sommet pile VM, croit vers le bas)
+	LOAD	HL,#VSTOP
+	LOAD	VSP,HL
+	;VARS := 0 (variables globales)
+	LOAD	HL,#VARS
+	XOR	A,A
+	LOAD	(HL),A
+	LOAD	DE,#VARS+1
+	LOAD	BC,#VRSIZE-1
+	LDIR
+	;FP := 0 (hors fonction au depart)
+	LOAD	HL,#0
+	LOAD	FP,HL
+	;LSP := base de LSTACK
+	LOAD	HL,#LSTACK
+	LOAD	LSP,HL
+	RET
+
+
+
+;#############################################################
+;# VPUSH / VPOP                                              #
+;#############################################################
+;VPUSH : IN HL = VALEUR ; PRESERVE HL ; CLOBBERS DE
+;VPOP  : OUT HL = VALEUR ; CLOBBERS DE
+
+VPUSH:	EX	HL,DE		;DE = VALEUR
+	LOAD	HL,VSP
+	DEC	HL
+	LOAD	(HL),D		;HIGH (ADRESSE HAUTE)
+	DEC	HL
+	LOAD	(HL),E		;LOW
+	LOAD	VSP,HL
+	EX	HL,DE
+	RET
+
+VPOP:	LOAD	HL,VSP
+	LOAD	E,(HL)		;LOW
+	INC	HL
+	LOAD	D,(HL)		;HIGH
+	INC	HL
+	LOAD	VSP,HL
+	EX	HL,DE		;HL = VALEUR
+	RET
+
+
+
+;#############################################################
+;# NEG_HL : HL := -HL                                        #
+;#############################################################
+
+NEG_HL:	XOR	A,A
+	SUB	A,L
+	LOAD	L,A
+	XOR	A,A
+	SUBC	A,H
+	LOAD	H,A
+	RET
+
+
+
+;#############################################################
+;# MUL16 : HL := (HL * DE) LOW 16 BITS                       #
+;#############################################################
+;ALGO SHIFT-ADD : RESULTAT EN HL, MULTIPLICAND EN BC,
+;MULTIPLIER (DE) DECALE A DROITE, BIT 0 -> CARRY.
+;NOTE : en CALM 1re gen, "RRC" et "RLC" = rotates a travers
+;le carry (le C suffixe veut dire "with Carry"). "RR" et "RL"
+;sans C sont des rotates circulaires.
+
+MUL16:	LOAD	B,H
+	LOAD	C,L		;BC = MULTIPLICAND
+	LOAD	HL,#0
+	LOAD	A,#16.
+ML_LP:	SRC	D		;DE >>= 1, OLD LOW BIT -> CARRY
+	RRC	E
+	JUMP	CC,ML_SK
+	ADD	HL,BC
+ML_SK:	SLC	C		;BC <<= 1
+	RLC	B
+	DEC	A
+	JUMP	NE,ML_LP
+	RET
+
+
+
+;#############################################################
+;# DIV16 : DIVISION UNSIGNED 16/16                           #
+;#############################################################
+;IN  : HL = DIVIDEND, DE = DIVISOR (> 0)
+;OUT : HL = QUOTIENT, DE = REMAINDER
+
+DIV16:	LOAD	A,#16.
+	LOAD	DVCNT,A
+	LOAD	B,#0
+	LOAD	C,#0
+DV_LP:	;HL <<= 1, TOP BIT INTO BC
+	ADD	HL,HL
+	RLC	C		;BC <<= 1 + c-in (= bit 15 ancien de HL)
+	RLC	B
+	;TENTATIVE BC -= DE
+	LOAD	A,C
+	SUB	A,E
+	LOAD	C,A
+	LOAD	A,B
+	SUBC	A,D
+	LOAD	B,A
+	JUMP	CC,DV_OK
+	;UNDO BC += DE
+	LOAD	A,C
+	ADD	A,E
+	LOAD	C,A
+	LOAD	A,B
+	ADDC	A,D
+	LOAD	B,A
+	JUMP	DV_NX
+DV_OK:	INC	HL		;QUOTIENT BIT 0 := 1
+DV_NX:	LOAD	A,DVCNT
+	DEC	A
+	LOAD	DVCNT,A
+	JUMP	NE,DV_LP
+	;HL = QUOTIENT, BC = REMAINDER
+	LOAD	D,B
+	LOAD	E,C
+	RET
+
+
+
+;#############################################################
+;# DIV16S : DIVISION SIGNEE (TRONCATURE VERS ZERO)           #
+;#############################################################
+;IN  : HL = DIVIDEND, DE = DIVISOR (!= 0)
+;OUT : HL = QUOTIENT, DE = REMAINDER (SIGNE DU DIVIDEND)
+
+DIV16S:	LOAD	A,H
+	AND	A,#200
+	LOAD	DVDS,A		;SIGNE DIVIDEND
+	LOAD	A,H
+	XOR	A,D
+	AND	A,#200
+	LOAD	DVQS,A		;SIGNE QUOTIENT = XOR DES SIGNES
+	;ABS(HL)
+	LOAD	A,DVDS
+	OR	A,A
+	JUMP	EQ,DV_AHL
+	CALL	NEG_HL
+DV_AHL:	;ABS(DE)
+	LOAD	A,D
+	AND	A,#200
+	JUMP	EQ,DV_ADE
+	XOR	A,A
+	SUB	A,E
+	LOAD	E,A
+	XOR	A,A
+	SUBC	A,D
+	LOAD	D,A
+DV_ADE:	CALL	DIV16
+	;SIGNE QUOTIENT
+	LOAD	A,DVQS
+	OR	A,A
+	JUMP	EQ,DV_RM
+	CALL	NEG_HL
+DV_RM:	;SIGNE REMAINDER (SUIT DIVIDEND)
+	LOAD	A,DVDS
+	OR	A,A
+	JUMP	EQ,DV_DN
+	PUSH	HL
+	XOR	A,A
+	SUB	A,E
+	LOAD	E,A
+	XOR	A,A
+	SUBC	A,D
+	LOAD	D,A
+	POP	HL
+DV_DN:	RET
+
+
+
+;#############################################################
+;# PRDEC_S : AFFICHE HL EN DECIMAL SIGNE                     #
+;#############################################################
+;ZEROS DE TETE SUPPRIMES, SIGNE '-' SI NEGATIF
+
+PRDEC_S:
+	LOAD	A,H
+	AND	A,#200
+	JUMP	EQ,PRDS_P
+	;NEGATIF
+	PUSH	HL
+	LOAD	A,#'-
+	.W	?DICAR
+	POP	HL
+	CALL	NEG_HL
+PRDS_P:	LOAD	A,H
+	OR	A,L
+	JUMP	NE,PRDS_NZ
+	;ZERO
+	LOAD	A,#'0
+	.W	?DICAR
+	RET
+PRDS_NZ:
+	LOAD	C,#0		;FLAG : 0 = SUPPRESSION ACTIVE
+	LOAD	DE,#10000.
+	CALL	PRDIG
+	LOAD	DE,#1000.
+	CALL	PRDIG
+	LOAD	DE,#100.
+	CALL	PRDIG
+	LOAD	DE,#10.
+	CALL	PRDIG
+	;UNITES : TOUJOURS IMPRIME
+	LOAD	A,L
+	ADD	A,#'0
+	.W	?DICAR
+	RET
+
+
+
+;#############################################################
+;# PRDIG : EXTRACTION ET AFFICHAGE D'UN CHIFFRE              #
+;#############################################################
+;IN  : HL = VAL RESTANTE, DE = DIVISEUR, C = FLAG SUPPRESSION
+;OUT : HL -= B*DE, IMPRIME B (SAUF SI SUPPRIME), C := 1 SI IMPR
+
+PRDIG:	LOAD	B,#0
+PRDIGL:	PUSH	HL
+	LOAD	A,L
+	SUB	A,E
+	LOAD	L,A
+	LOAD	A,H
+	SUBC	A,D
+	LOAD	H,A
+	JUMP	CS,PRDIGE	;EMPRUNT -> HL ETAIT < DE
+	POP	AF		;JETTE
+	INC	B
+	JUMP	PRDIGL
+PRDIGE:	POP	HL		;RESTAURE
+	LOAD	A,B
+	OR	A,A
+	JUMP	NE,PRDIGP
+	LOAD	A,C
+	OR	A,A
+	JUMP	EQ,PRDIGS	;ZERO + SUPPRESSION ACTIVE -> SKIP
+PRDIGP:	LOAD	A,B
+	ADD	A,#'0
+	.W	?DICAR
+	LOAD	C,#1
+PRDIGS:	RET
+
+
+
+;#############################################################
+;# PRHEX : IMPRIME A EN HEX 2 CHARS (DIAGNOSTIC)             #
+;#############################################################
+;Clobbers A, C
+
+PRHEX:	PUSH	AF
+	SRC	A
+	SRC	A
+	SRC	A
+	SRC	A
+	ADD	A,#'0
+	COMP	A,#'9+1
+	JUMP	LO,PRHX1
+	ADD	A,#7
+PRHX1:	LOAD	C,A
+	.W	?DICAR
+	POP	AF
+	AND	A,#17
+	ADD	A,#'0
+	COMP	A,#'9+1
+	JUMP	LO,PRHX2
+	ADD	A,#7
+PRHX2:	LOAD	C,A
+	.W	?DICAR
+	RET
+
+DEBUVM	=	1
+.IF	DEBUVM	
+DIVSP:
+	PUSH	AF
+	PUSH	BC
+	PUSH	HL
+	PUSH	IX
+
+	LOAD	IX,#VSTOP
+	LOAD	B,#4.
+DIVSP1:
+	DEC	IX
+	LOAD	H,(IX)
+	DEC	IX
+	LOAD	L,(IX)
+	.W	?SPACE, ?AFOHL
+	DECJ,NE	B,DIVSP1
+
+	POP	IX
+	POP	HL
+	POP	BC
+	POP	AF
+	RET
+
+DILSP:
+	PUSH	AF
+	PUSH	BC
+	PUSH	HL
+	PUSH	IX
+
+	.W	?TEXTIM
+	.ASCIZ	/ FP: /
+	LOAD	HL,FP
+	.W	?AFOHL
+
+	.W	?TEXTIM
+	.ASCIZ	/ LSTACK: /
+	LOAD	IX,#LSTACK
+	LOAD	B,#30.
+DILSP1:
+	LOAD	L,(IX)
+	INC	IX
+	LOAD	H,(IX)
+	INC	IX
+	.W	?SPACE, ?AFOHL
+	DECJ,NE	B,DILSP1
+	.W	?RETURN
+
+	POP	IX
+	POP	HL
+	POP	BC
+	POP	AF
+	RET
+.ENDIF
+
+;#############################################################
+;# VMLOOP : BOUCLE DE DISPATCH                               #
+;#############################################################
+
+VMLOOP:
+	LOAD	HL,BCIP
+
+	.IF	DEBUVM
+	.W	?TEXTIM
+	.ASCIZ	/<CR>VMloop: /
+	LOAD	HL,BCIP
+	.W	?AFOHL
+	LOAD	A,(HL)
+	.W	?SPACE, ?AFOCA
+	; CALL	DIVSP
+	CALL	DILSP
+	.W	?GETCAR
+	.ENDIF
+
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	;HL := OPTBL + A*2
+	LOAD	HL,#OPTBL
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	;LIRE LE MOT POINTE
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	JUMP	(HL)
+
+
+
+;#############################################################
+;# OPTBL : TABLE DE DISPATCH (INDEXEE PAR OPCODE)            #
+;#############################################################
+
+OPTBL:
+	;000 - 003
+	.W	VM_HALT
+	.W	VM_PSHI
+	.W	VM_LOAD
+	.W	VM_STOR
+	;004 - 010 : LOCAUX + FONCTIONS
+	.W	VM_LDL
+	.W	VM_STL
+	.W	VM_CALL
+	.W	VM_RETN
+	.W	VM_FRAME
+	;011 - 017 : INUTILISES
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	;020 - 025
+	.W	VM_ADD
+	.W	VM_SUB
+	.W	VM_MUL
+	.W	VM_DIV
+	.W	VM_MOD
+	.W	VM_NEG
+	;026 - 037
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	;040 - 045
+	.W	VM_EQ
+	.W	VM_NE
+	.W	VM_LT
+	.W	VM_LE
+	.W	VM_GT
+	.W	VM_GE
+	;046 - 057
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	;060 - 062
+	.W	VM_NOT
+	.W	VM_AND
+	.W	VM_OR
+	;063 - 077
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL
+	;0100 - 0102
+	.W	VM_JMP
+	.W	VM_JZ
+	.W	VM_JNZ
+	;0103 - 0117
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL
+	;0120 - 0123
+	.W	VM_PRTI
+	.W	VM_PRSP
+	.W	VM_PRNL
+	.W	VM_POP
+
+
+
+;#############################################################
+;# HANDLERS                                                  #
+;#############################################################
+
+VM_HALT:
+	ION			;reactive interruptions avant retour Samos
+	RET			;RETOUR A L'APPELANT DE VMRUN
+
+VM_PSHI:
+	LOAD	HL,BCIP
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	EX	HL,DE
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_LOAD:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	;HL := VARS + A*2
+	LOAD	HL,#VARS
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_STOR:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	LOAD	HL,#VARS
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	PUSH	HL		;ADR CIBLE
+	CALL	VPOP		;HL = VALEUR
+	POP	DE		;DE = ADR CIBLE
+	LOAD	A,L
+	LOAD	(DE),A
+	INC	DE
+	LOAD	A,H
+	LOAD	(DE),A
+	JUMP	VMLOOP
+
+VM_ADD:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	ADD	HL,DE
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_SUB:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,L
+	SUB	A,E
+	LOAD	L,A
+	LOAD	A,H
+	SUBC	A,D
+	LOAD	H,A
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_MUL:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	CALL	MUL16
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_DIV:	CALL	VPOP		;HL = DIVISEUR
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,DIV0
+	PUSH	HL
+	CALL	VPOP		;HL = DIVIDEND
+	POP	DE
+	CALL	DIV16S
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_MOD:	CALL	VPOP
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,DIV0
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	CALL	DIV16S
+	EX	HL,DE		;HL = REMAINDER
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_NEG:	CALL	VPOP
+	CALL	NEG_HL
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_EQ:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	COMP	A,D
+	JUMP	NE,CMP_F
+	LOAD	A,L
+	COMP	A,E
+	JUMP	NE,CMP_F
+	JUMP	CMP_T
+
+VM_NE:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	COMP	A,D
+	JUMP	NE,CMP_T
+	LOAD	A,L
+	COMP	A,E
+	JUMP	NE,CMP_T
+	JUMP	CMP_F
+
+VM_LT:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	;SIGNED A < B : XOR MSBs, COMPARE UNSIGNED, HL - DE
+	LOAD	A,H
+	XOR	A,#200
+	LOAD	H,A
+	LOAD	A,D
+	XOR	A,#200
+	LOAD	D,A
+	LOAD	A,L
+	SUB	A,E
+	LOAD	A,H
+	SUBC	A,D
+	JUMP	CS,CMP_T	;EMPRUNT -> HL < DE
+	JUMP	CMP_F
+
+VM_LE:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	XOR	A,#200
+	LOAD	H,A
+	LOAD	A,D
+	XOR	A,#200
+	LOAD	D,A
+	;A <= B  <=>  DE - HL SANS EMPRUNT
+	LOAD	A,E
+	SUB	A,L
+	LOAD	A,D
+	SUBC	A,H
+	JUMP	CC,CMP_T
+	JUMP	CMP_F
+
+VM_GT:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	XOR	A,#200
+	LOAD	H,A
+	LOAD	A,D
+	XOR	A,#200
+	LOAD	D,A
+	;A > B  <=>  DE - HL AVEC EMPRUNT
+	LOAD	A,E
+	SUB	A,L
+	LOAD	A,D
+	SUBC	A,H
+	JUMP	CS,CMP_T
+	JUMP	CMP_F
+
+VM_GE:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	XOR	A,#200
+	LOAD	H,A
+	LOAD	A,D
+	XOR	A,#200
+	LOAD	D,A
+	;A >= B  <=>  HL - DE SANS EMPRUNT
+	LOAD	A,L
+	SUB	A,E
+	LOAD	A,H
+	SUBC	A,D
+	JUMP	CC,CMP_T
+	JUMP	CMP_F
+
+VM_NOT:	CALL	VPOP
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,CMP_T
+	JUMP	CMP_F
+
+VM_AND:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,CMP_F
+	LOAD	A,D
+	OR	A,E
+	JUMP	EQ,CMP_F
+	JUMP	CMP_T
+
+VM_OR:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	OR	A,L
+	JUMP	NE,CMP_T
+	LOAD	A,D
+	OR	A,E
+	JUMP	NE,CMP_T
+	JUMP	CMP_F
+
+VM_JMP:	LOAD	HL,BCIP
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+VM_JZ:	CALL	VPOP
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,VM_JMP
+	;NON BRANCHE : SKIP OPERANDE (2 OCTETS)
+	LOAD	HL,BCIP
+	INC	HL
+	INC	HL
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+VM_JNZ:	CALL	VPOP
+	LOAD	A,H
+	OR	A,L
+	JUMP	NE,VM_JMP
+	LOAD	HL,BCIP
+	INC	HL
+	INC	HL
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+VM_PRTI:
+	CALL	VPOP
+	CALL	PRDEC_S
+	JUMP	VMLOOP
+
+VM_PRSP:
+	.W	?SPACE
+	JUMP	VMLOOP
+
+VM_PRNL:
+	.W	?RETURN
+	.W	?GETCAR		;pause apres chaque print (utile pour voir la sortie)
+	JUMP	VMLOOP
+
+VM_POP:	CALL	VPOP
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# HANDLERS FONCTIONS / LOCAUX (V0.2)                        #
+;#############################################################
+
+
+;LOAD VARIABLE LOCALE : HL := LSTACK[FP + slot*2], push
+VM_LDL:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	;HL := FP + A*2
+	LOAD	HL,FP
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	;Lire 2 octets a (HL)
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;STORE VARIABLE LOCALE : pop, store dans LSTACK[FP + slot*2]
+VM_STL:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	;HL := FP + A*2
+	LOAD	HL,FP
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	PUSH	HL		;ADR CIBLE
+	CALL	VPOP		;HL = VALEUR
+	POP	DE		;DE = ADR
+	LOAD	A,L
+	LOAD	(DE),A
+	INC	DE
+	LOAD	A,H
+	LOAD	(DE),A
+	JUMP	VMLOOP
+
+
+;CALL <addr 2 octets> <nargs 1 octet>
+;Sauve FP et IP dans header de frame, alloue frame, copie args
+;depuis VSTACK, saute a l'entree de la fonction.
+VM_CALL:
+	;Lire addr et nargs
+	LOAD	HL,BCIP
+		.W	?TEXTIM
+		.ASCIZ	/<CR>BCIP avant: /
+		.W	?AFOHL
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	LOAD	A,(HL)		;A = nargs
+	INC	HL
+	LOAD	BCIP,HL		;IP = adresse de retour
+		.W	?TEXTIM
+		.ASCIZ	/ apres: /
+		.W	?AFOHL
+	;Sauver addr et nargs en memoire
+	EX	HL,DE		;HL = addr
+	LOAD	CALLAD,HL
+	LOAD	CALLNA,A
+	;Sauver FP et IP au debut de la nouvelle frame (header)
+	LOAD	HL,LSP
+	LOAD	DE,FP
+	LOAD	(HL),E
+	INC	HL
+	LOAD	(HL),D
+	INC	HL
+
+	.W	?TEXTIM
+	.ASCIZ	/ ensuite: /
+	PUSH	HL
+	LOAD	HL,BCIP
+	.W	?AFOHL
+	POP	HL
+
+	LOAD	DE,BCIP
+	LOAD	(HL),E
+	INC	HL
+	LOAD	(HL),D
+	INC	HL
+	;HL = LSP + 4 = base de la frame (= nouveau FP)
+	LOAD	FP,HL
+	LOAD	LSP,HL
+	;Allouer nargs slots : LSP += nargs*2
+	LOAD	A,CALLNA
+	OR	A,A
+	JUMP	EQ,VMC_NA
+VMC_AL:	INC	HL
+	INC	HL
+	DEC	A
+	JUMP	NE,VMC_AL
+	LOAD	LSP,HL
+	;Remplir les slots avec les args (popper VSTACK).
+	;Top de VSTACK = dernier arg -> slot nargs-1 (= addr le plus haut)
+	;Travailler du haut vers le bas.
+	;HL = LSP (= FP + nargs*2). Decrementer pour chaque arg.
+	LOAD	A,CALLNA
+VMC_FL:	DEC	HL
+	DEC	HL
+	PUSH	HL		;sauve addr slot
+	PUSH	AF		;sauve compteur
+	CALL	VPOP		;HL = valeur popped
+	POP	AF
+	POP	DE		;DE = addr slot
+	LOAD	A,L
+	LOAD	(DE),A
+	INC	DE
+	LOAD	A,H
+	LOAD	(DE),A
+	DEC	DE		;DE = slot start
+	EX	HL,DE		;HL = slot start (pour decremmenter au prochain tour)
+	DEC	A
+	JUMP	NE,VMC_FL
+VMC_NA:	;Sauter a la fonction
+	LOAD	HL,CALLAD
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+
+;FRAME <nlocals 1 octet> : etend la frame de N slots zeroes
+VM_FRAME:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	OR	A,A
+	JUMP	EQ,VMF_DN
+	LOAD	HL,LSP
+	LOAD	B,A
+VMF_LP:	XOR	A,A
+	LOAD	(HL),A
+	INC	HL
+	LOAD	(HL),A
+	INC	HL
+	DEC	B
+	JUMP	NE,VMF_LP
+	LOAD	LSP,HL
+VMF_DN:	JUMP	VMLOOP
+
+
+;RETN : pop valeur de retour, libere frame, restaure FP+IP, repush
+VM_RETN:
+	CALL	VPOP		;HL = valeur de retour
+	LOAD	RETVAL,HL
+	;LSP := FP - 4 (= debut header)
+	LOAD	HL,FP
+	DEC	HL
+	DEC	HL
+	DEC	HL
+	DEC	HL
+	LOAD	LSP,HL
+	;Lire saved FP a (HL), (HL+1)
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	;DE = saved FP ; le sauver pour plus tard
+	PUSH	DE
+	;Lire saved IP a (HL), (HL+1)
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	;DE = saved IP
+	EX	HL,DE		;HL = saved IP
+	LOAD	BCIP,HL		;BCIP := saved IP
+	;Restaurer FP
+	POP	HL		;HL = saved FP
+	LOAD	FP,HL
+	;Push valeur de retour sur VSTACK
+	LOAD	HL,RETVAL
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+CMP_T:	LOAD	HL,#1
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+CMP_F:	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# ERREURS FATALES                                           #
+;#############################################################
+
+VM_ILL:	ION			;reactive IT avant erreur fatale
+	LOAD	HL,#VMEM1
+	.W	?DITEXT
+	.W	?RTN
+
+DIV0:	ION
+	LOAD	HL,#VMEM2
+	.W	?DITEXT
+	.W	?RTN

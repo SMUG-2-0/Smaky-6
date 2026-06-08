@@ -1,0 +1,1661 @@
+;#############################################################
+;# VM.SR  --  INTERPRETEUR BYTECODE PETIT-PYTHON             #
+;#############################################################
+;PYR 18 MAI 2026
+;A INCLURE PAR .INS VM. VM A PILE, DISPATCH PAR TABLE INDEXEE.
+
+
+
+;#############################################################
+;# CONSTANTES                                                #
+;#############################################################
+
+VRSIZE	= 192.		;TABLEAU VARIABLES GLOBALES (64 SLOTS x 3 OCTETS)
+FILPAT	= 314		;PATTERN DE REMPLISSAGE (diag corruption)
+
+;Adresses fixes des piles (en haut de RAM, 1 kB chacune)
+;Zones :  170000-173777 LSTACK (frames, grandit vers le haut)
+;         172000-173777 VSTAK  (VPUSH/VPOP, grandit vers le bas)
+;         174000-175777 zone pile Z80 (SP grandit vers le bas)
+;         176000-176377 variables VM (au-dessus pile, hors corruption)
+LSTACK	= 170000	;base de LSTACK, LSP demarre ici
+VSTAK	= 172000	;base de VSTAK (low addr)
+VSTOP	= 174000	;sommet de VSTAK, VSP demarre ici
+PILZ80	= 176000	;sommet pile Z80, SP demarre ici
+
+;Variables VM a adresses fixes (176000-176377, hors zone modifiable
+;par Samos ou par les pushes Z80)
+;Convention registres dedies :
+;  IX = VSP (sommet pile VM) - VPUSH/VPOP utilisent IX directement.
+;       Aucune variable VSP en memoire ; IX est maintenu a travers
+;       toute l'execution VM (les syscalls Samos preservent IX).
+BCIP	= 176000	;POINTEUR D'INSTRUCTION BYTECODE (2)
+FP	= 176002	;FRAME POINTER (2)
+LSP	= 176004	;PROCHAIN SLOT LIBRE LSTACK (2)
+RETVAL	= 176006	;VALEUR DE RETOUR TEMPORAIRE (2)
+CALLAD	= 176010	;ADRESSE CIBLE CALL (2)
+CALLNA	= 176012	;NB ARGS CALL (1)
+DVCNT	= 176013	;COMPTEUR DIV16 (1)
+DVDS	= 176014	;SIGNE DIVIDEND (1)
+DVQS	= 176015	;SIGNE QUOTIENT (1)
+RETTAG	= 176016	;TAG DE LA VALEUR DE RETOUR (1)
+VARS	= 176017	;VARIABLES GLOBALES (192 octets : 64 slots x 3)
+
+
+
+;#############################################################
+;# MESSAGES D'ERREUR                                         #
+;#############################################################
+
+VMEM1:	.ASCIZ	"VM ERR: OPCODE INCONNU<CR>"
+VMEM2:	.ASCIZ	"VM ERR: DIVISION PAR ZERO<CR>"
+VMEM3:	.ASCIZ	"VM ERR: PILE LOCAUX PLEINE<CR>"
+
+
+
+;#############################################################
+;# VARIABLES D'ETAT                                          #
+;#############################################################
+;Toutes les variables VM sont maintenant a adresses fixes 0xFC00+
+;(declarees comme constantes plus haut). Pas de .BLKB ici.
+
+
+
+;#############################################################
+;# VMRUN : EXECUTE LE BYTECODE                               #
+;#############################################################
+;IN  : HL = ADRESSE DEBUT BYTECODE
+;SORT QUAND HALT EXECUTE OU ERREUR FATALE.
+
+VMRUN:	IOF			;coupe interruptions 50 Hz pendant l'execution VM
+				;(SP est deja sur notre pile Z80, init dans PYTHON.SR)
+	PUSH	HL
+	CALL	VMINIT
+	POP	HL
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# VMINIT : INIT PILE + TABLEAU VARIABLES                    #
+;#############################################################
+
+VMINIT:	;Remplit LSTACK (1024 octets) avec FILPAT pour diagnostic
+	LOAD	HL,#LSTACK
+	LOAD	A,#FILPAT
+	LOAD	(HL),A
+	LOAD	DE,#LSTACK+1
+	LOAD	BC,#1024.-1
+	LDIR
+	;Remplit VSTAK (1024 octets) avec FILPAT
+	LOAD	HL,#VSTAK
+	LOAD	A,#FILPAT
+	LOAD	(HL),A
+	LOAD	DE,#VSTAK+1
+	LOAD	BC,#1024.-1
+	LDIR
+	;IX := VSTOP (IX dedie a VSP, croit vers le bas)
+	LOAD	IX,#VSTOP
+	;VARS := 0 (variables globales : tag=0 et valeur=0 partout)
+	LOAD	HL,#VARS
+	XOR	A,A
+	LOAD	(HL),A
+	LOAD	DE,#VARS+1
+	LOAD	BC,#VRSIZE-1
+	LDIR
+	;RETTAG := 0
+	XOR	A,A
+	LOAD	HL,#RETTAG
+	LOAD	(HL),A
+	;FP := 0 (hors fonction au depart)
+	LOAD	HL,#0
+	LOAD	FP,HL
+	;LSP := base de LSTACK
+	LOAD	HL,#LSTACK
+	LOAD	LSP,HL
+	;FTSP := base de FTMP (pile de flottants vide)
+	LOAD	HL,#FTMP
+	LOAD	FTSP,HL
+	RET
+
+
+
+;#############################################################
+;# VMRUNR : EXECUTE UNE LIGNE EN MODE INTERACTIF (REPL)      #
+;#############################################################
+;COMME VMRUN, MAIS NE REMET PAS A ZERO LES VARIABLES GLOBALES
+;(ELLES PERSISTENT D'UNE LIGNE REPL A LA SUIVANTE). LES PILES
+;SONT VIDES ENTRE DEUX INSTRUCTIONS : ON LES RE-ARME.
+;IN : HL = ADRESSE DEBUT BYTECODE
+
+VMRUNR:	IOF
+	LOAD	IX,#VSTOP
+	PUSH	HL
+	LOAD	HL,#0
+	LOAD	FP,HL
+	LOAD	HL,#LSTACK
+	LOAD	LSP,HL
+	XOR	A,A
+	LOAD	HL,#RETTAG
+	LOAD	(HL),A
+	;FTSP := base de FTMP (pile de flottants vide a chaque ligne)
+	LOAD	HL,#FTMP
+	LOAD	FTSP,HL
+	POP	HL
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# VMZVAR : MET A ZERO LES VARIABLES GLOBALES                #
+;#############################################################
+;APPELE UNE SEULE FOIS AU DEMARRAGE DU MODE REPL.
+
+VMZVAR:	LOAD	HL,#VARS
+	XOR	A,A
+	LOAD	(HL),A
+	LOAD	DE,#VARS+1
+	LOAD	BC,#VRSIZE-1
+	LDIR
+	RET
+
+
+
+;#############################################################
+;# VPUSH / VPOP  (utilisent IX = VSP)                        #
+;#############################################################
+;SLOT VSTACK = 3 OCTETS : LO, HI, TAG (DE L'ADRESSE BASSE A HAUTE)
+;TAG = 0 (INT) ou 1 (STRING REF, VALEUR = ADDR DANS STRBUF)
+;
+;VPUSH  : IN HL = VALEUR (TAG=0 PAR DEFAUT, INT)
+;VPUSHS : IN HL = VALEUR (TAG=1, STRING REF)
+;VPUSHT : IN A = TAG, HL = VALEUR
+;VPOP   : OUT HL = VALEUR, A = TAG
+
+VPUSH:	XOR	A,A		;TAG = 0 (INT)
+	;fall through
+VPUSHT:	DEC	IX
+	LOAD	(IX),A		;TAG (ADRESSE HAUTE)
+	DEC	IX
+	LOAD	(IX),H		;HIGH
+	DEC	IX
+	LOAD	(IX),L		;LOW
+	RET
+
+VPUSHS:	LOAD	A,#1		;TAG = 1 (STRING)
+	JUMP	VPUSHT
+
+VPUSHN:	LOAD	A,#2		;TAG = 2 (NONE)
+	LOAD	HL,#0
+	JUMP	VPUSHT
+
+VPOP:	LOAD	L,(IX)		;LOW
+	INC	IX
+	LOAD	H,(IX)		;HIGH
+	INC	IX
+	LOAD	A,(IX)		;TAG
+	INC	IX
+	RET
+
+
+
+;#############################################################
+;# FTMP : PILE DE FLOTTANTS (CELLULES DE 8 OCTETS)           #
+;#############################################################
+;UN FLOTTANT SUR VSTACK A LE TAG 3 ET POUR VALEUR L'ADRESSE
+;DE SA CELLULE DE 8 OCTETS SUR FTMP. FTMP EST UNE PILE
+;SYNCHRONISEE AVEC LES ENTREES FLOTTANTES DE VSTACK (LIFO) :
+;ON ALLOUE EN POUSSANT, ON LIBERE EN DEPILANT -> BORNEE.
+;
+;FTPOP : LIBERE LA CELLULE DE SOMMET (FTSP -= 8). USES A, HL.
+
+FTPOP:	LOAD	HL,FTSP
+	LOAD	A,L
+	SUB	A,#8.
+	LOAD	L,A
+	JUMP	CC,FTPOK	;PAS D'EMPRUNT
+	DEC	H
+FTPOK:	LOAD	FTSP,HL
+	RET
+
+
+
+;#############################################################
+;# OUTILS FLOTTANTS (TAG 3)                                  #
+;#############################################################
+
+;ISFLT : A = 1 SI L'UN DES DEUX SOMMETS DE VSTACK EST UN FLOAT.
+;PEEK SANS DEPILER. USES A, HL. PRESERVE IX, VSTACK.
+ISFLT:	PUSH	IX
+	POP	HL		;HL = IX (sommet : (IX)=lo)
+	INC	HL
+	INC	HL		;HL -> tag du sommet (IX+2)
+	LOAD	A,(HL)
+	COMP	A,#3
+	JUMP	EQ,ISFL1
+	INC	HL
+	INC	HL
+	INC	HL		;HL -> tag du second (IX+5)
+	LOAD	A,(HL)
+	COMP	A,#3
+	JUMP	EQ,ISFL1
+	XOR	A,A
+	RET
+ISFL1:	LOAD	A,#1
+	RET
+
+
+;VPUSHF : EMPILE UN FLOTTANT. IN HL = SRC 8 OCTETS. ALLOUE UNE
+;CELLULE FTMP, COPIE, PUIS PUSH {tag=3, val=adr cellule}.
+VPUSHF:	LOAD	DE,FTSP		;DE = CELLULE DESTINATION
+	LOAD	BC,#8.
+	LDIR			;(HL) -> (DE)
+	LOAD	HL,FTSP		;HL = ADR CELLULE
+	PUSH	HL
+	LOAD	BC,#8.
+	ADD	HL,BC
+	LOAD	FTSP,HL		;FTSP += 8
+	POP	HL		;HL = ADR CELLULE
+	LOAD	A,#3
+	CALL	VPUSHT
+	RET
+
+
+;VPOPF : DEPILE LE SOMMET DE VSTACK SOUS FORME FLOTTANTE DANS (DE).
+;IN DE = DEST 8 OCTETS. ENTIER -> ?HLTBIN ; FLOAT -> COPIE + FTPOP.
+VPOPF:	PUSH	DE		;SAUVE DEST
+	CALL	VPOP		;HL = VAL, A = TAG ; IX += 3
+	POP	DE		;DE = DEST
+	COMP	A,#3
+	JUMP	EQ,VPOPFF
+	;ENTIER : CONVERSION ?HLTBIN (HL = ENTIER SIGNE, (DE) = FLOAT)
+	.W	?HLTBIN
+	RET
+VPOPFF:	;FLOAT : HL = CELLULE SOURCE -> COPIE 8 OCTETS VERS (DE), PUIS FTPOP
+	LOAD	BC,#8.
+	LDIR
+	CALL	FTPOP
+	RET
+
+
+;VARADR : HL = VARS + slot*3. IN A = SLOT. USES DE.
+VARADR:	LOAD	H,#0
+	LOAD	L,A
+	PUSH	HL
+	ADD	HL,HL		;2*slot
+	POP	DE
+	ADD	HL,DE		;3*slot
+	LOAD	DE,#VARS
+	ADD	HL,DE
+	RET
+
+
+;GFADR : HL = GFCELL + slot*8 (CELLULE FLOTTANTE D'UNE VAR GLOBALE).
+;IN A = SLOT. USES DE. PRESERVE A.
+GFADR:	LOAD	H,#0
+	LOAD	L,A
+	ADD	HL,HL		;*2
+	ADD	HL,HL		;*4
+	ADD	HL,HL		;*8
+	LOAD	DE,#GFCELL
+	ADD	HL,DE
+	RET
+
+
+;FBPRE : PREPARE UNE OP BINAIRE FLOTTANTE. DEPILE b -> FLB, a -> FLA,
+;PUIS HL = #FLA, DE = #FLB (CONVENTION matpac (HL) op (DE)).
+FBPRE:	LOAD	DE,#FLB
+	CALL	VPOPF		;SOMMET (b) -> FLB
+	LOAD	DE,#FLA
+	CALL	VPOPF		;SUIVANT (a) -> FLA
+	LOAD	HL,#FLA
+	LOAD	DE,#FLB
+	RET
+
+;FBPOST : EMPILE LE RESULTAT (FLA) COMME FLOTTANT.
+FBPOST:	LOAD	HL,#FLA
+	CALL	VPUSHF
+	JUMP	VMLOOP
+
+
+;----- OPERATIONS BINAIRES FLOTTANTES : (FLA) = (FLA) op (FLB) -----
+FADDF:	CALL	FBPRE
+	.W	?FADD
+	JUMP	FBPOST
+FSUBF:	CALL	FBPRE
+	.W	?FSUB
+	JUMP	FBPOST
+FMULF:	CALL	FBPRE
+	.W	?FMUL
+	JUMP	FBPOST
+FDIVF:	CALL	FBPRE
+	.W	?FDIV
+	JUMP	FBPOST
+
+
+;----- COMPARAISONS FLOTTANTES : ?FCOMP (FLA),(FLB) -> DRAPEAUX -----
+;CARRY SET = a < b (lower) ; ZERO SET = a == b ; CARRY CLEAR = a >= b.
+;LE RESULTAT EST UN ENTIER 0/1 (CMP_T / CMP_F).
+FCMPF:	CALL	FBPRE
+	.W	?FCOMP
+	RET			;DRAPEAUX DE ?FCOMP RENDUS A L'APPELANT
+
+FLTF:	CALL	FCMPF		;a < b
+	JUMP	CS,CMP_T
+	JUMP	CMP_F
+FLEF:	CALL	FCMPF		;a <= b
+	JUMP	CS,CMP_T
+	JUMP	EQ,CMP_T
+	JUMP	CMP_F
+FGTF:	CALL	FCMPF		;a > b
+	JUMP	CS,CMP_F
+	JUMP	EQ,CMP_F
+	JUMP	CMP_T
+FGEF:	CALL	FCMPF		;a >= b
+	JUMP	CS,CMP_F
+	JUMP	CMP_T
+FEQF:	CALL	FCMPF		;a == b
+	JUMP	EQ,CMP_T
+	JUMP	CMP_F
+FNEF:	CALL	FCMPF		;a != b
+	JUMP	EQ,CMP_F
+	JUMP	CMP_T
+
+
+
+;#############################################################
+;# NEG_HL : HL := -HL                                        #
+;#############################################################
+
+NEG_HL:	XOR	A,A
+	SUB	A,L
+	LOAD	L,A
+	LOAD	A,#0		;A=0 SANS TOUCHER AU CARRY (XOR L'EFFACERAIT)
+	SUBC	A,H
+	LOAD	H,A
+	RET
+
+
+
+;#############################################################
+;# MUL16 : HL := (HL * DE) LOW 16 BITS                       #
+;#############################################################
+;ALGO SHIFT-ADD : RESULTAT EN HL, MULTIPLICAND EN BC,
+;MULTIPLIER (DE) DECALE A DROITE, BIT 0 -> CARRY.
+;NOTE : en CALM 1re gen, "RRC" et "RLC" = rotates a travers
+;le carry (le C suffixe veut dire "with Carry"). "RR" et "RL"
+;sans C sont des rotates circulaires.
+
+MUL16:	LOAD	B,H
+	LOAD	C,L		;BC = MULTIPLICAND
+	LOAD	HL,#0
+	LOAD	A,#16.
+ML_LP:	SRC	D		;DE >>= 1, OLD LOW BIT -> CARRY
+	RRC	E
+	JUMP	CC,ML_SK
+	ADD	HL,BC
+ML_SK:	SLC	C		;BC <<= 1
+	RLC	B
+	DEC	A
+	JUMP	NE,ML_LP
+	RET
+
+
+
+;#############################################################
+;# DIV16 : DIVISION UNSIGNED 16/16                           #
+;#############################################################
+;IN  : HL = DIVIDEND, DE = DIVISOR (> 0)
+;OUT : HL = QUOTIENT, DE = REMAINDER
+
+DIV16:	LOAD	A,#16.
+	LOAD	DVCNT,A
+	LOAD	B,#0
+	LOAD	C,#0
+DV_LP:	;HL <<= 1, TOP BIT INTO BC
+	ADD	HL,HL
+	RLC	C		;BC <<= 1 + c-in (= bit 15 ancien de HL)
+	RLC	B
+	;TENTATIVE BC -= DE
+	LOAD	A,C
+	SUB	A,E
+	LOAD	C,A
+	LOAD	A,B
+	SUBC	A,D
+	LOAD	B,A
+	JUMP	CC,DV_OK
+	;UNDO BC += DE
+	LOAD	A,C
+	ADD	A,E
+	LOAD	C,A
+	LOAD	A,B
+	ADDC	A,D
+	LOAD	B,A
+	JUMP	DV_NX
+DV_OK:	INC	HL		;QUOTIENT BIT 0 := 1
+DV_NX:	LOAD	A,DVCNT
+	DEC	A
+	LOAD	DVCNT,A
+	JUMP	NE,DV_LP
+	;HL = QUOTIENT, BC = REMAINDER
+	LOAD	D,B
+	LOAD	E,C
+	RET
+
+
+
+;#############################################################
+;# DIV16S : DIVISION SIGNEE (TRONCATURE VERS ZERO)           #
+;#############################################################
+;IN  : HL = DIVIDEND, DE = DIVISOR (!= 0)
+;OUT : HL = QUOTIENT, DE = REMAINDER (SIGNE DU DIVIDEND)
+
+DIV16S:	LOAD	A,H
+	AND	A,#200
+	LOAD	DVDS,A		;SIGNE DIVIDEND
+	LOAD	A,H
+	XOR	A,D
+	AND	A,#200
+	LOAD	DVQS,A		;SIGNE QUOTIENT = XOR DES SIGNES
+	;ABS(HL)
+	LOAD	A,DVDS
+	OR	A,A
+	JUMP	EQ,DV_AHL
+	CALL	NEG_HL
+DV_AHL:	;ABS(DE)
+	LOAD	A,D
+	AND	A,#200
+	JUMP	EQ,DV_ADE
+	XOR	A,A
+	SUB	A,E
+	LOAD	E,A
+	LOAD	A,#0		;A=0 SANS TOUCHER AU CARRY
+	SUBC	A,D
+	LOAD	D,A
+DV_ADE:	CALL	DIV16
+	;SIGNE QUOTIENT
+	LOAD	A,DVQS
+	OR	A,A
+	JUMP	EQ,DV_RM
+	CALL	NEG_HL
+DV_RM:	;SIGNE REMAINDER (SUIT DIVIDEND)
+	LOAD	A,DVDS
+	OR	A,A
+	JUMP	EQ,DV_DN
+	PUSH	HL
+	XOR	A,A
+	SUB	A,E
+	LOAD	E,A
+	LOAD	A,#0		;A=0 SANS TOUCHER AU CARRY
+	SUBC	A,D
+	LOAD	D,A
+	POP	HL
+DV_DN:	RET
+
+
+
+;#############################################################
+;# PRDEC_S : AFFICHE HL EN DECIMAL SIGNE                     #
+;#############################################################
+;ZEROS DE TETE SUPPRIMES, SIGNE '-' SI NEGATIF
+
+PRDEC_S:
+	LOAD	A,H
+	AND	A,#200
+	JUMP	EQ,PRDS_P
+	;NEGATIF
+	PUSH	HL
+	LOAD	A,#'-
+	.W	?DICAR
+	POP	HL
+	CALL	NEG_HL
+PRDS_P:	LOAD	A,H
+	OR	A,L
+	JUMP	NE,PRDS_NZ
+	;ZERO
+	LOAD	A,#'0
+	.W	?DICAR
+	RET
+PRDS_NZ:
+	LOAD	C,#0		;FLAG : 0 = SUPPRESSION ACTIVE
+	LOAD	DE,#10000.
+	CALL	PRDIG
+	LOAD	DE,#1000.
+	CALL	PRDIG
+	LOAD	DE,#100.
+	CALL	PRDIG
+	LOAD	DE,#10.
+	CALL	PRDIG
+	;UNITES : TOUJOURS IMPRIME
+	LOAD	A,L
+	ADD	A,#'0
+	.W	?DICAR
+	RET
+
+
+
+;#############################################################
+;# PRDIG : EXTRACTION ET AFFICHAGE D'UN CHIFFRE              #
+;#############################################################
+;IN  : HL = VAL RESTANTE, DE = DIVISEUR, C = FLAG SUPPRESSION
+;OUT : HL -= B*DE, IMPRIME B (SAUF SI SUPPRIME), C := 1 SI IMPR
+
+PRDIG:	LOAD	B,#0
+PRDIGL:	PUSH	HL
+	LOAD	A,L
+	SUB	A,E
+	LOAD	L,A
+	LOAD	A,H
+	SUBC	A,D
+	LOAD	H,A
+	JUMP	CS,PRDIGE	;EMPRUNT -> HL ETAIT < DE
+	POP	AF		;JETTE
+	INC	B
+	JUMP	PRDIGL
+PRDIGE:	POP	HL		;RESTAURE
+	LOAD	A,B
+	OR	A,A
+	JUMP	NE,PRDIGP
+	LOAD	A,C
+	OR	A,A
+	JUMP	EQ,PRDIGS	;ZERO + SUPPRESSION ACTIVE -> SKIP
+PRDIGP:	LOAD	A,B
+	ADD	A,#'0
+	.W	?DICAR
+	LOAD	C,#1
+PRDIGS:	RET
+
+
+
+;#############################################################
+;# PRHEX : IMPRIME A EN HEX 2 CHARS (DIAGNOSTIC)             #
+;#############################################################
+;Clobbers A, C
+
+PRHEX:	PUSH	AF
+	SRC	A
+	SRC	A
+	SRC	A
+	SRC	A
+	ADD	A,#'0
+	COMP	A,#'9+1
+	JUMP	LO,PRHX1
+	ADD	A,#7
+PRHX1:	LOAD	C,A
+	.W	?DICAR
+	POP	AF
+	AND	A,#17
+	ADD	A,#'0
+	COMP	A,#'9+1
+	JUMP	LO,PRHX2
+	ADD	A,#7
+PRHX2:	LOAD	C,A
+	.W	?DICAR
+	RET
+
+
+
+;#############################################################
+;# VMLOOP : BOUCLE DE DISPATCH                               #
+;#############################################################
+
+VMLOOP:	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	;HL := OPTBL + A*2
+	LOAD	HL,#OPTBL
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	;LIRE LE MOT POINTE
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	JUMP	(HL)
+
+
+
+;#############################################################
+;# OPTBL : TABLE DE DISPATCH (INDEXEE PAR OPCODE)            #
+;#############################################################
+
+OPTBL:
+	;000 - 003
+	.W	VM_HALT
+	.W	VM_PSHI
+	.W	VM_LOAD
+	.W	VM_STOR
+	;004 - 010 : LOCAUX + FONCTIONS
+	.W	VM_LDL
+	.W	VM_STL
+	.W	VM_CALL
+	.W	VM_RETN
+	.W	VM_FRAME
+	;011 : PSHS ; 012 : SYS ; 013 : PSHN ; 014 : PSHF ; 015 - 017 : INUTILISES
+	.W	VMPSHS
+	.W	VMSYS
+	.W	VMPSHN,VMPSHF,VM_ILL,VM_ILL,VM_ILL
+	;020 - 025
+	.W	VM_ADD
+	.W	VM_SUB
+	.W	VM_MUL
+	.W	VM_DIV
+	.W	VM_MOD
+	.W	VM_NEG
+	;026 - 037
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	;040 - 045
+	.W	VM_EQ
+	.W	VM_NE
+	.W	VM_LT
+	.W	VM_LE
+	.W	VM_GT
+	.W	VM_GE
+	;046 - 057
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	;060 - 062
+	.W	VM_NOT
+	.W	VM_AND
+	.W	VM_OR
+	;063 - 077
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL
+	;0100 - 0102
+	.W	VM_JMP
+	.W	VM_JZ
+	.W	VM_JNZ
+	;0103 - 0117
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL,VM_ILL,VM_ILL
+	.W	VM_ILL,VM_ILL,VM_ILL
+	;0120 - 0125
+	.W	VM_PRT
+	.W	VM_PRSP
+	.W	VM_PRNL
+	.W	VM_POP
+	.W	VM_INPT
+	.W	VMPRTR
+
+
+
+;#############################################################
+;# HANDLERS                                                  #
+;#############################################################
+
+VM_HALT:
+	ION			;reactive interruptions avant retour Samos
+	RET			;RETOUR A L'APPELANT DE VMRUN
+
+VM_PSHI:
+	LOAD	HL,BCIP
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	EX	HL,DE
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_LOAD:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	LOAD	(STSLOT),A	;SAUVE LE SLOT
+	CALL	VARADR		;HL = VARS + slot*3
+	;LIRE TAG, LO, HI
+	LOAD	A,(HL)		;TAG
+	INC	HL
+	LOAD	E,(HL)		;LO
+	INC	HL
+	LOAD	D,(HL)		;HI -> DE = VALEUR
+	COMP	A,#3
+	JUMP	EQ,LOADF	;FLOAT
+	EX	HL,DE		;HL = VALEUR
+	CALL	VPUSHT		;A = TAG, HL = VALEUR
+	JUMP	VMLOOP
+LOADF:	;VARIABLE FLOTTANTE : EMPILE UNE COPIE FRAICHE DE GFCELL[slot]
+	LOAD	A,(STSLOT)
+	CALL	GFADR		;HL = GFCELL + slot*8
+	CALL	VPUSHF
+	JUMP	VMLOOP
+
+VM_STOR:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	LOAD	(STSLOT),A	;SAUVE LE SLOT
+	CALL	VPOP		;HL = VALEUR, A = TAG
+	COMP	A,#3
+	JUMP	EQ,STORF	;FLOAT
+	;--- NON FLOAT : VARS[slot] = {tag, valeur} ---
+	LOAD	B,A		;B = TAG
+	PUSH	HL		;SAUVE VALEUR
+	LOAD	A,(STSLOT)
+	CALL	VARADR		;HL = VARS + slot*3
+	POP	DE		;DE = VALEUR
+	LOAD	(HL),B		;TAG
+	INC	HL
+	LOAD	(HL),E		;LO
+	INC	HL
+	LOAD	(HL),D		;HI
+	JUMP	VMLOOP
+STORF:	;FLOAT : HL = CELLULE FTMP -> COPIE DANS GFCELL[slot], FTPOP, TAG=3
+	PUSH	HL		;SAUVE CELLULE SOURCE
+	LOAD	A,(STSLOT)
+	CALL	GFADR		;HL = GFCELL + slot*8 (DEST)
+	EX	HL,DE		;DE = DEST
+	POP	HL		;HL = CELLULE SOURCE
+	LOAD	BC,#8.
+	LDIR			;COPIE 8 OCTETS
+	CALL	FTPOP		;LIBERE LA CELLULE FTMP
+	LOAD	A,(STSLOT)
+	CALL	VARADR		;HL = VARS + slot*3
+	LOAD	A,#3
+	LOAD	(HL),A		;TAG = 3 (VALEUR RECALCULEE AU LOAD)
+	JUMP	VMLOOP
+
+VM_ADD:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FADDF	;OPERANDE FLOTTANT
+	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	ADD	HL,DE
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_SUB:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FSUBF	;OPERANDE FLOTTANT
+	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,L
+	SUB	A,E
+	LOAD	L,A
+	LOAD	A,H
+	SUBC	A,D
+	LOAD	H,A
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_MUL:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FMULF	;OPERANDE FLOTTANT
+	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	CALL	MUL16
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_DIV:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FDIVF	;OPERANDE FLOTTANT
+	CALL	VPOP		;HL = DIVISEUR
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,DIV0
+	PUSH	HL
+	CALL	VPOP		;HL = DIVIDEND
+	POP	DE
+	CALL	DIV16S
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_MOD:	CALL	VPOP
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,DIV0
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	CALL	DIV16S
+	EX	HL,DE		;HL = REMAINDER
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+VM_NEG:	CALL	VPOP		;HL = VALEUR, A = TAG
+	COMP	A,#3
+	JUMP	EQ,FNEG		;FLOAT
+	CALL	NEG_HL
+	CALL	VPUSH
+	JUMP	VMLOOP
+FNEG:	;HL = ADRESSE CELLULE (TOUJOURS AU SOMMET DE FTMP : PAS DE FTPOP).
+	;NEGATION EN PLACE PUIS ON RE-EMPILE LA MEME CELLULE.
+	.W	?FCHSIG
+	LOAD	A,#3
+	CALL	VPUSHT
+	JUMP	VMLOOP
+
+VM_EQ:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FEQF
+	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	COMP	A,D
+	JUMP	NE,CMP_F
+	LOAD	A,L
+	COMP	A,E
+	JUMP	NE,CMP_F
+	JUMP	CMP_T
+
+VM_NE:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FNEF
+	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	COMP	A,D
+	JUMP	NE,CMP_T
+	LOAD	A,L
+	COMP	A,E
+	JUMP	NE,CMP_T
+	JUMP	CMP_F
+
+VM_LT:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FLTF
+	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	;SIGNED A < B : XOR MSBs, COMPARE UNSIGNED, HL - DE
+	LOAD	A,H
+	XOR	A,#200
+	LOAD	H,A
+	LOAD	A,D
+	XOR	A,#200
+	LOAD	D,A
+	LOAD	A,L
+	SUB	A,E
+	LOAD	A,H
+	SUBC	A,D
+	JUMP	CS,CMP_T	;EMPRUNT -> HL < DE
+	JUMP	CMP_F
+
+VM_LE:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FLEF
+	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	XOR	A,#200
+	LOAD	H,A
+	LOAD	A,D
+	XOR	A,#200
+	LOAD	D,A
+	;A <= B  <=>  DE - HL SANS EMPRUNT
+	LOAD	A,E
+	SUB	A,L
+	LOAD	A,D
+	SUBC	A,H
+	JUMP	CC,CMP_T
+	JUMP	CMP_F
+
+VM_GT:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FGTF
+	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	XOR	A,#200
+	LOAD	H,A
+	LOAD	A,D
+	XOR	A,#200
+	LOAD	D,A
+	;A > B  <=>  DE - HL AVEC EMPRUNT
+	LOAD	A,E
+	SUB	A,L
+	LOAD	A,D
+	SUBC	A,H
+	JUMP	CS,CMP_T
+	JUMP	CMP_F
+
+VM_GE:	CALL	ISFLT
+	OR	A,A
+	JUMP	NE,FGEF
+	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	XOR	A,#200
+	LOAD	H,A
+	LOAD	A,D
+	XOR	A,#200
+	LOAD	D,A
+	;A >= B  <=>  HL - DE SANS EMPRUNT
+	LOAD	A,L
+	SUB	A,E
+	LOAD	A,H
+	SUBC	A,D
+	JUMP	CC,CMP_T
+	JUMP	CMP_F
+
+VM_NOT:	CALL	VPOP
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,CMP_T
+	JUMP	CMP_F
+
+VM_AND:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,CMP_F
+	LOAD	A,D
+	OR	A,E
+	JUMP	EQ,CMP_F
+	JUMP	CMP_T
+
+VM_OR:	CALL	VPOP
+	PUSH	HL
+	CALL	VPOP
+	POP	DE
+	LOAD	A,H
+	OR	A,L
+	JUMP	NE,CMP_T
+	LOAD	A,D
+	OR	A,E
+	JUMP	NE,CMP_T
+	JUMP	CMP_F
+
+VM_JMP:	LOAD	HL,BCIP
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+VM_JZ:	CALL	VPOP
+	LOAD	A,H
+	OR	A,L
+	JUMP	EQ,VM_JMP
+	;NON BRANCHE : SKIP OPERANDE (2 OCTETS)
+	LOAD	HL,BCIP
+	INC	HL
+	INC	HL
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+VM_JNZ:	CALL	VPOP
+	LOAD	A,H
+	OR	A,L
+	JUMP	NE,VM_JMP
+	LOAD	HL,BCIP
+	INC	HL
+	INC	HL
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+VM_PRT:	;PRINT GENERIQUE : DISPATCH SUR TAG
+	CALL	VPOP		;HL = VALEUR, A = TAG
+	COMP	A,#2
+	JUMP	EQ,VMLOOP	;NONE -> RIEN
+	COMP	A,#3
+	JUMP	EQ,VPRT_F	;FLOAT
+	OR	A,A
+	JUMP	NE,VPRT_S	;TAG != 0 -> STRING
+	CALL	PRDEC_S
+	JUMP	VMLOOP
+VPRT_F:	;HL = ADRESSE CELLULE FLOTTANTE ; AFFICHE PUIS DEPILE FTMP
+	.W	?WRBIDE
+	CALL	FTPOP
+	JUMP	VMLOOP
+VPRT_S:	;HL = ADDR DEBUT CHAINE DANS STRBUF, AFFICHE JUSQU'AU NULL
+	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,VMLOOP
+	PUSH	HL
+	.W	?DICAR
+	POP	HL
+	INC	HL
+	JUMP	VPRT_S
+
+
+VMPSHN:	;PUSH NONE
+	CALL	VPUSHN
+	JUMP	VMLOOP
+
+
+VMPSHF:	;PUSH FLOTTANT LITTERAL : 8 OCTETS BCD SUIVENT L'OPCODE.
+	;COPIE DANS LA CELLULE FTMP COURANTE, PUIS PUSH {tag=3, val=adr cellule}.
+	LOAD	DE,FTSP		;DE = CELLULE DESTINATION (SOMMET LIBRE)
+	LOAD	HL,BCIP		;HL = OPERANDE (8 OCTETS DANS LE BYTECODE)
+	PUSH	DE		;SAUVE L'ADRESSE DE LA CELLULE
+	LOAD	BC,#8.
+	LDIR			;COPIE 8 OCTETS ; HL -> APRES OPERANDE, DE -> APRES CELLULE
+	LOAD	BCIP,HL		;BCIP APRES LES 8 OCTETS
+	;FTSP += 8
+	LOAD	HL,FTSP
+	LOAD	BC,#8.
+	ADD	HL,BC
+	LOAD	FTSP,HL
+	;PUSH VSTACK : tag=3, valeur = adresse de la cellule
+	POP	HL		;HL = ADRESSE CELLULE
+	LOAD	A,#3
+	CALL	VPUSHT
+	JUMP	VMLOOP
+
+
+VMPRTR:	;AFFICHE LE RESULTAT D'UNE EXPRESSION REPL (LE "P" DE REPL).
+	;NONE (TAG 2) -> RIEN DU TOUT ; SINON AFFICHE LA VALEUR + CR.
+	CALL	VPOP		;HL = VALEUR, A = TAG
+	COMP	A,#2
+	JUMP	EQ,VPTR_DN	;NONE -> AUCUNE SORTIE
+	COMP	A,#3
+	JUMP	EQ,VPTR_F	;FLOAT
+	OR	A,A
+	JUMP	NE,VPTR_S	;TAG != 0 -> STRING
+	CALL	PRDEC_S
+	JUMP	VPTR_NL
+VPTR_F:	.W	?WRBIDE
+	CALL	FTPOP
+	JUMP	VPTR_NL
+VPTR_S:	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,VPTR_NL
+	PUSH	HL
+	.W	?DICAR
+	POP	HL
+	INC	HL
+	JUMP	VPTR_S
+VPTR_NL:	.W	?RETURN
+VPTR_DN:	JUMP	VMLOOP
+
+
+VMPSHS:	;PUSH STRING REF (LIT ADDR 2 OCTETS LE, PUSH AVEC TAG=1)
+	LOAD	HL,BCIP
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	EX	HL,DE
+	CALL	VPUSHS
+	JUMP	VMLOOP
+
+VM_PRSP:
+	.W	?SPACE
+	JUMP	VMLOOP
+
+VM_PRNL:
+	.W	?RETURN
+	LOAD	A,OPTCNT	;pause clavier uniquement si /C
+	OR	A,A
+	JUMP	EQ,VPNDN
+	.W	?GETCAR
+VPNDN:	JUMP	VMLOOP
+
+VM_POP:	CALL	VPOP		;HL = VALEUR, A = TAG
+	COMP	A,#3
+	JUMP	NE,VMPOPD	;PAS UN FLOAT
+	CALL	FTPOP		;LIBERE LA CELLULE FTMP
+VMPOPD:	JUMP	VMLOOP
+
+
+;LIT UN ENTIER DECIMAL AU CLAVIER, PUSH SUR VSTACK.
+;ECHO DES CHIFFRES ET DU '-' EVENTUEL, PUIS CR FINAL.
+;ACCEPTE :  [-]?  CHIFFRES*  CR
+;CARACTERES NON RECONNUS : IGNORES SILENCIEUSEMENT.
+
+VM_INPT:
+	LOAD	HL,#0		;ACCUMULATEUR
+	LOAD	B,#0		;B = FLAG DIGIT-SEEN
+	LOAD	C,#0		;C = FLAG NEGATIF
+VMI_LP:	PUSH	HL		;SAUVE ACC AVANT SYSCALL
+	PUSH	BC		;SAUVE FLAGS
+	.W	?GETCAR		;A = CHAR LU (SANS ECHO)
+	POP	BC
+	POP	HL
+	COMP	A,#CR
+	JUMP	EQ,VMI_DN
+	COMP	A,#'-
+	JUMP	NE,VMI_DG
+	;'-' : VALIDE SEULEMENT AVANT TOUT CHIFFRE ET UNE SEULE FOIS
+	LOAD	A,B
+	OR	A,A
+	JUMP	NE,VMI_LP
+	LOAD	A,C
+	OR	A,A
+	JUMP	NE,VMI_LP
+	LOAD	C,#1
+	PUSH	HL
+	PUSH	BC
+	LOAD	A,#'-
+	.W	?DICAR
+	POP	BC
+	POP	HL
+	JUMP	VMI_LP
+VMI_DG:	COMP	A,#'0
+	JUMP	LO,VMI_LP	;< '0' -> NON CHIFFRE
+	COMP	A,#'9+1
+	JUMP	CC,VMI_LP	;>= '9'+1 -> NON CHIFFRE
+	;A = CHIFFRE '0'..'9' ; ECHO ET ACC := ACC*10 + DIGIT
+	PUSH	AF		;SAUVE CHAR
+	LOAD	B,#1		;MARQUE DIGIT-SEEN
+	PUSH	HL
+	PUSH	BC
+	.W	?DICAR		;ECHO (A TIENT TOUJOURS LE CHAR)
+	POP	BC
+	POP	HL
+	POP	AF
+	SUB	A,#'0		;A = VALEUR NUMERIQUE 0..9
+	PUSH	AF		;SAUVE DIGIT
+	LOAD	D,H
+	LOAD	E,L
+	ADD	HL,HL		;*2
+	ADD	HL,HL		;*4
+	ADD	HL,DE		;*5
+	ADD	HL,HL		;*10
+	POP	AF
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE		;ACC = ACC*10 + DIGIT
+	JUMP	VMI_LP
+VMI_DN:	;CR RECU : ECHO UN CR SEUL (PAS DE LF SUR SMAKY 6)
+	PUSH	HL
+	PUSH	BC
+	LOAD	A,#CR
+	.W	?DICAR
+	POP	BC
+	POP	HL
+	;NEGATE SI FLAG C=1
+	LOAD	A,C
+	OR	A,A
+	JUMP	EQ,VMI_PS
+	CALL	NEG_HL
+VMI_PS:	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# HANDLERS FONCTIONS / LOCAUX (V0.2)                        #
+;#############################################################
+
+
+;LOAD VARIABLE LOCALE : lit 3 octets a LSTACK[FP + slot*3], push
+VM_LDL:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	;HL := FP + slot*3
+	LOAD	HL,FP
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	ADD	HL,DE
+	;Lire tag, lo, hi
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	CALL	VPUSHT
+	JUMP	VMLOOP
+
+
+;STORE VARIABLE LOCALE : pop, store 3 octets dans LSTACK[FP + slot*3]
+VM_STL:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	;HL := FP + slot*3
+	LOAD	HL,FP
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	ADD	HL,DE
+	PUSH	HL		;ADR CIBLE
+	CALL	VPOP		;HL = VALEUR, A = TAG
+	POP	DE		;DE = ADR
+	LOAD	B,A		;SAUVE TAG
+	EX	HL,DE		;HL = ADR, DE = VALEUR
+	LOAD	(HL),B		;TAG
+	INC	HL
+	LOAD	(HL),E		;LO
+	INC	HL
+	LOAD	(HL),D		;HI
+	JUMP	VMLOOP
+
+
+;CALL <addr 2 octets> <nargs 1 octet>
+;Sauve FP et IP dans header de frame, alloue frame, copie args
+;depuis VSTACK, saute a l'entree de la fonction.
+VM_CALL:
+	;Lire addr et nargs
+	LOAD	HL,BCIP
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	LOAD	A,(HL)		;A = nargs
+	INC	HL
+	LOAD	BCIP,HL		;IP = adresse de retour
+	;Sauver addr et nargs en memoire
+	EX	HL,DE		;HL = addr
+	LOAD	CALLAD,HL
+	LOAD	CALLNA,A
+	;Sauver FP et IP au debut de la nouvelle frame (header)
+	LOAD	HL,LSP
+	LOAD	DE,FP
+	LOAD	(HL),E
+	INC	HL
+	LOAD	(HL),D
+	INC	HL
+	LOAD	DE,BCIP
+	LOAD	(HL),E
+	INC	HL
+	LOAD	(HL),D
+	INC	HL
+	;HL = LSP + 4 = base de la frame (= nouveau FP)
+	LOAD	FP,HL
+	LOAD	LSP,HL
+	;Allouer nargs slots : LSP += nargs*3
+	LOAD	A,CALLNA
+	OR	A,A
+	JUMP	EQ,VMC_NA
+	LOAD	B,A
+VMC_AL:	INC	HL
+	INC	HL
+	INC	HL
+	DECJ	NE,B,VMC_AL
+	LOAD	LSP,HL
+	;Remplir les slots avec les args (popper VSTACK).
+	;Top de VSTACK = dernier arg -> slot nargs-1 (= addr le plus haut)
+	;Travailler du haut vers le bas. B = compteur (DECJ NE,B).
+	;VPOP modifie IX, HL et A, mais preserve B.
+	LOAD	A,CALLNA
+	LOAD	B,A
+VMC_FL:	DEC	HL
+	DEC	HL
+	DEC	HL
+	PUSH	HL		;sauve addr slot (= tag byte)
+	CALL	VPOP		;HL = valeur, A = tag
+	POP	DE		;DE = addr slot
+	LOAD	C,A		;sauve tag dans C
+	EX	HL,DE		;HL = slot addr, DE = valeur
+	LOAD	(HL),C		;ecrit tag
+	INC	HL
+	LOAD	(HL),E		;ecrit lo
+	INC	HL
+	LOAD	(HL),D		;ecrit hi
+	DEC	HL
+	DEC	HL		;HL = slot start (pour DEC x3 suivants)
+	DECJ	NE,B,VMC_FL
+VMC_NA:	;Sauter a la fonction
+	LOAD	HL,CALLAD
+	LOAD	BCIP,HL
+	JUMP	VMLOOP
+
+
+;FRAME <nlocals 1 octet> : etend la frame de N slots (3 octets) zeroes
+VM_FRAME:
+	LOAD	HL,BCIP
+	LOAD	A,(HL)
+	INC	HL
+	LOAD	BCIP,HL
+	OR	A,A
+	JUMP	EQ,VMF_DN
+	LOAD	HL,LSP
+	LOAD	B,A
+	XOR	A,A
+VMF_LP:	LOAD	(HL),A		;TAG = 0 (INT)
+	INC	HL
+	LOAD	(HL),A		;LO = 0
+	INC	HL
+	LOAD	(HL),A		;HI = 0
+	INC	HL
+	DECJ	NE,B,VMF_LP
+	LOAD	LSP,HL
+VMF_DN:	JUMP	VMLOOP
+
+
+;RETN : pop valeur de retour (avec tag), libere frame, restaure FP+IP,
+;repush la valeur avec son tag
+VM_RETN:
+	CALL	VPOP		;HL = valeur, A = tag
+	LOAD	RETVAL,HL
+	LOAD	RETTAG,A
+	;LSP := FP - 4 (= debut header)
+	LOAD	HL,FP
+	DEC	HL
+	DEC	HL
+	DEC	HL
+	DEC	HL
+	LOAD	LSP,HL
+	;Lire saved FP a (HL), (HL+1)
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	INC	HL
+	;DE = saved FP ; le sauver pour plus tard
+	PUSH	DE
+	;Lire saved IP a (HL), (HL+1)
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	;DE = saved IP
+	EX	HL,DE		;HL = saved IP
+	LOAD	BCIP,HL		;BCIP := saved IP
+	;Restaurer FP
+	POP	HL		;HL = saved FP
+	LOAD	FP,HL
+	;Push valeur de retour sur VSTACK avec son tag
+	LOAD	A,RETTAG
+	LOAD	HL,RETVAL
+	CALL	VPUSHT
+	JUMP	VMLOOP
+
+CMP_T:	LOAD	HL,#1
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+CMP_F:	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# VMSYS : APPELS SYSTEME BUILTIN                            #
+;#############################################################
+;OPCODE BCSYS SUIVI D'UN OCTET INDEX. DISPATCH PAR SYSTBL.
+;CHAQUE STUB DEPILE SES ARGS DE VSTACK, FAIT L'APPEL SAMOS,
+;PUIS POUSSE UNE VALEUR (0 SI L'APPEL N'EN RETOURNE PAS).
+;TOUS LES VECTEURS UTILISES PRESERVENT IX (= VSP).
+
+VMSYS:	LOAD	HL,BCIP
+	LOAD	A,(HL)		;A = INDEX BUILTIN
+	INC	HL
+	LOAD	BCIP,HL
+	;HL := SYSTBL + INDEX*2
+	LOAD	HL,#SYSTBL
+	LOAD	D,#0
+	LOAD	E,A
+	ADD	HL,DE
+	ADD	HL,DE
+	LOAD	E,(HL)
+	INC	HL
+	LOAD	D,(HL)
+	EX	HL,DE
+	JUMP	(HL)
+
+SYSTBL:	.W	SCCLS		;0 = cls()
+	.W	SCGOXY		;1 = gotoxy(ligne,colonne)
+	.W	SCBEEP		;2 = beep()
+	.W	SCGKEY		;3 = getkey()
+	.W	SCDLY		;4 = delay(n)
+	.W	SCINKY		;5 = inkey()
+	.W	SCPUTC		;6 = putc(code)
+	.W	SCGRAF		;7 = graph()
+	.W	SCTEXT		;8 = text()
+	.W	SCGCLS		;9 = gcls()
+	.W	SCPLOT		;10 = plot(x,y)
+	.W	SCCLRP		;11 = clrp(x,y)
+	.W	SCLINE		;12 = line(x1,y1,x2,y2,m)
+	.W	SCSIN		;13 = sin(x)
+	.W	SCCOS		;14 = cos(x)
+	.W	SCSQRT		;15 = sqrt(x)
+	.W	SCINT		;16 = int(x)  -> entier
+	.W	SCFRAC		;17 = frac(x)
+	.W	SCPI		;18 = pi()
+	.W	SCINPF		;19 = inputf()
+
+
+;cls() : efface l'ecran alpha. ?CLEAR n'a pas d'argument.
+SCCLS:	.W	?CLEAR
+	CALL	VPUSHN		;cls() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;gotoxy(ligne,colonne) : place le curseur alpha.
+;?SETCURS : H = ligne (0..19), L = colonne (0..63).
+;VSTACK (du sommet vers le bas) : colonne, puis ligne.
+SCGOXY:	CALL	VPOP		;HL = colonne
+	LOAD	A,L
+	PUSH	AF		;SAUVE COLONNE
+	CALL	VPOP		;HL = ligne
+	LOAD	H,L		;H = ligne
+	POP	AF
+	LOAD	L,A		;L = colonne
+	.W	?SETCURS
+	CALL	VPUSHN		;gotoxy() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;beep() : bip sonore court. ?BEEP attend une valeur en A ;
+;203 (octal) est le bip standard de Samos. ?BEEP reactive
+;les interruptions en sortie -> on les recoupe (IOF).
+SCBEEP:	LOAD	A,#203
+	.W	?BEEP
+	IOF
+	CALL	VPUSHN		;beep() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;getkey() : attend et lit une touche. ?GETCAR -> A = code.
+SCGKEY:	.W	?GETCAR
+	LOAD	H,#0
+	LOAD	L,A
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;delay(n) : pause d'environ n millisecondes (approximatif).
+;?HLDEL boucle HL fois. ?DELAY (sans suffixe) lirait son
+;delai dans l'argument de commande : pas ce qu'on veut.
+SCDLY:	CALL	VPOP		;HL = n
+	.W	?HLDEL
+	CALL	VPUSHN		;delay() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;inkey() : lecture clavier NON bloquante. ?IFCAR rend la
+;touche (carry clair) ou rien (carry positionne). On pousse
+;le code, ou 0 si aucune touche n'attend.
+SCINKY:	.W	?IFCAR
+	JUMP	CS,SCINK0
+	LOAD	H,#0
+	LOAD	L,A
+	CALL	VPUSH
+	JUMP	VMLOOP
+SCINK0:	LOAD	HL,#0
+	CALL	VPUSH
+	JUMP	VMLOOP
+
+
+;putc(code) : affiche un seul caractere, sans saut de ligne.
+;le code ASCII est l'octet bas de l'argument.
+SCPUTC:	CALL	VPOP		;HL = code
+	LOAD	A,L
+	.W	?DICAR
+	CALL	VPUSHN		;putc() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;graph() : mode alpha + graphique, pixels gros. On ecrit
+;directement LAMODI et le port video $0, comme le fait la
+;queue ?IALPHA/?IGRA : pas de dependance au carry.
+SCGRAF:	LOAD	A,LAMODI
+	AND	A,#365		;b3=0 alpha visible, b1=0 gros
+	OR	A,#4		;b2=1 graphique visible
+	LOAD	LAMODI,A
+	LOAD	$0,A		;ecrit le registre video
+	CALL	VPUSHN		;graph() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;text() : revient en mode alphanumerique seul.
+SCTEXT:	LOAD	A,LAMODI
+	AND	A,#363		;b2=0 graphique masque, b3=0 alpha visible
+	LOAD	LAMODI,A
+	LOAD	$0,A
+	CALL	VPUSHN		;text() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;gcls() : efface l'ecran graphique.
+SCGCLS:	.W	?CGRA
+	CALL	VPUSHN		;gcls() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;plot(x,y) : allume un pixel. SETP attend D=y, E=x.
+;x : 0..255, y : 0..119.
+SCPLOT:	CALL	VPOP		;HL = y
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = x
+	LOAD	E,L		;E = x
+	POP	AF
+	LOAD	D,A		;D = y
+	CALL	SETP
+	CALL	VPUSHN		;plot() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;clrp(x,y) : eteint un pixel.
+SCCLRP:	CALL	VPOP		;HL = y
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = x
+	LOAD	E,L
+	POP	AF
+	LOAD	D,A
+	CALL	CLRP
+	CALL	VPUSHN		;clrp() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+;line(x1,y1,x2,y2,m) : trace un segment de droite.
+;m = mode (0 efface, 1 fin, 2 gras). SEGA : DE = depart,
+;HL = arrivee ; un point = octet haut y, octet bas x.
+SCLINE:	CALL	VPOP		;HL = m
+	LOAD	A,L
+	CALL	CMOD		;regle le mode (A)
+	CALL	VPOP		;HL = y2
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = x2
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = y1
+	LOAD	A,L
+	PUSH	AF
+	CALL	VPOP		;HL = x1
+	LOAD	E,L		;E = x1
+	POP	AF
+	LOAD	D,A		;D = y1  -> DE = depart
+	POP	AF
+	LOAD	L,A		;L = x2
+	POP	AF
+	LOAD	H,A		;H = y2  -> HL = arrivee
+	CALL	SEGA
+	CALL	VPUSHN		;line() ne renvoie rien -> None
+	JUMP	VMLOOP
+
+
+
+;#############################################################
+;# BUILTINS MATHEMATIQUES (FLOTTANTS, VIA MATPAC)            #
+;#############################################################
+;FONCTIONS UNAIRES : ARG -> FLA (FLOTTANT, ENTIER PROMU),
+;f(FLA) EN PLACE, PUIS EMPILE FLA COMME FLOTTANT.
+
+;SCFA : DEPILE L'ARGUMENT DANS FLA (FLOTTANT) ; HL = #FLA.
+SCFA:	LOAD	DE,#FLA
+	CALL	VPOPF
+	LOAD	HL,#FLA
+	RET
+
+;SCFPUSH : EMPILE FLA COMME RESULTAT FLOTTANT.
+SCFPUSH: LOAD	HL,#FLA
+	CALL	VPUSHF
+	JUMP	VMLOOP
+
+SCSIN:	CALL	SCFA
+	.W	?FSIN
+	JUMP	SCFPUSH
+
+SCCOS:	CALL	SCFA
+	.W	?FCOS
+	JUMP	SCFPUSH
+
+SCSQRT:	CALL	SCFA
+	.W	?FSQRT
+	JUMP	SCFPUSH
+
+SCFRAC:	CALL	SCFA
+	.W	?FFRAC
+	JUMP	SCFPUSH
+
+;int(x) : PARTIE ENTIERE (?FINT) PUIS CONVERSION EN ENTIER 16 BITS
+;(?BINTHL). RETOURNE UN ENTIER (TAG 0).
+SCINT:	CALL	SCFA
+	.W	?FINT
+	LOAD	DE,#FLA
+	.W	?BINTHL		;(DE) flottant -> HL entier
+	CALL	VPUSH		;HL = entier, tag 0
+	JUMP	VMLOOP
+
+;pi() : CONSTANTE PI (AUCUN ARGUMENT).
+SCPI:	LOAD	HL,#FLA
+	.W	?FPI
+	JUMP	SCFPUSH
+
+;inputf() : SAISIE CLAVIER D'UN FLOTTANT (?GEDEBI -> FLA).
+;NB : le symbole de mat.st se tronque a ?GEDEB (6 car) ; on ecrit
+;?GEDEBI pour rester fidele au manuel. ?GEDEBI echoit les chiffres
+;mais pas le CR terminal : on l'echoit nous-memes (comme input()).
+SCINPF:	LOAD	DE,#FLA
+	.W	?GEDEBI
+	.W	?RETURN		;ECHO DU SAUT DE LIGNE
+	JUMP	SCFPUSH
+
+
+
+;#############################################################
+;# ERREURS FATALES                                           #
+;#############################################################
+
+VM_ILL:	ION			;reactive IT avant erreur
+	LOAD	HL,#VMEM1
+	JUMP	ERRDIE
+
+DIV0:	ION
+	LOAD	HL,#VMEM2
+	JUMP	ERRDIE

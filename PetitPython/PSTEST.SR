@@ -1,0 +1,381 @@
+	.TITLE	PSTEST.SR
+	.PROC	Z80
+	.REF	FLO
+
+;PYR 17 MAI 2026  TEST DU PARSER PETIT-PYTHON
+;CHARGE TEST.PY, LEX + PARSE, AFFICHE LA TABLE DES SYMBOLES
+;ET LE BYTECODE EN MINI-DESASSEMBLAGE.
+
+
+
+;#############################################################
+;# CONSTANTES                                                #
+;#############################################################
+
+BUFSIZ	= 4000		;TAILLE BUFFER SOURCE EN OCTAL (2 KO)
+BCSIZE	= 4000		;TAILLE BUFFER BYTECODE EN OCTAL (2 KO)
+
+
+	.LOC	53000
+
+
+
+;#############################################################
+;# TEXTES                                                    #
+;#############################################################
+
+FNAME:	.ASCIZ	"TEST.PY"
+MERR:	.ASCIZ	"TEST.PY INTROUVABLE<CR>"
+MSYM:	.ASCIZ	"-- SYMBOLES --<CR>"
+MBC:	.ASCIZ	"<CR>-- BYTECODE --<CR>"
+MFIN:	.ASCIZ	"<CR>-- FIN --<CR>"
+MUNK:	.ASCIZ	"????"
+
+
+
+;#############################################################
+;# VARIABLES                                                 #
+;#############################################################
+
+CANAL:	.BLKB	1
+
+
+
+;#############################################################
+;# BUFFERS                                                   #
+;#############################################################
+
+SRCBUF:	.BLKB	BUFSIZ		;SOURCE PYTHON
+ENDSRC:	.B	0
+BCBUF:	.BLKB	BCSIZE		;BYTECODE EMIS
+SYMTBL:	.BLKB	512.		;TABLE SYMBOLES 64 * 8 OCTETS
+
+
+
+;#############################################################
+;# INCLURE LE PARSER (QUI INCLUT LUI-MEME LE LEXER)          #
+;#############################################################
+
+	.INS	PS
+
+
+
+;#############################################################
+;#############################################################
+;# PROGRAMME PRINCIPAL                                       #
+;#############################################################
+;#############################################################
+
+
+
+START:				;POINT D'ENTREE
+
+;==========================================================
+; ETAPE 0 : RECUPERER TOUT L'ECRAN ALPHA
+;==========================================================
+
+	LOAD	C,#20.
+	.W	?IDIS
+
+
+;==========================================================
+; ETAPE 1 : CLEAR DU BUFFER SOURCE
+;==========================================================
+
+	LOAD	HL,#SRCBUF
+	XOR	A,A
+	LOAD	(HL),A
+	LOAD	DE,#SRCBUF+1
+	LOAD	BC,#BUFSIZ-1
+	LDIR
+
+
+;==========================================================
+; ETAPE 2 : OUVRIR / LIRE / FERMER TEST.PY
+;==========================================================
+
+	LOAD	DE,#FNAME
+	.W	?OPEN
+	JUMP	CS,STERR
+	LOAD	CANAL,A
+
+	LOAD	A,CANAL
+	LOAD	BC,#BUFSIZ
+	LOAD	DE,#SRCBUF
+	.W	?RDBYTE
+
+	LOAD	A,CANAL
+	.W	?CLOSE
+
+
+;==========================================================
+; ETAPE 3 : LEX + PARSE
+;==========================================================
+
+	LOAD	HL,#SRCBUF
+	CALL	LXINIT
+	CALL	PSINIT
+	CALL	PSPARS
+
+
+;==========================================================
+; ETAPE 4 : AFFICHER LA TABLE DES SYMBOLES
+;==========================================================
+
+	LOAD	HL,#MSYM
+	.W	?DITEXT
+	CALL	PRSYM
+
+
+;==========================================================
+; ETAPE 5 : DESASSEMBLER LE BYTECODE
+;==========================================================
+
+	LOAD	HL,#MBC
+	.W	?DITEXT
+	LOAD	HL,#BCBUF
+	LOAD	DE,BCPTR
+	CALL	DISASM
+
+
+;==========================================================
+; ETAPE 6 : FIN
+;==========================================================
+
+	LOAD	HL,#MFIN
+	.W	?DITEXT
+	.W	?RTN
+
+
+
+STERR:	LOAD	HL,#MERR
+	.W	?DITEXT
+	.W	?RTN
+
+
+
+;#############################################################
+;# PRSYM : AFFICHE LA TABLE DES SYMBOLES                     #
+;#############################################################
+;FORMAT : SS NOM<CR>  (SS = SLOT HEX 2 CHIFFRES)
+
+PRSYM:	LOAD	A,SYMNUM
+	OR	A,A
+	JUMP	NE,PRSY1
+	RET			;TABLE VIDE
+PRSY1:	LOAD	C,#0		;C = SLOT COURANT
+PRSYLP:	LOAD	A,SYMNUM
+	LOAD	B,A
+	LOAD	A,C
+	COMP	A,B
+	JUMP	NE,PRSYO
+	RET			;FINI
+PRSYO:	LOAD	A,C
+	CALL	PRHEX
+	.W	?SPACE
+	LOAD	A,C
+	CALL	PRNAM
+	.W	?RETURN
+	.W	?GETCAR
+	INC	C
+	JUMP	PRSYLP
+
+
+
+;#############################################################
+;# PRNAM : AFFICHE LE NOM DU SLOT A (DEPUIS SYMTBL)          #
+;#############################################################
+;LIT JUSQU'A 8 CHARS OU JUSQU'AU PREMIER 0
+
+PRNAM:	;HL := SYMTBL + A*8
+	LOAD	H,#0
+	LOAD	L,A
+	ADD	HL,HL
+	ADD	HL,HL
+	ADD	HL,HL
+	LOAD	DE,#SYMTBL
+	ADD	HL,DE
+	LOAD	B,#8.
+PRNAL:	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,PRNADN
+	.W	?DICAR
+	INC	HL
+	DEC	B
+	JUMP	NE,PRNAL
+PRNADN:	RET
+
+
+
+;#############################################################
+;# DISASM : DESASSEMBLE BYTECODE DE HL JUSQU'A DE            #
+;#############################################################
+;FORMAT PAR LIGNE : AAAA: MNEM OPND<CR>
+;AAAA = ADRESSE HEX, MNEM = 4 CHARS, OPND = HEX 2 OU 4 CHIFFRES
+
+DISASM:
+DISLP:	;COMPARE HL ET DE
+	LOAD	A,H
+	COMP	A,D
+	JUMP	LO,DISMR
+	JUMP	NE,DISDN
+	LOAD	A,L
+	COMP	A,E
+	JUMP	LO,DISMR
+	JUMP	DISDN
+
+DISMR:	;AFFICHE L'ADRESSE
+	LOAD	A,H
+	CALL	PRHEX
+	LOAD	A,L
+	CALL	PRHEX
+	LOAD	A,#':
+	.W	?DICAR
+	.W	?SPACE
+
+	;LIT L'OPCODE
+	LOAD	A,(HL)
+	INC	HL
+	;LOOKUP DANS TABLE
+	PUSH	HL		;SAUVE PTR APRES OPCODE
+	CALL	DSLOOK		;A = OPCODE -> HL ENTRY OU CS SI INCONNU
+	JUMP	CS,DISUNK
+	;HL = ENTRY ; ENTRY+1 = OPSIZE, ENTRY+2..5 = MNEMO
+	INC	HL
+	LOAD	C,(HL)		;C = OPSIZE
+	INC	HL
+	;AFFICHE 4 CHARS DE MNEMO
+	LOAD	B,#4.
+DISML:	LOAD	A,(HL)
+	.W	?DICAR
+	INC	HL
+	DEC	B
+	JUMP	NE,DISML
+	;ESPACE SEPARATEUR
+	.W	?SPACE
+	;TRAITE L'OPERANDE
+	POP	HL		;HL APRES OPCODE
+	LOAD	A,C
+	OR	A,A
+	JUMP	EQ,DISFLN
+	COMP	A,#1
+	JUMP	EQ,DISOP1
+	;OPSIZE = 2 : LIRE LOW, SAUVER, LIRE HIGH, AFFICHER HIGH PUIS LOW
+	LOAD	A,(HL)		;LOW
+	INC	HL
+	LOAD	B,A		;SAUVE LOW DANS B
+	LOAD	A,(HL)		;HIGH
+	INC	HL
+	CALL	PRHEX		;AFFICHE HIGH
+	LOAD	A,B
+	CALL	PRHEX		;AFFICHE LOW
+	JUMP	DISFLN
+DISOP1:	LOAD	A,(HL)
+	INC	HL
+	CALL	PRHEX
+	JUMP	DISFLN
+DISUNK:	POP	HL		;HL APRES OPCODE
+	PUSH	HL
+	LOAD	HL,#MUNK
+	.W	?DITEXT
+	POP	HL
+DISFLN:	.W	?RETURN
+	.W	?GETCAR
+	JUMP	DISLP
+DISDN:	RET
+
+
+
+;#############################################################
+;# DSLOOK : RECHERCHE D'UN OPCODE DANS LA TABLE              #
+;#############################################################
+;IN  : A = OPCODE
+;OUT : CC + HL = ADRESSE DE L'ENTREE SI TROUVE
+;      CS SI NON TROUVE
+;PRESERVE A
+
+DSLOOK:	LOAD	C,A		;SAUVE OPCODE
+	LOAD	HL,#DSMTBL
+DSLKL:	LOAD	A,(HL)
+	COMP	A,#H'FF
+	JUMP	EQ,DSLKNF	;SENTINELLE
+	COMP	A,C
+	JUMP	EQ,DSLKFD
+	;AVANCE DE 6
+	INC	HL
+	INC	HL
+	INC	HL
+	INC	HL
+	INC	HL
+	INC	HL
+	JUMP	DSLKL
+DSLKFD:	LOAD	A,C
+	OR	A,A		;CC
+	RET
+DSLKNF:	LOAD	A,C
+	SETC
+	RET
+
+
+
+;#############################################################
+;# TABLE DES MNEMONIQUES                                     #
+;#############################################################
+;ENTREE : OPCODE, OPSIZE, 4 CHARS DE MNEMO
+
+DSMTBL:
+	.B	BCHALT, 0, 'H, 'A, 'L, 'T
+	.B	BCPSHI, 2, 'P, 'S, 'H, 'I
+	.B	BCLOAD, 1, 'L, 'O, 'A, 'D
+	.B	BCSTOR, 1, 'S, 'T, 'O, 'R
+	.B	BCADD,  0, 'A, 'D, 'D, H'20
+	.B	BCSUB,  0, 'S, 'U, 'B, H'20
+	.B	BCMUL,  0, 'M, 'U, 'L, H'20
+	.B	BCDIV,  0, 'D, 'I, 'V, H'20
+	.B	BCMOD,  0, 'M, 'O, 'D, H'20
+	.B	BCNEG,  0, 'N, 'E, 'G, H'20
+	.B	BCEQ,   0, 'E, 'Q, H'20, H'20
+	.B	BCNE,   0, 'N, 'E, H'20, H'20
+	.B	BCLT,   0, 'L, 'T, H'20, H'20
+	.B	BCLE,   0, 'L, 'E, H'20, H'20
+	.B	BCGT,   0, 'G, 'T, H'20, H'20
+	.B	BCGE,   0, 'G, 'E, H'20, H'20
+	.B	BCNOT,  0, 'N, 'O, 'T, H'20
+	.B	BCAND,  0, 'A, 'N, 'D, H'20
+	.B	BCOR,   0, 'O, 'R, H'20, H'20
+	.B	BCJMP,  2, 'J, 'M, 'P, H'20
+	.B	BCJZ,   2, 'J, 'Z, H'20, H'20
+	.B	BCJNZ,  2, 'J, 'N, 'Z, H'20
+	.B	BCPRTI, 0, 'P, 'R, 'T, 'I
+	.B	BCPRSP, 0, 'P, 'R, 'S, 'P
+	.B	BCPRNL, 0, 'P, 'R, 'N, 'L
+	.B	BCPOP,  0, 'P, 'O, 'P, H'20
+	.B	H'FF, 0, 0, 0, 0, 0	;SENTINELLE
+
+
+
+;#############################################################
+;# PRHEX : AFFICHE A SUR 2 CHIFFRES HEX                      #
+;#############################################################
+
+PRHEX:	PUSH	AF
+	SRC	A
+	SRC	A
+	SRC	A
+	SRC	A
+	CALL	PRHX1
+	POP	AF
+	AND	A,#H'0F
+	CALL	PRHX1
+	RET
+PRHX1:	COMP	A,#10.
+	JUMP	LO,PRHX2
+	ADD	A,#H'37		;'A' - 10
+	JUMP	PRHX3
+PRHX2:	ADD	A,#H'30		;'0'
+PRHX3:	.W	?DICAR
+	RET
+
+
+
+	.END	START

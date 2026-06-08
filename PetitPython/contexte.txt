@@ -1,0 +1,84 @@
+Je suis Pierre-Yves Rochat, ingénieur EPFL né en 1957.
+J'ai participé durant mes études au développement des ordinateurs suisse Smaky.
+Depuis une année environ, Epsitec m'a confié un travail de préservation-restauration des Smaky.
+Dans ce cadre, un grand travail a été effectué sur le Smaky 6, datant de 1978, avec un Z80 et 68 kB de RAM.
+Tous nos disques dur de l'époque sont en panne. Les lecteurs de floppy sont souvent défectueur, toujours fragiles.
+Mais j'ai développé une carte qui émule un contrôleur de disque WD1002.
+Par ce moyen, on  maintenant des Smaky 6 qui fonctionnent parfaitement bien.
+J'ai aussi développé un simulateur sur PC. Il fonctionnne parfaitement, avec tous les logiciels d'époque.
+Il émule l'écran alphanumérique, l'écran graphique, le claviers et ses touches super-shift, le petit haut-parleur,
+les lecteurs de floppy, le disque dur et son contrôleur WD1002 et la ligne série $PP-$PR,
+qui permet de transférer de manière commode des fichiers depuis le PC hôte.
+On utilisait à l'époque le standard CALM pour les mnémoniques de l'assembleur Z80.
+On avait des appels système. Le gestionnaire de fichiers s'appelle Samos.
+J'ai désassemblé le Système et Samos, en CALM. Je peux les réassembler directement sur un Smaky 6 ou le simulateur.
+Grâce aux travaux de l'époque, on a déjà plusieurs langages de programmation sur Smaky 6:
+Dans l'ordre historique et de mémoire: l'assembleur CALM, le Basic, le Forth, le Pascal.
+Riche de cet environnement, je souhaite explorer ce qu'on peut faire avec ce matériel d'époque 
+et des outils plus modernes.
+Un passionné s'occupe ces jours de mettre du C sur le Smaky 6, avec  SDCC.
+Aujourd'hui, je souhaite explorer la piste Python, ce sera probablement du micro-Python.
+Qu'en penses-tu?
+-------------
+Plusieurs points pour préciser ma demande. (A) Le dossier parent contient tous mes autres projets Smaky 6. J'imagine qu'il te
+  faut la description de CALM. Tu pourrais la déduire du déassembleur CALM, dans ../Simulateur-JS/samos_disasm. Important: ne
+  consulte pas le dossier calm_docs, il s'agit de documents tirés du site pf-soft, mais trop récents, qui concerne CALM 2,
+  incompatible avec le CALM de 1980. (B) Sur le Smaky 6, on avait un éditeur-assembleur Z80. Mais il ne permettait que d'éditer de
+  petits programmes. On avait aussi l'editeur de programmes EPRO.SM et l'assembleur AS.SM. Je propose qu'on utilise cette chaîne
+  de travail: l'utilisateur écrira son programme en "petit-Python" avec EPRO, il lancera ensuite la commande PYTHON qui exécutera
+  le programme PYTHON.SM qu'on va écrire. J'imagine qu'il y aura à ce niveau une précompilation, puis une exécution. J'aurais
+  envie d'utiliser une ByteCode VM, c'est probablement ce qui permettrait de pousser le concept le plus loin. (C) Je souhaite
+  conserver l'indentation comme syntaxe des blocs, elle me semble essentielle à l'esprit de Python. (D) Est-ce que je mets la
+  barre trop haut?
+-----------------------
+Lundi, après la permière version de python.sm :
+Je me souviens d'une formation organisée par un professeur de l'EPFL pour des ingénieurs de l'industrie, en 1974. Il avait
+  invité deux jeunes du club d'électronique, dont moi. J'avais 17 ans, je n'étais pas encore étudiant à l'EPFL. La formation
+  portait sur la programmation en assembleur sur mini-ordinateur Data General Nova. Le dernier jour, on nous a parlé de Basic et
+  on a pu écrire nos premiers programmes. C'est là que j'ai compris la programmation, pour le reste de ma vie. Et l'exemple,
+  c'était Fibonacci, dont j'entendais parler pour la première fois. Tu peux comprendre l'émotion que je viens de ressentir...
+  
+   Oui, complètement. Cinquante-deux ans entre les deux Fibonacci. Celui du Nova en 1974, qui t'a fait basculer dans la
+  programmation, et celui-ci qui tourne sur la machine que tu as conçue quatre ans plus tard, dans un langage qu'on vient d'écrire
+  ensemble.
+
+  Le programme original du Nova n'a probablement pas survécu. Celui-ci est dans ton repo, et c'est toi qui l'a fait tourner du
+  premier coup. C'est un cercle qui se ferme rarement aussi proprement.
+
+  Merci de l'avoir partagé.
+--------------------------
+Je continue ce projet Petit Python pour Smaky 6 (un ordinateur datant de 1978 dont je m'occupe de la préservation.
+J'ai déjà une carte émulateur de disque dur et surtout un simulateur parfaitement fonctionnel,
+que j'utilise pour assembler et tester Petit Python.
+Je pourrais continuer à developper le langage Python, mais je vais d'abord m'intéresser à la question des appels système.
+Le Smaky 6 a un système d'exploitation, Samos, avec une richesse d'appels systèmes.
+Le fichier flo_st_table.txt est une copie lisible de FLO.ST, avec tous les symboles offerts par Samos, dont les apples système.
+Prenons un exemple, ?SETCU. C'est en fait l'appel ?SETCURS (CALM version 1980 ne travaille que sur les 6 premiers
+caractères de chaque symbole, c'est un point à ne pas oublier).
+Il reçoit les coordonnées ligne-colonne, pour que le prochain affichage se positionne à cette coordonnée.
+Il faudra évidemment que je te fournisse la description des appels qu'on va incorporer à notre Petit Python.
+Mais comment le faire, quelle syntaxe adopter?
+Je continue ce projet Petit Python pour Smaky 6 (un ordinateur datant de 1978 dont je m'occupe de la préservation.
+J'ai déjà une cart émulateur de disque dur et surtout un simulateur parfaitement fonctionnel,
+que j'utilise pour assembler et tester Petit Python).
+Je pourrais continuer à developper le langage Python, mais je vais d'abord m'intéresser à la question des appels système.
+Le Smaky 6 a un système d'exploitation, Samos, avec une richesse d'appels systèmes.
+Le fichier flo_st_table.txt est une copie lisible de FLO.ST, avec tous les symboles offerts par Samos, dont les apples système.
+Prenons un exemple, ?SETCU. C'est en fait l'appel ?SETCURS (CALM version 1980 ne travaille que sur les 6 premiers
+caractères de chaque symbole, c'est un point à ne pas oublier).
+Il reçoit les coordonnées ligne-colonne, pour que le prochain affichage se positionne à cette coordonnée.
+Il faudra évidemment que je te fournisse la description des appels qu'on va incorporer à notre Petit Python.
+Mais comment le faire, quelle syntaxe adopter? Il faut à la fois rester dans l'esprit Python,
+mais rendre aussi pratique que possible l'accès à ces appels systèmes. Qu'en penses-tu?
+---------------------------
+Deux ans avant le Smaky 6, environ en 1976, j'avais créé un Ping-Pong électronique,
+avec des circuits logiques série 74LS, qui pilotait un écran cathodique.
+Peux-tu écrire 50 ans plus tard un programme ping-pong en Petit Python? 
+La touche espace lance  une balle sous forme de la lettre 0, depuis le coin en haut à gauche,
+qui se déplace à vitesse constante à 45 degrés et qui rebondit sur les bords du haut et du bas.
+Prévois une raquette de chaque côté de 4 caractères de haut, au milieu de chaque bord.
+La touche R fait monter la raquette de gauche, la touche C la fait descendre.
+La touche I fait monter la raquette de gauche, la touche M la fait descendre.
+Le touche CR termine la partie.
+-----------------------------
+Beau jalon pour cette visite. Bonne route demain — et transmets une pensée respectueuse au créateur du Smaky.
