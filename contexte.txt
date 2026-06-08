@@ -80,3 +80,5 @@ Prévois une raquette de chaque côté de 4 caractères de haut, au milieu de ch
 La touche R fait monter la raquette de gauche, la touche C la fait descendre.
 La touche I fait monter la raquette de gauche, la touche M la fait descendre.
 Le touche CR termine la partie.
+-----------------------------
+Beau jalon pour cette visite. Bonne route demain — et transmets une pensée respectueuse au créateur du Smaky.
