@@ -13,6 +13,8 @@
   "build": {
     "appId": "ch.epsitec.smaky6sim",
     "productName": "Smaky 6 Simulator",
+    "copyright": "© 2026 Epsitec SA, Pierre-Yves Rochat",
+    "directories": { "output": "dist" },
     "files": [
       "index.html", "main.js", "preload.js",
       "rom18.js", "chargen_rom.js", "z80.js", "disasm.js", "smaky.js",
@@ -20,7 +22,7 @@
       "audio.js", "FLO?.JS", "HD?.JS"
     ],
     "win": {
-      "target": "nsis",
+      "target": ["nsis", "portable"],
       "icon": "icon.ico"
     },
     "nsis": {
@@ -29,12 +31,13 @@
       "createDesktopShortcut": "always"
     },
     "linux": {
-      "target": ["tar.gz"],
+      "target": ["AppImage", "deb", "tar.gz"],
       "category": "Development",
-      "icon": "icon.png"
+      "icon": "icon.png",
+      "maintainer": "Pierre-Yves Rochat <pyr@pyr.ch>"
     },
     "mac": {
-      "target": ["zip"],
+      "target": ["dmg"],
       "icon": "icon.png",
       "category": "public.app-category.developer-tools",
       "identity": null
