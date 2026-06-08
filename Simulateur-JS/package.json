@@ -2,6 +2,8 @@
   "name": "smaky6-simulator",
   "version": "0.7.0",
   "description": "Simulateur Smaky 6 — Epsitec SA",
+  "homepage": "https://www.epsitec.ch/",
+  "author": { "name": "Pierre-Yves Rochat", "email": "pyr@pyr.ch" },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
