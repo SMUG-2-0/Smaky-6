@@ -1,0 +1,14 @@
+set_global_assignment -name FAMILY Cyclone
+set_global_assignment -name DEVICE EP1C20F400C7
+set_global_assignment -name TOP_LEVEL_ENTITY vgatext
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 9.1
+set_global_assignment -name LAST_QUARTUS_VERSION 9.1
+set_global_assignment -name SDC_FILE VGATest.sdc
+set_global_assignment -name VHDL_FILE char_rom.vhd
+set_global_assignment -name VHDL_FILE vgatext.vhd
+set_location_assignment PIN_K5  -to clk
+set_location_assignment PIN_C19 -to video
+set_location_assignment PIN_D20 -to hsync
+set_location_assignment PIN_D19 -to vsync
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"

@@ -42,6 +42,41 @@ portage = remap broches + largeur. La **SRAM async 1 MB** de la Nios est simple 
 du OneChipBook = impasse** : à n'utiliser que pour un bring-up rapide jetable, pas pour la map
 mémoire Smaky définitive.
 
+## Avancement — M3 « Smaky 6 à l'écran (VGA) » ✅✅✅ (2026-06-16)
+**Le Smaky 6 affiche son boot sur un moniteur VGA** : « ROM de chargement rev 1-8 » puis
+« Disque souple ». Boucle complète : Z80 réel + SDRAM + interruption 50 Hz + sortie VGA.
+Projet **`SM6Video-Nios1C20/`** (`sm6video.vhd` = `sm6boot` + vidéo).
+
+### Sortie VGA — raccord fait main sur la carte Nios
+La carte Nios n'a pas de VGA. Raccord sur le connecteur prototypage **J11** (= PROTO1, via
+bus-switches toujours actifs) — broches trouvées avec l'outil **`PinFinder-Nios1C20/`** (pull-up
+internes + pull-down externe → la LED s'allume). Câble VGA DE-15 fait maison :
+- **VIDEO** : J11 pin 4 = **FPGA C19** → résistance ~300 Ω → VGA R+G+B (blanc, monochrome 1 bit).
+- **HSYNC** : J11 pin 6 = **FPGA D19** ⚠️ *mais câble inversé* → assigné à **D20** dans le `.qsf`.
+- **VSYNC** : J11 pin 8 = **FPGA D20** ⚠️ inversé → assigné à **D19**.
+- **GND** : J11 pin 2 → VGA pins 5/6/7/8/10.
+(Note : HSYNC=D20 / VSYNC=D19 dans le qsf à cause de l'inversion physique du câble.)
+
+### Contrôleur vidéo (`sm6video.vhd` + `common/vram.vhd` + `char_rom.vhd`)
+- **VGA 640×480@60**, pixel clock 25 MHz (50/2 par toggle). Zone texte **64×20 cellules 8×16**,
+  centrée (h:64..575, v:80..399). Synchros actives bas.
+- **Générateur de caractères** : `chargen_rom.h` de **Marcel Prisi** (TMS2716, 128 car × 16 o,
+  bit0 = pixel gauche) → `char_rom.vhd` (bloc-RAM). Code char = bits 0-6, **bit7 = vidéo inverse**.
+- **RAM vidéo double-port** `common/vram.vhd` (2 Ko, zone 0x4000-0x47FF) : le CPU y écrit par
+  **SNOOP** (toute écriture CPU en 0x4000-0x47FF est copiée en VRAM, le CPU continue d'utiliser
+  la SDRAM) ; le contrôleur VGA lit le port B. Pas de conflit SDRAM.
+- Pipeline 2 étages (VRAM puis char_rom) aligné par registres `cx1/cx2`, `it1/it2`, `iv1`.
+
+### Étape 1 (mire VGA) validée séparément : **`VGATest-Nios1C20/`** (mire grille + test char-gen).
+
+### ▶ SUITE : émuler le **WD1002** (contrôleur disque dur)
+Le boot teste le WD1002 (ports **$20–$27**), le trouve absent → « Disque souple ». À implémenter
+d'après `../Simulateur-JS/smaky.js` (`_wd1002In`/`_wd1002Out`, `hdEnabled`) : registres style
+WD1010, secteur 256 o, 32 sect/piste, LBA=((cyl*heads)+head)*sect+sec. **Contenu disque fixe**
+dispo dans **`../Simulateur-JS/HD0.JS`** (16 MB, ~270 ko utiles) → charger en SDRAM (on a 16 MB).
+NB : récupérer la version à jour du simulateur depuis `github.com/SMUG-2-0/Smaky-6` (le local
+`Simulateur-JS-old` est périmé ; fait via `git checkout origin/master -- Simulateur-JS`).
+
 ## Avancement — M2 « Smaky 6 boote sur SDRAM » ✅✅ (2026-06-16)
 **Le Smaky 6 démarre sur le FPGA** : Z80 (T80) exécutant `ROM18.bin` depuis 64 kB de SDRAM,
 écrit **"ROM de chargement"** en mémoire écran (0x4000) → confirmé matériellement (détection
