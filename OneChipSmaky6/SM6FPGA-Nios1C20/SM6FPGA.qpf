@@ -1,0 +1,5 @@
+QUARTUS_VERSION = "9.1"
+DATE = "2026/06/16"
+
+# Révision SM6FPGA portée sur la Nios Development Board (carte d'entraînement Altera).
+PROJECT_REVISION = "SM6FPGA"

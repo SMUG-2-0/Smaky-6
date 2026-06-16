@@ -1,0 +1,41 @@
+# -------------------------------------------------------------------------- #
+# Nios Development Board, Cyclone Edition  —  EP1C20F400C7
+# Projet Blink ré-adapté pour la carte d'entraînement
+#
+# Brochage tiré du netlist officiel de la carte fourni avec Quartus :
+#   altera/91/ip/altera/nios2_ip/altera_nios_dev_board_cyclone_1c20
+# La cible finale (OneChipBook) reste dans Blink/ — ce projet ne l'écrase pas.
+# -------------------------------------------------------------------------- #
+
+set_global_assignment -name FAMILY Cyclone
+set_global_assignment -name DEVICE EP1C20F400C7
+set_global_assignment -name TOP_LEVEL_ENTITY blink
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 9.1
+set_global_assignment -name LAST_QUARTUS_VERSION 9.1
+
+# -------------------------------------------------------------------------- #
+# Source VHDL (partagée avec le projet Blink d'origine)
+# -------------------------------------------------------------------------- #
+set_global_assignment -name VHDL_FILE ../Blink/blink.vhd
+
+# -------------------------------------------------------------------------- #
+# Brochage  (Nios Development Board, Cyclone Edition)
+# -------------------------------------------------------------------------- #
+
+# Horloge 50 MHz sur l'entrée dédiée CLK0
+set_location_assignment PIN_K5 -to clk
+
+# LED D0 (allumée à l'état logique 1)
+set_location_assignment PIN_E14 -to led1
+
+# -------------------------------------------------------------------------- #
+# Options : broches inutilisées en entrée haute impédance (sûr sur cette carte)
+# -------------------------------------------------------------------------- #
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"
+
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name LL_ROOT_REGION ON -section_id "Root Region"
+set_global_assignment -name LL_MEMBER_STATE LOCKED -section_id "Root Region"

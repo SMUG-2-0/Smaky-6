@@ -1,0 +1,53 @@
+# -------------------------------------------------------------------------- #
+# OneChipBook-12  —  EP1C20F324C8  —  Projet SM6FPGA
+# Z80 (T80s) + ROM 256 octets + LED sur port I/O 0x20
+# -------------------------------------------------------------------------- #
+
+set_global_assignment -name FAMILY Cyclone
+set_global_assignment -name DEVICE EP1C12Q240C8
+set_global_assignment -name TOP_LEVEL_ENTITY SM6FPGA
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 9.0
+set_global_assignment -name PROJECT_CREATION_TIME_DATE "16:00:00  JUNE 15, 2026"
+set_global_assignment -name LAST_QUARTUS_VERSION 9.1
+
+# -------------------------------------------------------------------------- #
+# Fichiers sources VHDL  (ordre d'analyse important)
+# -------------------------------------------------------------------------- #
+set_global_assignment -name SDC_FILE SM6FPGA.sdc
+
+set_global_assignment -name VHDL_FILE T80/T80_Pack.vhd
+set_global_assignment -name VHDL_FILE T80/T80_ALU.vhd
+set_global_assignment -name VHDL_FILE T80/T80_Reg.vhd
+set_global_assignment -name VHDL_FILE T80/T80_MCode.vhd
+set_global_assignment -name VHDL_FILE T80/T80.vhd
+set_global_assignment -name VHDL_FILE T80/T80s.vhd
+set_global_assignment -name VHDL_FILE ROM.vhd
+set_global_assignment -name VHDL_FILE SM6FPGA.vhd
+
+# -------------------------------------------------------------------------- #
+# Assignations de broches
+# -------------------------------------------------------------------------- #
+
+# Horloge 21.47727 MHz
+set_location_assignment PIN_28 -to clk
+
+# RESET actif bas (broche 15 du slot d'expansion = FPGA 153)
+set_location_assignment PIN_153 -to reset_n
+
+# LED1 (status LED)
+set_location_assignment PIN_43 -to led1
+
+# -------------------------------------------------------------------------- #
+# Options de configuration
+# -------------------------------------------------------------------------- #
+set_global_assignment -name ENABLE_INIT_DONE_OUTPUT OFF
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"
+
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name LL_ROOT_REGION ON -section_id "Root Region"
+set_global_assignment -name LL_MEMBER_STATE LOCKED -section_id "Root Region"
+
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

@@ -1,0 +1,36 @@
+# ----------------------------------------------------------------------------
+# Quartus II — fichiers générés automatiquement (ne pas versionner)
+# ----------------------------------------------------------------------------
+db/
+incremental_db/
+output_files/
+simulation/
+greybox_tmp/
+*.rpt
+*.summary
+*.smsg
+*.pin
+*.done
+*.qws
+*.qdf
+*.bak
+*.orig
+*.qarlog
+*.sof
+*.pof
+*.rbf
+*.svf
+*.jdi
+*.qpg
+*.rdb
+.pplq.rdb
+
+# ModelSim / simulation
+*.wlf
+transcript
+work/
+
+# ----------------------------------------------------------------------------
+# Claude Code — réglages locaux propres à la machine
+# ----------------------------------------------------------------------------
+.claude/settings.local.json

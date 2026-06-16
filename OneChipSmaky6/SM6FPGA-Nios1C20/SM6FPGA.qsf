@@ -1,0 +1,61 @@
+# -------------------------------------------------------------------------- #
+# Nios Development Board, Cyclone Edition  —  EP1C20F400C7  —  SM6FPGA
+# Z80 (T80s) + ROM 256 octets + LED Smaky sur port I/O 0x20
+#
+# Révision portée sur la carte d'entraînement Altera. La cible finale
+# (OneChipBook, EP1C12) reste dans SM6FPGA/ — ce projet ne l'écrase pas.
+# Sources VHDL PARTAGÉES avec SM6FPGA/ via des chemins relatifs ../SM6FPGA/.
+# Brochage tiré du netlist officiel altera_nios_dev_board_cyclone_1c20.
+# -------------------------------------------------------------------------- #
+
+set_global_assignment -name FAMILY Cyclone
+set_global_assignment -name DEVICE EP1C20F400C7
+set_global_assignment -name TOP_LEVEL_ENTITY SM6FPGA
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 9.1
+set_global_assignment -name LAST_QUARTUS_VERSION 9.1
+
+# -------------------------------------------------------------------------- #
+# Fichiers sources VHDL  (ordre d'analyse important) — partagés avec ../SM6FPGA
+# -------------------------------------------------------------------------- #
+set_global_assignment -name SDC_FILE SM6FPGA.sdc
+
+set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80_Pack.vhd
+set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80_ALU.vhd
+set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80_Reg.vhd
+set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80_MCode.vhd
+set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80.vhd
+set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80s.vhd
+set_global_assignment -name VHDL_FILE ../SM6FPGA/ROM.vhd
+set_global_assignment -name VHDL_FILE ../SM6FPGA/SM6FPGA.vhd
+
+# -------------------------------------------------------------------------- #
+# Brochage  (Nios Development Board, Cyclone Edition)
+# -------------------------------------------------------------------------- #
+
+# Horloge 50 MHz sur l'entrée dédiée CLK0
+set_location_assignment PIN_K5 -to clk
+
+# RESET actif bas : poussoir SW0 (relâché = haut = pas de reset)
+set_location_assignment PIN_W3 -to reset_n
+
+# LED Smaky -> LED D7 de la carte (allumée à l'état logique 1), pour la distinguer
+# nettement du test Blink (qui utilisait D0).
+set_location_assignment PIN_B14 -to led1
+
+# -------------------------------------------------------------------------- #
+# Options : broches inutilisées en entrée haute impédance (sûr sur cette carte)
+# -------------------------------------------------------------------------- #
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS "AS INPUT TRI-STATED"
+set_global_assignment -name RESERVE_ALL_UNUSED_PINS_NO_OUTPUT_GND "AS INPUT TRI-STATED"
+
+# Forcer un fit complet (pas d'Auto Fit) + optimisation timing : le T80 plafonne
+# sinon vers 49 MHz, juste sous les 50 MHz de la carte.
+set_global_assignment -name FITTER_EFFORT "STANDARD FIT"
+set_global_assignment -name OPTIMIZE_TIMING "NORMAL COMPILATION"
+set_global_assignment -name OPTIMIZE_HOLD_TIMING "ALL PATHS"
+
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+set_global_assignment -name LL_ROOT_REGION ON -section_id "Root Region"
+set_global_assignment -name LL_MEMBER_STATE LOCKED -section_id "Root Region"
