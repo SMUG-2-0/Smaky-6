@@ -17,6 +17,13 @@ d'entraînement** récupérée à l'atelier.
   L'alim d'origine (660 mA) suffit pour la carte seule.
 - Câble : **USB-Blaster original** (VID 09FB / PID 6001) sur le connecteur 10 broches
   « ByteBlaster » (= port JTAG).
+- **Configuration de la carte** : CPLD **MAX 7000A `EPM7128AETC100-7`** à côté de la flash =
+  **contrôleur de config** (lit la flash parallèle → configure le Cyclone en *passive serial*
+  au power-on). **Pas d'EPCS série.** Le MAX n'est **pas** sur la chaîne JTAG du câble
+  (`scan_chain` OpenOCD ne voit qu'**un seul TAP** = le Cyclone). ⇒ Le mode **permanent** sur
+  cette carte = écrire l'image dans la flash parallèle via les outils Nios II (dépendants du
+  jtagd cassé) : mini-projet à part, faible intérêt sur une carte d'entraînement. **On reste en
+  SRAM ici** ; le permanent se fera proprement sur le OneChipBook (EP1C12, config dédiée).
 
 ## Brochage (extrait du netlist officiel `altera_nios_dev_board_cyclone_1c20`)
 - Horloge 50 MHz → **PIN_K5** (entrée dédiée CLK0)
