@@ -42,6 +42,54 @@ portage = remap broches + largeur. La **SRAM async 1 MB** de la Nios est simple 
 du OneChipBook = impasse** : à n'utiliser que pour un bring-up rapide jetable, pas pour la map
 mémoire Smaky définitive.
 
+## Avancement — M2 « Smaky 6 boote sur SDRAM » ✅✅ (2026-06-16)
+**Le Smaky 6 démarre sur le FPGA** : Z80 (T80) exécutant `ROM18.bin` depuis 64 kB de SDRAM,
+écrit **"ROM de chargement"** en mémoire écran (0x4000) → confirmé matériellement (détection
+de `R`,`O`,`M` en 0x4000 = LED clignotent). Projet **`SM6Boot-Nios1C20/`** (`sm6boot.vhd`).
+
+### Composants
+- **Bootstrap loader** : remplit toute la RAM (64 kB) à 0, puis recopie `ROM18.bin` (1995 o,
+  `common/boot_rom.vhd`, bloc-RAM) en SDRAM dès 0, puis relâche le Z80.
+- **`common/T80s_ce.vhd`** : T80s modifié avec **CLOCK-ENABLE (CEN)** — voir leçon ci-dessous.
+- **Accès octet SDRAM** : contrôleur étendu avec `ben` (byte-enable → masque `DQM`).
+  Adresse mot = A[15:2], octet = A[1:0], donnée répliquée sur 4 voies.
+- **Timer + interruption 50 Hz** : le Smaky est **piloté par interruption** (IM 0 → RST 38h →
+  ISR 0x0106). Compteur 50 MHz/1e6 = 50 Hz, gaté par `eni50` (`OUT(0)` bit0), `INT_n` acquitté
+  au cycle INTA (M1+IORQ) où on présente **0xFF** sur le bus (= RST 38h en IM 0).
+
+### Carte I/O du Smaky 6 (décodée depuis le simulateur `../Simulateur-JS/smaky.js`)
+- **Port $0** : IN = clavier (caractère`|0x80`, sinon touches super-shift, **0 au repos**) ;
+  OUT bit0 = `eni50` (valide timer), bits1-3 = contrôle graphique.
+- **Port $1** : IN bit2 = strobe clavier, **bit3 = tick timer 50 Hz** ; OUT bit3 = acquitte.
+- **Écran** à partir de **0x4000** (octal 040000), effacé avec le **caractère SPACE 0x20**.
+  Pile à SP=0x4600. Vecteurs RST en page 0 (RST18→011C efface l'écran, RST38→0106=ISR).
+
+### ⚠️ LEÇONS DE DEBUG (toutes coûteuses — à ne pas réapprendre)
+1. **RAM non-initialisée = boot aléatoire.** La SDRAM est aléatoire au power-up ; le boot lit
+   de la RAM → comportement non déterministe. **Fix : le loader remplit toute la RAM à 0.**
+   (Symptôme : valeur écran « statique mais différente à chaque power-cycle ».)
+2. **Le boot EXIGE l'interruption 50 Hz.** Sans elle il boucle avant l'affichage (pas de `EI`
+   atteint). Implémenter timer + `INT_n` + RST38 via 0xFF sur INTA.
+3. **🔑 BUG MAJEUR — écritures consécutives via `WAIT_n` mid-cycle.** Caler le T80 avec `WAIT_n=0`
+   en T2 laisse fuiter le pipeline interne : sur 2 écritures rapprochées (ex. les 2 PUSH d'un
+   `CALL`), la 2ᵉ capture l'**adresse ET la donnée de la 1ʳᵉ** (les 2 PUSH écrivaient à 0x45FF
+   au lieu de 0x45FF/0x45FE) → pile corrompue → `RET` part en vrille. **Fix = CLOCK-ENABLE
+   (CEN)** : geler le cœur T80 **et** sa logique bus ensemble (`T80s_ce`) ⇒ adresse/donnée/MREQ
+   en lockstep, 100 % stables pendant l'accès SDRAM. **Ne jamais revenir au WAIT_n mid-cycle.**
+4. **SDRAM fiable, pas besoin de PLL** : l'aléatoire venait de la RAM non-init (leçon 1), pas du
+   timing SDRAM. `sdram_clk <= not clk` suffit à 50 MHz. (Tentative PLL `altpll` Cyclone
+   abandonnée : se fait classer « enhanced PLL », emplacements refusés ; `common/sdram_pll.vhd`
+   laissé en réserve mais NON utilisé.)
+5. **Débogueur matériel** (dans `sm6boot.vhd`) très efficace : gel auto au 1er fetch hors ROM
+   (`derail_to`/`derail_from`), `max_pc`, sondes d'adresse/donnée, le tout lisible octet par
+   octet sur les 8 LED via SW2/SW3. **À réutiliser.**
+
+### Suite
+- **Voir le texte pour de vrai** : implémenter le **contrôleur vidéo** (DMA écran Smaky, schémas
+  dispo) → sortie VGA de la carte Nios, lisant la zone 0x4000+. (Le boot s'arrête après l'affichage
+  car il tente ensuite de charger depuis un disque absent — normal.)
+- Nettoyer `sm6boot.vhd` (retirer les sondes de debug une fois l'écran en place).
+
 ## Avancement mémoire — M1 « SDRAM vivante » ✅ (2026-06-16)
 Contrôleur SDRAM autonome **`common/sdram_ctrl.vhd`** (mono-accès, auto-precharge, CL2,
 timings généreux @ 50 MHz, init + auto-refresh) + autotest **`SDRAMTest-Nios1C20/`**

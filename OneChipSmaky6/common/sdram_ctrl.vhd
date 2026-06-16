@@ -42,6 +42,7 @@ entity sdram_ctrl is
         -- interface utilisateur
         req       : in  std_logic;
         we        : in  std_logic;
+        ben       : in  std_logic_vector(3 downto 0) := "1111";  -- octets à écrire (1=écrit)
         addr      : in  std_logic_vector(21 downto 0);
         wdata     : in  std_logic_vector(31 downto 0);
         rdata     : out std_logic_vector(31 downto 0);
@@ -84,6 +85,7 @@ architecture rtl of sdram_ctrl is
     signal a_row  : std_logic_vector(11 downto 0);
     signal a_col  : std_logic_vector(11 downto 0);
     signal r_we   : std_logic;
+    signal r_ben  : std_logic_vector(3 downto 0);
     signal r_wd   : std_logic_vector(31 downto 0);
 
     -- registres de commande
@@ -218,6 +220,7 @@ begin
                             a_row  <= addr(19 downto 8);
                             a_col  <= "0000" & addr(7 downto 0);
                             r_we   <= we;
+                            r_ben  <= ben;
                             r_wd   <= wdata;
                             state  <= S_ACTIVE;
                         end if;
@@ -280,7 +283,7 @@ begin
                         sd_a     <= a_col;
                         sd_a(10) <= '1';           -- auto-precharge
                         sd_ba    <= a_bank;
-                        sd_dqm   <= (others => '0');
+                        sd_dqm   <= not r_ben;      -- masque : seuls les octets activés
                         dq_drive <= '1';
                         dq_out   <= r_wd;
                         cnt      <= 0;
