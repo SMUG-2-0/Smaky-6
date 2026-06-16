@@ -30,6 +30,33 @@ d'entraînement** récupérée à l'atelier.
 - LED D0…D7 → E14, E13, C14, D14, E12, F12, B3, B14 (allumées à l'état logique **1**)
 - Poussoirs SW0…SW3 → W3, Y4, V4, W4 (**actifs bas** → parfaits pour un `reset_n`)
 
+## Architecture mémoire (Nios vs OneChipBook) — décisif pour la suite
+Objectif à terme : émuler aussi les Smaky modernes (100–400, jusqu'à **4 MB de RAM**), pas
+seulement le Smaky 6 (64 kB). **Point commun des deux cartes = SDRAM standard JEDEC** (mêmes
+signaux A/BA/RAS/CAS/CS/WE/CKE/CLK/DQ/DQM) :
+- **Carte Nios** : SDRAM **32 bits** (~16 MB) + SRAM async **1 MB / 32 bits** + flash CFI.
+- **OneChipBook** : **uniquement** SDRAM **16 bits**, 32 MB (Samsung **K4S561632E**).
+⇒ Stratégie : **un contrôleur SDRAM paramétrable** (`DATA_WIDTH` 32→Nios / 16→OneChipBook),
+présentant au CPU une mémoire octet plate. 64 kB = petite fenêtre ; passe à l'échelle 4 MB ;
+portage = remap broches + largeur. La **SRAM async 1 MB** de la Nios est simple mais **absente
+du OneChipBook = impasse** : à n'utiliser que pour un bring-up rapide jetable, pas pour la map
+mémoire Smaky définitive.
+
+## Avancement mémoire — M1 « SDRAM vivante » ✅ (2026-06-16)
+Contrôleur SDRAM autonome **`common/sdram_ctrl.vhd`** (mono-accès, auto-precharge, CL2,
+timings généreux @ 50 MHz, init + auto-refresh) + autotest **`SDRAMTest-Nios1C20/`**
+(`sdram_test.vhd` : écrit un motif sur 1024 adresses, relit, compare → **D7 clignote = OK**).
+**Validé sur la carte.** Chip Nios = **MT48LC4M32B2** (16 MB, 32 bits) ; horloge SDRAM
+`sdram_clk = not clk` sur PIN_L13. Brochage SDRAM extrait du netlist (FPGA=U60) — voir le `.qsf`.
+- **Leçon de debug** : un handshake `req` en **impulsion 1 cycle** est perdu si un auto-refresh
+  (prioritaire dans `S_IDLE`) tombe au même cycle → blocage. Fix = `req` **maintenu en niveau**
+  jusqu'au `done`, + état `S_DEASSERT` qui attend le relâchement avant d'accepter l'accès suivant.
+- LED de l'autotest : succès = D7 seul ; échec = D6 + adresse ; bloqué = D2..D0 = n° d'état,
+  D3 = init_done, D4 = ready, D7 = heartbeat (mode diagnostic conservé).
+- Couverture actuelle limitée (banque 0, lignes basses) → à étendre en march-test complet.
+- **Suite M2** : glisser ce contrôleur derrière le bus T80 (WAIT_n pendant la latence), charger
+  la vraie ROM Smaky, faire booter le Smaky 6 sur 64 kB de SDRAM réelle.
+
 ## État logiciel
 - Cœur Z80 = **T80 original (freecores/OpenCores, Daniel Wallner)** dans `SM6FPGA/T80/`.
   Port d'horloge **`CLK_n`**, sans `CEN`/`OUT0`. **NE PAS** prendre le fork MiSTer (incompatible).
