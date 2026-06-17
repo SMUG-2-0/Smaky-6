@@ -18,6 +18,7 @@ set_global_assignment -name VHDL_FILE char_rom.vhd
 set_global_assignment -name VHDL_FILE disk_rom.vhd
 set_global_assignment -name VHDL_FILE ../common/ps2_rx.vhd
 set_global_assignment -name VHDL_FILE ../common/ps2_to_smaky.vhd
+set_global_assignment -name VHDL_FILE ../common/sd_spi.vhd
 set_global_assignment -name VHDL_FILE sm6disk.vhd
 
 set_location_assignment PIN_K5 -to clk
@@ -106,3 +107,10 @@ set_location_assignment PIN_U20 -to ps2_clk
 set_location_assignment PIN_J15 -to ps2_data
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to ps2_clk
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to ps2_data
+
+# --- Carte micro-SD (SPI ; alim 3,3V + GND sur header) ---
+set_location_assignment PIN_J14 -to sd_cs
+set_location_assignment PIN_J18 -to sd_sclk
+set_location_assignment PIN_W18 -to sd_mosi
+set_location_assignment PIN_V19 -to sd_miso
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to sd_miso

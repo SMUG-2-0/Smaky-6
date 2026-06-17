@@ -34,3 +34,4 @@ work/
 # Claude Code — réglages locaux propres à la machine
 # ----------------------------------------------------------------------------
 .claude/settings.local.json
+HD0.img

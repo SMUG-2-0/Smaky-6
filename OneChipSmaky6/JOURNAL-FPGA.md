@@ -357,3 +357,20 @@ pendant les lectures, comme le vrai matériel).
   Win-G=Kill(10), Alt-G=Copy(20), AltGr=Progra(08), Win-D=Show(04), Menu=Search(02),
   Ctrl-D=Change(01). État make/break -> bits fn_keys, présentés sur $0 sans strobe.
 - Touches mortes ^ ¨ ` (â ê î ô û ë ï).
+
+## 💾 Carte micro-SD pour le disque complet — prêt à tester (2026-06-17)
+Limite actuelle : disque embarqué = 64 secteurs (16 Ko) en bloc-RAM. Solution :
+micro-SD en SPI (= ce qu'a le OneChipBook -> code réutilisable).
+- `common/sd_spi.vhd` : maître SPI + init carte (CMD0/CMD8/ACMD41/CMD58) +
+  lecture de bloc (CMD17, 512 o en flux bvalid/bdata/bindex). Compile, NON testé HW.
+- Broches (header, 3,3V+GND) : CS=J14, CLK=J18, MOSI=W18, MISO=V19 (pull-up MISO).
+- Test intégré (sans casser le boot disk_rom) : lit le bloc 0, capture 4 octets.
+  LED : SW3 relâché=scancode PS/2 ; SW3 enfoncé=statut SD (D0 ready, D1 err, D2 busy,
+  D3 trig) ; SW3+SW2=1er octet bloc 0 (attendu 0x53 'S').
+- Image disque : `HD0.img` (269824 o = 527 blocs) extrait de HD0.JS, à écrire brut
+  sur la carte (`dd`). NON commité (régénérable).
+
+### ▶ RESTE micro-SD
+- Tester le lecteur SD isolé (câble + carte) via les LED.
+- Intégration WD1002 : tampon 512 o + mapping secteur Smaky->bloc SD (LBA/2) +
+  statut BSY pendant la lecture SD -> remplace disk_rom (disque complet).

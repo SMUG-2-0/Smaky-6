@@ -27,6 +27,10 @@ entity sm6disk is
         btn3      : in    std_logic;                      -- SW3 actif bas (PIN_W4) : sélecteur
         ps2_clk   : in    std_logic;                      -- clavier PS/2 CLK  (PIN_U20, J12)
         ps2_data  : in    std_logic;                      -- clavier PS/2 DATA (PIN_J15, J12)
+        sd_cs     : out   std_logic;                      -- micro-SD CS   (PIN_J14)
+        sd_sclk   : out   std_logic;                      -- micro-SD CLK  (PIN_J18)
+        sd_mosi   : out   std_logic;                      -- micro-SD MOSI (PIN_W18)
+        sd_miso   : in    std_logic;                      -- micro-SD MISO (PIN_V19)
         led       : out   std_logic_vector(7 downto 0);
         video     : out   std_logic;                      -- VGA video  (PIN_C19)
         hsync     : out   std_logic;                      -- VGA hsync  (PIN_D20)
@@ -178,6 +182,15 @@ architecture rtl of sm6disk is
     signal io_rd0, io_rd0_d : std_logic := '0';            -- IN $0 en cours
     signal kb_push, kb_pop  : std_logic;
     signal kb_port0, kb_port1, kb_port3 : std_logic_vector(7 downto 0);
+
+    -- carte micro-SD (test : lecture du bloc 0)
+    signal sd_rd_req  : std_logic := '0';
+    signal sd_busy, sd_ready, sd_err : std_logic;
+    signal sd_bvalid  : std_logic;
+    signal sd_bdata   : std_logic_vector(7 downto 0);
+    signal sd_bindex  : std_logic_vector(8 downto 0);
+    signal sd_trig    : std_logic := '0';                 -- bloc 0 déjà demandé
+    signal sd_b0, sd_b1, sd_b2, sd_b3 : std_logic_vector(7 downto 0) := (others => '0');
 
     signal vb_addr  : std_logic_vector(10 downto 0);   -- port B (lecture VGA)
     signal vb_data  : std_logic_vector(7 downto 0);    -- code caractère lu
@@ -653,7 +666,51 @@ begin
             if ps2_valid = '1' then ps2_last <= ps2_scancode; end if;
         end if;
     end process;
-    led <= ps2_last;   -- LED = dernier scancode (debug)
+
+    -- ===== test carte micro-SD : lit le bloc 0, capture les 4 premiers octets =====
+    u_sd : entity work.sd_spi
+        port map (clk => sysclk, reset => rst,
+                  cs_n => sd_cs, sclk => sd_sclk, mosi => sd_mosi, miso => sd_miso,
+                  rd_req => sd_rd_req, rd_lba => x"00000000",
+                  busy => sd_busy, ready => sd_ready, err => sd_err,
+                  bvalid => sd_bvalid, bdata => sd_bdata, bindex => sd_bindex);
+    process(sysclk)
+    begin
+        if rising_edge(sysclk) then
+            if rst = '1' then
+                sd_trig <= '0'; sd_rd_req <= '0';
+            else
+                sd_rd_req <= '0';
+                if sd_ready = '1' and sd_busy = '0' and sd_trig = '0' then  -- carte prête -> lit bloc 0
+                    sd_rd_req <= '1'; sd_trig <= '1';
+                end if;
+                if sd_bvalid = '1' then
+                    case sd_bindex is
+                        when "000000000" => sd_b0 <= sd_bdata;
+                        when "000000001" => sd_b1 <= sd_bdata;
+                        when "000000010" => sd_b2 <= sd_bdata;
+                        when "000000011" => sd_b3 <= sd_bdata;
+                        when others => null;
+                    end case;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    -- LED : SW3 relâché = scancode PS/2 ; SW3 enfoncé = test SD
+    --   SW3 seul -> statut (D0 ready, D1 err, D2 busy, D3 trig, D7 heartbeat)
+    --   SW3+SW2  -> sd_b0 (1er octet du bloc 0, attendu 0x53 'S')
+    process(btn2, btn3, ps2_last, sd_b0, sd_ready, sd_err, sd_busy, sd_trig, blink_div)
+    begin
+        if btn3 = '1' then
+            led <= ps2_last;
+        elsif btn2 = '0' then
+            led <= sd_b0;
+        else
+            led <= (0 => sd_ready, 1 => sd_err, 2 => sd_busy, 3 => sd_trig,
+                    7 => blink_div(24), others => '0');
+        end if;
+    end process;
 
     -- ====================== Interface clavier Smaky =======================
     -- (cf. simulateur) port $0 = char|0x80 quand strobe armé, sinon 0 (fn_keys) ;
