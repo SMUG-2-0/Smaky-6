@@ -152,30 +152,9 @@ architecture rtl of sm6disk is
     end function;
 
     -- ====================== VRAM vidéo + contrôleur VGA =====================
-    signal va_addr  : std_logic_vector(10 downto 0);   -- port A (muxé snoop CPU / dump)
+    signal va_addr  : std_logic_vector(10 downto 0);   -- port A (snoop CPU)
     signal va_we    : std_logic;
-    signal va_din   : std_logic_vector(7 downto 0);
-
-    -- dump debug ASCII (lignes 14-17) : un peintre rafraîchit en continu depuis une source.
-    --   SW2 enfoncé  -> boot_rom[0x0400+dk] (texte ROM, validation outil)
-    --   SW2 relâché  -> capture du 1er bloc disque (RAM 256 o remplie au boot)
-    signal cpu_vram_wr  : std_logic;                       -- le CPU écrit dans la VRAM
-    signal dir_wr, dir_wr_d : std_logic := '0';            -- le CPU écrit dans 0x5800-0x58FF
-    signal dcap_cnt     : unsigned(9 downto 0) := (others => '0');  -- nb d'écritures capturées
-    signal dcap_frozen  : std_logic := '0';                -- capture figée (256 écritures atteintes)
-    signal wa0, wa1, wa2, wa3 : std_logic_vector(7 downto 0) := (others => '0'); -- 4 1ères adr. d'écriture
-    signal wcnt         : unsigned(2 downto 0) := (others => '0');
-    signal wpc          : std_logic_vector(15 downto 0) := (others => '0');  -- PC à la 1ère écriture 0x58xx
-    signal ld_rom_addr  : std_logic_vector(10 downto 0);   -- adresse boot_rom du loader
-    signal dump_rom_addr: std_logic_vector(10 downto 0);   -- adresse boot_rom du peintre (0x400+dk)
-    signal dk           : unsigned(7 downto 0) := (others => '0');  -- compteur peintre 0..255
-    signal dstate       : unsigned(1 downto 0) := (others => '0');
-    signal paint_byte   : std_logic_vector(7 downto 0) := (others => '0');
-    signal paint_active : std_logic;
-    signal paint_vaddr  : std_logic_vector(10 downto 0);
-    signal dc_rdata     : std_logic_vector(7 downto 0);    -- octet lu de la capture disque
-    type dcap_t is array(0 to 255) of std_logic_vector(7 downto 0);
-    signal dcap         : dcap_t := (others => x"23");     -- capture disque, init '#' (motif témoin)
+    signal ld_rom_addr : std_logic_vector(10 downto 0);   -- adresse boot_rom (loader bootstrap)
     signal vb_addr  : std_logic_vector(10 downto 0);   -- port B (lecture VGA)
     signal vb_data  : std_logic_vector(7 downto 0);    -- code caractère lu
     signal crom_addr: std_logic_vector(10 downto 0);
@@ -508,14 +487,15 @@ begin
                     when M_IDLE =>
                         cm_req <= '0';
                         -- cycle mémoire réel (hors refresh), sauf si gelé (débogueur)
-                        if cpu_mreq_n = '0' and cpu_rfsh_n = '1' and frozen = '0' then
-                            -- déraillement : 1er fetch d'instruction hors ROM -> on gèle
-                            if cpu_m1_n = '0' and unsigned(cpu_a) >= ROM_TOP then
+                        if cpu_mreq_n = '0' and cpu_rfsh_n = '1' then
+                            -- débogueur de déraillement DÉSACTIVÉ : le boot exécute légitimement
+                            -- du code en haute mémoire (stub 0x57C0, puis SYS recopié en 0x0000).
+                            -- Capture du 1er M1 hors ROM pour info, SANS geler ; on sert toujours.
+                            if cpu_m1_n = '0' and unsigned(cpu_a) >= ROM_TOP and frozen = '0' then
                                 frozen      <= '1';
-                                derail_to   <= cpu_a;          -- où il saute
-                                derail_from <= last_m1_pc;     -- d'où (instruction fautive)
-                                -- on NE sert PAS l'accès : CPU figé (wait_n reste à 0)
-                            else
+                                derail_to   <= cpu_a;
+                                derail_from <= last_m1_pc;
+                            end if;
                                 is_write  <= cpu_rd_n;         -- rd_n=1 => écriture
                                 acc_lane  <= cpu_a(1 downto 0);
                                 acc_addr  <= cpu_a(15 downto 2);
@@ -544,7 +524,6 @@ begin
                                     ret_target <= cpu_a;
                                 end if;
                                 mstate <= M_REQ;       -- CPU gelé (CEN) : signaux déjà stables
-                            end if;
                         end if;
 
                     when M_PREP =>                          -- inutilisé (CEN)
@@ -634,82 +613,25 @@ begin
     -- LED : PC de la 1ère écriture 0x58xx + 1ère adresse (quelle instruction écrit, et où)
     --   rien=PC bas (attendu ~0x52/0x53 = INIR)  SW3=PC haut (attendu 0x03)
     --   SW2=wa0 (adresse, attendu 0x00)          SW2+SW3=wa3
-    process(btn2, btn3, wpc, wa0, wa3)
-    begin
-        if btn2 = '0' and btn3 = '0' then
-            led <= wa3;
-        elsif btn3 = '0' then
-            led <= wpc(15 downto 8);
-        elsif btn2 = '0' then
-            led <= wa0;
-        else
-            led <= wpc(7 downto 0);
-        end if;
-    end process;
+    -- LED : jalons WD1002 + heartbeat (D0 IN$27 vu, D1 disque détecté, D2 read, D3 transfert)
+    led(0) <= dbg_in27_seen;
+    led(1) <= dbg_found;
+    led(2) <= dbg_rdcmd;
+    led(3) <= dbg_in20_seen;
+    led(6 downto 4) <= (others => '0');
+    led(7) <= blink_div(24);
 
     -- ========================= VRAM + char-gen ============================
-    -- boot_rom muxé : adresse du loader pendant le boot, du peintre (0x400+dk) après
-    rom_addr <= ld_rom_addr when boot_done = '0' else dump_rom_addr;
-    dump_rom_addr <= std_logic_vector(to_unsigned(16#400#, 11) + resize(dk, 11));
+    rom_addr <= ld_rom_addr;     -- boot_rom : adresse du loader (bootstrap ROM18 -> SDRAM)
 
-    -- le CPU écrit dans la VRAM (0x4000-0x47FF) -> priorité absolue sur le port A
-    cpu_vram_wr <= '1' when (mstate = M_REQ and is_write = '1'
-                              and cpu_a(15 downto 11) = "01000") else '0';
-
-    -- capture du 1er bloc disque : RAM 256 o, figée après les 256 PREMIÈRES écritures dans
-    -- 0x5800-0x58FF (= le secteur tel que chargé par l'INIR, avant toute réécriture ultérieure).
-    dir_wr <= '1' when (mstate = M_REQ and is_write = '1'
-                         and cpu_a(15 downto 8) = x"58") else '0';
-    process(sysclk)
-    begin
-        if rising_edge(sysclk) then
-            dir_wr_d <= dir_wr;
-            if dir_wr = '1' then                                    -- écriture 0x58xx (dernière valeur)
-                dcap(to_integer(unsigned(cpu_a(7 downto 0)))) <= cpu_do;
-            end if;
-            if dir_wr = '1' and dir_wr_d = '0' then                 -- comptage + 4 1ères adresses
-                dcap_cnt <= dcap_cnt + 1;
-                if dcap_cnt = 255 then dcap_frozen <= '1'; end if;
-                if wcnt = 0 then wa0 <= cpu_a(7 downto 0); wpc <= last_m1_pc;
-                elsif wcnt = 1 then wa1 <= cpu_a(7 downto 0);
-                elsif wcnt = 2 then wa2 <= cpu_a(7 downto 0);
-                elsif wcnt = 3 then wa3 <= cpu_a(7 downto 0); end if;
-                if wcnt < 4 then wcnt <= wcnt + 1; end if;
-            end if;
-            dc_rdata <= dcap(to_integer(dk));
-        end if;
-    end process;
-
-    -- peintre : rafraîchit en continu les 256 cases (lignes 14-17) depuis la source choisie
-    paint_vaddr  <= std_logic_vector(to_unsigned(14, 5) + resize(dk(7 downto 6), 5))
-                    & std_logic_vector(dk(5 downto 0));
-    paint_active <= '1' when (dstate = "10" and cpu_vram_wr = '0') else '0';
-    process(sysclk)
-    begin
-        if rising_edge(sysclk) then
-            case to_integer(dstate) is
-                when 0 => dstate <= "01";                     -- adresses posées (combinatoire)
-                when 1 =>                                     -- latch : ROM (SW2) ou capture disque
-                    if btn2 = '0' then paint_byte <= rom_data;
-                    else               paint_byte <= dc_rdata; end if;
-                    dstate <= "10";
-                when others =>                                -- état 2 : écrit (via mux) puis avance
-                    if cpu_vram_wr = '0' then
-                        dk     <= dk + 1;
-                        dstate <= "00";
-                    end if;
-            end case;
-        end if;
-    end process;
-
-    -- port A VRAM muxé : CPU prioritaire, sinon le peintre
-    va_we   <= '1'                when cpu_vram_wr = '1' else paint_active;
-    va_addr <= cpu_a(10 downto 0) when cpu_vram_wr = '1' else paint_vaddr;
-    va_din  <= cpu_do            when cpu_vram_wr = '1' else paint_byte;
+    -- Snoop : toute écriture CPU dans 0x4000-0x47FF est copiée en VRAM (port A).
+    va_addr <= cpu_a(10 downto 0);
+    va_we   <= '1' when (mstate = M_REQ and is_write = '1'
+                          and cpu_a(15 downto 11) = "01000") else '0';
 
     u_vram : entity work.vram
         port map (clk => sysclk,
-                  addr_a => va_addr, din_a => va_din, we_a => va_we, dout_a => open,
+                  addr_a => va_addr, din_a => cpu_do, we_a => va_we, dout_a => open,
                   addr_b => vb_addr, dout_b => vb_data);
 
     u_crom : entity work.char_rom

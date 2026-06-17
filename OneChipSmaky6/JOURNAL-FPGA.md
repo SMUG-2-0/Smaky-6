@@ -312,3 +312,24 @@ LBA = ((cyl*6)+head)*32 + secteur. Sous-ensemble embarqué : 64 secteurs (16 Ko)
 ### ▶ RESTE À FAIRE : "rien ne se passe ensuite"
 Le catalogue est lu mais le chargement de SYS.SY ne progresse pas. À déboguer
 (probablement la lecture des secteurs de données de SYS, ou le saut vers le code chargé).
+
+## 🎉 BOOT DISQUE COMPLET — SAMOS tourne ! (2026-06-17)
+Le Smaky 6 sur FPGA **boote entièrement depuis le disque dur** : SYS.SY (SAMOS) chargé en
+0x6000 puis recopié en 0x0000 (stub 0x57C0 = DI/OUT$1/LDIR/JP 0000), WD1002 reconnu,
+"NO DX1:/DX2:" (pas de floppy), puis CLI.SY charge et affiche la **liste des fichiers** du
+disque. **Premier Smaky 6 fonctionnel sur FPGA.**
+
+Derniers points débloquants :
+- **Débogueur de déraillement DÉSACTIVÉ** : il gelait le CPU sur tout fetch M1 ≥ 0x0800 ;
+  or le boot exécute légitimement du code haut (stub 0x57C0, SYS en 0x0000+). Capture
+  conservée (derail_to/from) mais sans geler.
+- Entrée catalogue SYS : secteurs 3→37 (dans le sous-ensemble 64 sect.), chargé en 0x6000,
+  point d'entrée 0x57C0.
+- **Overlay de debug écran RETIRÉ** ; VRAM remise en simple snoop CPU. Outil de dump
+  documenté dans l'historique git si besoin de le réintroduire.
+- **Bug T80 documenté dans README.md** (block I/O INI/IND/OUTI/OUTD).
+
+### ▶ RESTE / IDÉES
+- Sous-ensemble disque = 64 secteurs (16 Ko) : suffit pour SYS+CLI+catalogue mais limite
+  l'accès aux fichiers plus loin sur le disque. Étendre (mécanisme de chargement externe).
+- Clavier (port $0) toujours à 0x00 : implémenter l'entrée clavier pour interagir avec CLI.
