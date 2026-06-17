@@ -284,3 +284,31 @@ bien l'**EP1C20F400C7ES** annoncé, mais en **Engineering Sample** dont l'IDCODE
 
 Note : si c'est Quartus 9.0, il réécrira les lignes `*_QUARTUS_VERSION` des `.qsf` à
 l'ouverture — sans conséquence.
+
+## Avancement — WD1002 lecture disque FONCTIONNELLE + bug T80 corrigé (2026-06-17)
+`SM6Disk-Nios1C20` lit le 1er bloc du disque dur et affiche le catalogue
+("SYS     SY", "CLI     SY"...). Étapes clés du débogage :
+
+1. **Open-bus FF** : `IN` sur port non décodé doit rendre **0xFF** (bus flottant), pas 0x00.
+   Le boot teste le FDC ($19) bit 6 ; avec 0x00 il croyait à un floppy ("Disque souple").
+   Avec 0xFF -> tente le disque dur ("Disque dur"). (clavier $0 reste à 0x00.)
+2. **Décodage I/O sur port verrouillé** (`io_port`) : pendant l'`IN (C)` de l'INIR, `cpu_a`
+   passe tôt à HL (write) ; décoder `wd_din` sur cpu_a instantané donnait le port 0.
+3. **BUG DU CŒUR T80 (corrigé)** : dans `T80_MCode.vhd`, INI/IND/OUTI/OUTD mettaient
+   `IncDec_16 <= "0010"/"1010"` — **bit 2 = 0**, donc le write-back du registre 16 bits
+   incrémenté (T80.vhd lignes 788/813, conditionné à `IncDec_16(2)='1'`) ne se faisait
+   JAMAIS -> **HL ne s'incrémentait pas pendant l'INIR** (le CPU réécrivait 256× au même
+   endroit). Corrigé en `"0110"/"1110"` (bit2=1), cohérent avec tous les autres INC/DEC 16
+   bits du cœur. Fichier patché copié dans `common/T80_MCode.vhd` (SM6FPGA intact).
+   Bug latent jamais exposé car le Smaky d'origine ne lisait pas le disque via INIR.
+4. **Outil de debug écran** : un peintre rafraîchit en continu les lignes 14-17 de la VRAM
+   depuis une source (SW2 = ROM 0x400 pour valider l'outil, sinon capture du bloc disque en
+   RAM 256 o). Très efficace pour lire un bloc d'un coup d'œil.
+5. eni50 masque INT_n (bascule Smaky) ; interruption aussi coupée pendant `wd_read=1`.
+
+**Géométrie disque** (routine ROM 0370) : 32 secteurs/piste, 6 têtes,
+LBA = ((cyl*6)+head)*32 + secteur. Sous-ensemble embarqué : 64 secteurs (16 Ko).
+
+### ▶ RESTE À FAIRE : "rien ne se passe ensuite"
+Le catalogue est lu mais le chargement de SYS.SY ne progresse pas. À déboguer
+(probablement la lecture des secteurs de données de SYS, ou le saut vers le code chargé).

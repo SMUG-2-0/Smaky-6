@@ -22,6 +22,7 @@ entity sm6disk is
     port (
         clk       : in    std_logic;                      -- 50 MHz (PIN_K5)
         reset_n   : in    std_logic;                      -- SW0 actif bas (PIN_W3)
+        btn1      : in    std_logic;                      -- SW1 actif bas (PIN_Y4) : gel machine
         btn2      : in    std_logic;                      -- SW2 actif bas (PIN_V4) : sélecteur
         btn3      : in    std_logic;                      -- SW3 actif bas (PIN_W4) : sélecteur
         led       : out   std_logic_vector(7 downto 0);
@@ -151,8 +152,30 @@ architecture rtl of sm6disk is
     end function;
 
     -- ====================== VRAM vidéo + contrôleur VGA =====================
-    signal va_addr  : std_logic_vector(10 downto 0);   -- port A (snoop CPU)
+    signal va_addr  : std_logic_vector(10 downto 0);   -- port A (muxé snoop CPU / dump)
     signal va_we    : std_logic;
+    signal va_din   : std_logic_vector(7 downto 0);
+
+    -- dump debug ASCII (lignes 14-17) : un peintre rafraîchit en continu depuis une source.
+    --   SW2 enfoncé  -> boot_rom[0x0400+dk] (texte ROM, validation outil)
+    --   SW2 relâché  -> capture du 1er bloc disque (RAM 256 o remplie au boot)
+    signal cpu_vram_wr  : std_logic;                       -- le CPU écrit dans la VRAM
+    signal dir_wr, dir_wr_d : std_logic := '0';            -- le CPU écrit dans 0x5800-0x58FF
+    signal dcap_cnt     : unsigned(9 downto 0) := (others => '0');  -- nb d'écritures capturées
+    signal dcap_frozen  : std_logic := '0';                -- capture figée (256 écritures atteintes)
+    signal wa0, wa1, wa2, wa3 : std_logic_vector(7 downto 0) := (others => '0'); -- 4 1ères adr. d'écriture
+    signal wcnt         : unsigned(2 downto 0) := (others => '0');
+    signal wpc          : std_logic_vector(15 downto 0) := (others => '0');  -- PC à la 1ère écriture 0x58xx
+    signal ld_rom_addr  : std_logic_vector(10 downto 0);   -- adresse boot_rom du loader
+    signal dump_rom_addr: std_logic_vector(10 downto 0);   -- adresse boot_rom du peintre (0x400+dk)
+    signal dk           : unsigned(7 downto 0) := (others => '0');  -- compteur peintre 0..255
+    signal dstate       : unsigned(1 downto 0) := (others => '0');
+    signal paint_byte   : std_logic_vector(7 downto 0) := (others => '0');
+    signal paint_active : std_logic;
+    signal paint_vaddr  : std_logic_vector(10 downto 0);
+    signal dc_rdata     : std_logic_vector(7 downto 0);    -- octet lu de la capture disque
+    type dcap_t is array(0 to 255) of std_logic_vector(7 downto 0);
+    signal dcap         : dcap_t := (others => x"23");     -- capture disque, init '#' (motif témoin)
     signal vb_addr  : std_logic_vector(10 downto 0);   -- port B (lecture VGA)
     signal vb_data  : std_logic_vector(7 downto 0);    -- code caractère lu
     signal crom_addr: std_logic_vector(10 downto 0);
@@ -180,9 +203,24 @@ architecture rtl of sm6disk is
     signal disk_addr   : std_logic_vector(13 downto 0);
     signal disk_data   : std_logic_vector(7 downto 0);
     signal disk_byte   : std_logic_vector(7 downto 0);
+    signal deliver     : std_logic_vector(7 downto 0) := (others => '0'); -- octet figé pendant l'IN $20
+    signal io_port     : std_logic_vector(7 downto 0) := (others => '0'); -- n° de port figé au début du cycle I/O
+    signal iorq_n_d    : std_logic := '1';
     signal wd_din      : std_logic_vector(7 downto 0);
     signal io_rd20     : std_logic;
     signal io_rd20_d   : std_logic := '0';
+    signal io_done     : std_logic := '0';     -- IN $20 : 1 cycle de gel puis libère
+
+    -- diagnostic WD : valeur lue à IN $27 + jalons
+    signal dbg_in27      : std_logic_vector(7 downto 0) := (others => '0');
+    signal dbg_in27_seen : std_logic := '0';   -- au moins un IN $27
+    signal dbg_found     : std_logic := '0';   -- fetch M1 @ 0x031E (disque détecté)
+    signal dbg_rdcmd     : std_logic := '0';   -- OUT $27 = 0x20 (commande read émise)
+    signal dbg_in20_seen : std_logic := '0';   -- au moins un IN $20 (transfert secteur)
+    signal dbg_lba       : std_logic_vector(15 downto 0) := (others => '0'); -- secteur du 1er read
+    signal dbg_b0, dbg_b1, dbg_b2, dbg_b3 : std_logic_vector(7 downto 0) := (others => '0'); -- 4 1ers octets
+    signal dbg_r0, dbg_r1, dbg_r2, dbg_r3 : std_logic_vector(7 downto 0) := (others => '0'); -- RAM 0x5800-3 écrits
+    signal dbg_cap       : std_logic := '0';
 
 begin
 
@@ -260,7 +298,7 @@ begin
                         end if;
 
                     when L_ADDR =>
-                        rom_addr <= std_logic_vector(ld_b(10 downto 0));
+                        ld_rom_addr <= std_logic_vector(ld_b(10 downto 0));
                         lstate   <= L_ROMWAIT;
 
                     when L_ROMWAIT =>           -- latence lecture boot_rom
@@ -309,15 +347,19 @@ begin
 
     -- WD1002 : octet disque (mode read, secteur dans le sous-ensemble) ou 0
     disk_byte <= disk_data when wd_valid = '1' else (others => '0');
-    -- valeur lue sur les ports WD1002 ($20-$27), sinon 0 pour les autres ports I/O
-    wd_din <= disk_byte    when (cpu_a(7 downto 0) = x"20" and wd_read = '1') else
-              x"50"        when cpu_a(7 downto 0) = x"27" else   -- statut : DRDY+DSC (prêt)
-              wd_seccount  when cpu_a(7 downto 0) = x"22" else
-              wd_secnum    when cpu_a(7 downto 0) = x"23" else
-              wd_cyllow    when cpu_a(7 downto 0) = x"24" else
-              wd_cylhigh   when cpu_a(7 downto 0) = x"25" else
-              wd_head      when cpu_a(7 downto 0) = x"26" else
-              x"00";
+    -- valeur lue sur les ports WD1002 ($20-$27), sinon 0 pour les autres ports I/O.
+    -- Décodage sur 'io_port' (n° de port FIGÉ au début du cycle I/O), pas sur cpu_a instantané :
+    -- pendant l'IN (C) de l'INIR, cpu_a passe tôt à HL (write) ; io_port reste = 0x20.
+    -- IN $20 -> 'deliver' (octet figé au début de l'IN).
+    wd_din <= deliver      when (io_port = x"20" and wd_read = '1') else
+              x"50"        when io_port = x"27" else   -- statut : DRDY+DSC (prêt)
+              wd_seccount  when io_port = x"22" else
+              wd_secnum    when io_port = x"23" else
+              wd_cyllow    when io_port = x"24" else
+              wd_cylhigh   when io_port = x"25" else
+              wd_head      when io_port = x"26" else
+              x"00"        when io_port = x"00" else  -- clavier au repos (bit7=0)
+              x"FF";                                  -- non décodé = bus flottant (open bus)
     -- données vers le CPU :
     --   INTA (IORQ+M1) -> 0xFF = RST 38h (IM 0) ; IN périphérique -> wd_din ; mémoire -> SDRAM
     cpu_di <= x"FF" when (cpu_iorq_n = '0' and cpu_m1_n = '0') else
@@ -332,7 +374,9 @@ begin
                           and cpu_a(7 downto 0) = x"20" and wd_read = '1') else '0';
 
     -- timer 50 Hz + interruption (RST 38h via le bus en INTA)
-    cpu_int_n <= '0' when int_req = '1' else '1';
+    -- INT_n masqué par eni50 ET pendant la lecture WD (wd_read=1) : TEST pour savoir si
+    -- l'interruption 50 Hz corrompt l'INIR (block I/O) du transfert de secteur.
+    cpu_int_n <= '0' when (int_req = '1' and eni50 = '1' and wd_read = '0') else '1';
 
     process(sysclk)
     begin
@@ -342,7 +386,10 @@ begin
                 int_req <= '0'; timer_pending <= '0';
                 inta_seen <= '0'; eni50_seen <= '0';
                 wd_read <= '0'; wd_idx <= (others => '0');
-                wd_lba <= (others => '0'); wd_valid <= '0'; io_rd20_d <= '0';
+                wd_lba <= (others => '0'); wd_valid <= '0'; io_rd20_d <= '0'; io_done <= '0';
+                dbg_in27 <= (others => '0'); dbg_in27_seen <= '0';
+                dbg_rdcmd <= '0'; dbg_in20_seen <= '0';
+                dbg_lba <= (others => '0'); dbg_b0 <= (others => '0'); dbg_b1 <= (others => '0'); dbg_b2 <= (others => '0'); dbg_b3 <= (others => '0'); dbg_cap <= '0';
             else
                 -- tick 50 Hz temps réel
                 if int_cnt = INT_PERIOD - 1 then
@@ -370,6 +417,7 @@ begin
                         if cpu_do = x"20" then                   -- READ SECTOR
                             wd_read <= '1';
                             wd_idx  <= (others => '0');
+                            dbg_rdcmd <= '1';
                             -- LBA = ((cyl*6)+head)*32 + secteur
                             wd_lba  <= resize(
                                 ((unsigned(wd_cylhigh) & unsigned(wd_cyllow)) * 6
@@ -384,10 +432,34 @@ begin
                 end if;
                 -- validité du secteur (dans le sous-ensemble embarqué de 96 secteurs)
                 if wd_lba < 64 then wd_valid <= '1'; else wd_valid <= '0'; end if;
-                -- IN du port $20 (mode read) : à la fin de l'IN, octet suivant
+                -- verrou du n° de port au DÉBUT du cycle I/O (cpu_a transitionne en cours d'IN (C))
+                iorq_n_d <= cpu_iorq_n;
+                if cpu_iorq_n = '0' and iorq_n_d = '1' then
+                    io_port <= cpu_a(7 downto 0);
+                end if;
+                -- IN $20 : figer l'octet livré au DÉBUT de l'IN (front montant), le présenter
+                -- stable toute la durée de l'IN (IOWait relatche DI plusieurs fois), puis
+                -- post-incrémenter à la FIN de l'IN. Sémantique WD : rendre byte[idx], puis idx++.
+                io_done   <= io_rd20;
                 io_rd20_d <= io_rd20;
-                if io_rd20 = '0' and io_rd20_d = '1' and wd_read = '1' then
+                if io_rd20 = '1' and io_rd20_d = '0' then       -- front montant : fige l'octet
+                    deliver <= disk_byte;
+                end if;
+                if io_rd20 = '0' and io_rd20_d = '1' and wd_read = '1' then  -- front descendant
                     wd_idx <= wd_idx + 1;
+                end if;
+                -- diagnostic : que rend IN $27, et a-t-on lu $20 ?
+                if cpu_iorq_n = '0' and cpu_rd_n = '0' and cpu_a(7 downto 0) = x"27" then
+                    dbg_in27 <= wd_din;
+                    dbg_in27_seen <= '1';
+                end if;
+                if io_rd20 = '1' then dbg_in20_seen <= '1'; end if;
+                -- capture du 1er secteur lu : octets aux index 0,1,8,9 (entrée "SYS     SY")
+                if io_rd20 = '1' and dbg_cap = '0' then
+                    if wd_idx = 0 then dbg_lba <= std_logic_vector(wd_lba); dbg_b0 <= disk_byte; end if;
+                    if wd_idx = 1 then dbg_b1 <= disk_byte; end if;
+                    if wd_idx = 8 then dbg_b2 <= disk_byte; end if;
+                    if wd_idx = 9 then dbg_b3 <= disk_byte; dbg_cap <= '1'; end if;
                 end if;
                 -- acquittement INTA (M1 + IORQ) : retombe la demande
                 if cpu_m1_n = '0' and cpu_iorq_n = '0' then
@@ -401,7 +473,8 @@ begin
     -- Stall par CLOCK-ENABLE : on gèle TOUT le CPU (cœur + bus) pendant l'accès
     -- SDRAM -> adresse/donnée parfaitement stables (plus de skew sur accès rapprochés).
     mem_active <= '1' when (cpu_mreq_n = '0' and cpu_rfsh_n = '1') else '0';
-    cpu_cen    <= '1' when (mem_active = '0' or mem_done = '1') else '0';
+    -- CEN=0 si SW1 enfoncé (gel machine) ou pendant un accès SDRAM
+    cpu_cen    <= '0' when (btn1 = '0' or (mem_active = '1' and mem_done = '0')) else '1';
 
     -- interface mémoire CPU <-> SDRAM (octet)
     -- adresse + voie LATCHÉES ensemble (atomique -> pas de swap) ; donnée
@@ -429,6 +502,7 @@ begin
                 last_m1_pc   <= (others => '0');
                 ret_target   <= (others => '0');
                 wr_idx       <= (others => '0');
+                dbg_found    <= '0';
             else
                 case mstate is
                     when M_IDLE =>
@@ -461,6 +535,10 @@ begin
                                    and unsigned(cpu_a) > unsigned(max_pc) then
                                     max_pc <= cpu_a;
                                 end if;
+                                -- diagnostic : fetch M1 @ 0x031E = chemin "disque détecté"
+                                if cpu_m1_n = '0' and cpu_a = x"031E" then
+                                    dbg_found <= '1';
+                                end if;
                                 -- cible de retour du RET en 0x0105
                                 if cpu_m1_n = '0' and last_m1_pc = x"0105" then
                                     ret_target <= cpu_a;
@@ -480,6 +558,12 @@ begin
                             if cpu_do /= x"00" then
                                 nz_write <= '1';
                             end if;
+                            -- SNOOP : ce que le CPU écrit réellement en RAM 0x5800-0x5803
+                            -- (destination de l'INIR du catalogue ; attendu "SYS ")
+                            if cpu_a = x"5800" then dbg_r0 <= cpu_do; end if;
+                            if cpu_a = x"5801" then dbg_r1 <= cpu_do; end if;
+                            if cpu_a = x"5802" then dbg_r2 <= cpu_do; end if;
+                            if cpu_a = x"5803" then dbg_r3 <= cpu_do; end if;
                             -- zone texte 0x4000..0x40FF (au-dessous de la pile 0x4600)
                             if cpu_a(15 downto 8) = x"40" then
                                 video_hit <= '1';
@@ -535,44 +619,97 @@ begin
     --   gelé (déraillement) : rien=derail_to bas, SW2=derail_to haut,
     --                         SW3=derail_from bas, SW2+SW3=derail_from haut
     --   sinon (en cours) : rien=max_pc bas, SW2=max_pc haut (adresse max atteinte)
-    process(frozen, derail_to, derail_from, btn2, btn3, match_rom, blink_div, max_pc)
+    -- DIAGNOSTIC WD1002 :
+    --   rien      -> dbg_in27 = valeur rendue à IN $27 (attendu 0x50 = 01010000)
+    --   SW2 (V4)  -> jalons : D0=IN$27 vu, D1=disque détecté (M1@031E),
+    --                D2=commande read émise, D3=IN$20 vu, D7=heartbeat
+    --   rien      -> dbg_in27 (statut IN $27, attendu 0x50)
+    --   SW2       -> jalons (D0 IN$27, D1 détecté, D2 read cmd, D3 IN$20, D7 heartbeat)
+    --   SW3       -> dbg_byte0 = 1er octet du secteur lu (attendu 'S' = 0x53)
+    --   SW2+SW3   -> dbg_lba bas = n° secteur du 1er read (attendu 0x00)
+    -- SNOOP RAM : ce que le CPU a écrit en 0x5800-0x5803 (catalogue en RAM, attendu "SYS ") :
+    --   rien=RAM[5800]('S')  SW3=RAM[5801]('Y')  SW2=RAM[5802]('S')  SW2+SW3=RAM[5803](' ')
+    -- LED : nombre d'écritures CPU capturées dans 0x58xx (attendu 256 = 0x100 -> figé)
+    --   SW3 relâché -> dcap_cnt(7:0)   ; SW3 enfoncé -> D0=figé, D1=cnt(8), D2=cnt(9), D7=heartbeat
+    -- LED : PC de la 1ère écriture 0x58xx + 1ère adresse (quelle instruction écrit, et où)
+    --   rien=PC bas (attendu ~0x52/0x53 = INIR)  SW3=PC haut (attendu 0x03)
+    --   SW2=wa0 (adresse, attendu 0x00)          SW2+SW3=wa3
+    process(btn2, btn3, wpc, wa0, wa3)
     begin
-        if match_rom = '1' then
-            led <= (others => blink_div(24));  -- 🎉 "ROM" en 0x4000 : CLIGNOTE = succès
-        elsif frozen = '1' then
-            if btn2 = '0' and btn3 = '0' then
-                led <= derail_from(15 downto 8);
-            elsif btn2 = '0' then
-                led <= derail_to(15 downto 8);
-            elsif btn3 = '0' then
-                led <= derail_from(7 downto 0);
-            else
-                led <= derail_to(7 downto 0);
-            end if;
+        if btn2 = '0' and btn3 = '0' then
+            led <= wa3;
+        elsif btn3 = '0' then
+            led <= wpc(15 downto 8);
+        elsif btn2 = '0' then
+            led <= wa0;
         else
-            -- rien=max_pc bas, SW2=max_pc haut, SW3=ret_target bas, SW2+SW3=ret_target haut
-            -- SONDE adresses des 2 PUSH : rien=w1 bas, SW2=w1 haut, SW3=w2 bas, SW2+SW3=w2 haut
-            if btn2 = '0' and btn3 = '0' then
-                led <= w2_addr(15 downto 8);
-            elsif btn3 = '0' then
-                led <= w2_addr(7 downto 0);
-            elsif btn2 = '0' then
-                led <= w1_addr(15 downto 8);
-            else
-                led <= w1_addr(7 downto 0);
-            end if;
+            led <= wpc(7 downto 0);
         end if;
     end process;
 
     -- ========================= VRAM + char-gen ============================
-    -- Snoop : toute écriture CPU dans 0x4000-0x47FF est copiée en VRAM.
-    va_addr <= cpu_a(10 downto 0);
-    va_we   <= '1' when (mstate = M_REQ and is_write = '1'
-                          and cpu_a(15 downto 11) = "01000") else '0';
+    -- boot_rom muxé : adresse du loader pendant le boot, du peintre (0x400+dk) après
+    rom_addr <= ld_rom_addr when boot_done = '0' else dump_rom_addr;
+    dump_rom_addr <= std_logic_vector(to_unsigned(16#400#, 11) + resize(dk, 11));
+
+    -- le CPU écrit dans la VRAM (0x4000-0x47FF) -> priorité absolue sur le port A
+    cpu_vram_wr <= '1' when (mstate = M_REQ and is_write = '1'
+                              and cpu_a(15 downto 11) = "01000") else '0';
+
+    -- capture du 1er bloc disque : RAM 256 o, figée après les 256 PREMIÈRES écritures dans
+    -- 0x5800-0x58FF (= le secteur tel que chargé par l'INIR, avant toute réécriture ultérieure).
+    dir_wr <= '1' when (mstate = M_REQ and is_write = '1'
+                         and cpu_a(15 downto 8) = x"58") else '0';
+    process(sysclk)
+    begin
+        if rising_edge(sysclk) then
+            dir_wr_d <= dir_wr;
+            if dir_wr = '1' then                                    -- écriture 0x58xx (dernière valeur)
+                dcap(to_integer(unsigned(cpu_a(7 downto 0)))) <= cpu_do;
+            end if;
+            if dir_wr = '1' and dir_wr_d = '0' then                 -- comptage + 4 1ères adresses
+                dcap_cnt <= dcap_cnt + 1;
+                if dcap_cnt = 255 then dcap_frozen <= '1'; end if;
+                if wcnt = 0 then wa0 <= cpu_a(7 downto 0); wpc <= last_m1_pc;
+                elsif wcnt = 1 then wa1 <= cpu_a(7 downto 0);
+                elsif wcnt = 2 then wa2 <= cpu_a(7 downto 0);
+                elsif wcnt = 3 then wa3 <= cpu_a(7 downto 0); end if;
+                if wcnt < 4 then wcnt <= wcnt + 1; end if;
+            end if;
+            dc_rdata <= dcap(to_integer(dk));
+        end if;
+    end process;
+
+    -- peintre : rafraîchit en continu les 256 cases (lignes 14-17) depuis la source choisie
+    paint_vaddr  <= std_logic_vector(to_unsigned(14, 5) + resize(dk(7 downto 6), 5))
+                    & std_logic_vector(dk(5 downto 0));
+    paint_active <= '1' when (dstate = "10" and cpu_vram_wr = '0') else '0';
+    process(sysclk)
+    begin
+        if rising_edge(sysclk) then
+            case to_integer(dstate) is
+                when 0 => dstate <= "01";                     -- adresses posées (combinatoire)
+                when 1 =>                                     -- latch : ROM (SW2) ou capture disque
+                    if btn2 = '0' then paint_byte <= rom_data;
+                    else               paint_byte <= dc_rdata; end if;
+                    dstate <= "10";
+                when others =>                                -- état 2 : écrit (via mux) puis avance
+                    if cpu_vram_wr = '0' then
+                        dk     <= dk + 1;
+                        dstate <= "00";
+                    end if;
+            end case;
+        end if;
+    end process;
+
+    -- port A VRAM muxé : CPU prioritaire, sinon le peintre
+    va_we   <= '1'                when cpu_vram_wr = '1' else paint_active;
+    va_addr <= cpu_a(10 downto 0) when cpu_vram_wr = '1' else paint_vaddr;
+    va_din  <= cpu_do            when cpu_vram_wr = '1' else paint_byte;
 
     u_vram : entity work.vram
         port map (clk => sysclk,
-                  addr_a => va_addr, din_a => cpu_do, we_a => va_we, dout_a => open,
+                  addr_a => va_addr, din_a => va_din, we_a => va_we, dout_a => open,
                   addr_b => vb_addr, dout_b => vb_data);
 
     u_crom : entity work.char_rom

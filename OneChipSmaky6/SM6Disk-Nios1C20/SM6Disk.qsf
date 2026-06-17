@@ -8,7 +8,7 @@ set_global_assignment -name SDC_FILE SM6Video.sdc
 set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80_Pack.vhd
 set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80_ALU.vhd
 set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80_Reg.vhd
-set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80_MCode.vhd
+set_global_assignment -name VHDL_FILE ../common/T80_MCode.vhd
 set_global_assignment -name VHDL_FILE ../SM6FPGA/T80/T80.vhd
 set_global_assignment -name VHDL_FILE ../common/T80s_ce.vhd
 set_global_assignment -name VHDL_FILE ../common/sdram_ctrl.vhd
@@ -20,6 +20,7 @@ set_global_assignment -name VHDL_FILE sm6disk.vhd
 
 set_location_assignment PIN_K5 -to clk
 set_location_assignment PIN_W3 -to reset_n
+set_location_assignment PIN_Y4 -to btn1
 set_location_assignment PIN_V4 -to btn2
 set_location_assignment PIN_W4 -to btn3
 set_location_assignment PIN_E14 -to led[0]
