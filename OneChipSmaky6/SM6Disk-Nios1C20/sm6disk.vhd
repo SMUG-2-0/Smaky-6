@@ -189,8 +189,6 @@ architecture rtl of sm6disk is
     signal sd_bvalid  : std_logic;
     signal sd_bdata   : std_logic_vector(7 downto 0);
     signal sd_bindex  : std_logic_vector(8 downto 0);
-    signal sd_trig    : std_logic := '0';                 -- bloc 0 déjà demandé
-    signal sd_b0, sd_b1, sd_b2, sd_b3 : std_logic_vector(7 downto 0) := (others => '0');
     signal sd_dbg_state, sd_dbg_r1 : std_logic_vector(7 downto 0);
 
     signal vb_addr  : std_logic_vector(10 downto 0);   -- port B (lecture VGA)
@@ -216,10 +214,19 @@ architecture rtl of sm6disk is
     signal wd_read     : std_logic := '0';                 -- mode lecture secteur
     signal wd_idx      : unsigned(7 downto 0) := (others => '0');   -- octet 0..255
     signal wd_lba      : unsigned(15 downto 0) := (others => '0');  -- n° secteur
-    signal wd_valid    : std_logic := '0';                 -- secteur dans le sous-ensemble
-    signal disk_addr   : std_logic_vector(13 downto 0);
+    signal wd_valid    : std_logic := '0';                 -- secteur lisible
+    signal disk_addr   : std_logic_vector(8 downto 0);     -- index dans le tampon SD (512 o)
     signal disk_data   : std_logic_vector(7 downto 0);
     signal disk_byte   : std_logic_vector(7 downto 0);
+    -- tampon SD : 1 bloc de 512 o = 2 secteurs Smaky (256 o)
+    type sdbuf_t is array(0 to 511) of std_logic_vector(7 downto 0);
+    signal sd_buf      : sdbuf_t;
+    signal sd_rd_lba   : std_logic_vector(31 downto 0) := (others => '0'); -- n° bloc SD demandé
+    signal wd_busy     : std_logic := '0';                 -- lecture SD en cours (statut BSY)
+    signal wd_rd_pending : std_logic := '0';               -- read demandé, attend l'init SD
+    signal sd_busy_d   : std_logic := '0';
+    signal sd_init_done : std_logic := '0';                -- carte SD initialisée (latché)
+    signal wd_status   : std_logic_vector(7 downto 0);     -- statut WD1002 ($27)
     signal deliver     : std_logic_vector(7 downto 0) := (others => '0'); -- octet figé pendant l'IN $20
     signal io_port     : std_logic_vector(7 downto 0) := (others => '0'); -- n° de port figé au début du cycle I/O
     signal iorq_n_d    : std_logic := '1';
@@ -349,7 +356,17 @@ begin
     end process;
 
     -- =============================== CPU T80 ================================
-    cpu_reset_n <= '1' when (boot_done = '1' and rst = '0') else '0';
+    -- le CPU ne démarre qu'après le bootstrap ET la 1ʳᵉ init de la carte SD (latché : une
+    -- erreur de lecture ultérieure ne reset PAS le CPU)
+    cpu_reset_n <= '1' when (boot_done = '1' and rst = '0' and sd_init_done = '1') else '0';
+    wd_status   <= x"80" when wd_busy = '1' else x"50";   -- BSY pendant la lecture SD, sinon prêt
+    process(sysclk)
+    begin
+        if rising_edge(sysclk) then
+            if rst = '1' then sd_init_done <= '0';
+            elsif sd_ready = '1' then sd_init_done <= '1'; end if;
+        end if;
+    end process;
 
     u_cpu : entity work.T80s_ce
         generic map (Mode => 0, T2Write => 0, IOWait => 1)
@@ -369,7 +386,7 @@ begin
     -- pendant l'IN (C) de l'INIR, cpu_a passe tôt à HL (write) ; io_port reste = 0x20.
     -- IN $20 -> 'deliver' (octet figé au début de l'IN).
     wd_din <= deliver      when (io_port = x"20" and wd_read = '1') else
-              x"50"        when io_port = x"27" else   -- statut : DRDY+DSC (prêt)
+              wd_status    when io_port = x"27" else   -- statut : 0x80 BSY (lecture SD) / 0x50 prêt
               wd_seccount  when io_port = x"22" else
               wd_secnum    when io_port = x"23" else
               wd_cyllow    when io_port = x"24" else
@@ -385,10 +402,18 @@ begin
               wd_din when cpu_iorq_n = '0' else
               di_reg;
 
-    -- disque : adresse octet = secteur*256 + index ; instance ROM disque
-    disk_addr <= std_logic_vector(wd_lba(5 downto 0)) & std_logic_vector(wd_idx);
-    u_disk : entity work.disk_rom
-        port map (clk => sysclk, addr => disk_addr, data => disk_data);
+    -- adresse dans le tampon SD : bit 8 = secteur pair/impair du bloc (LBA mod 2), bits 7:0 = index
+    disk_addr <= std_logic_vector(wd_lba(0 downto 0)) & std_logic_vector(wd_idx);
+    -- tampon SD 512 o : écrit par le flux SD (sd_bvalid/sd_bindex/sd_bdata), lu par disk_addr
+    process(sysclk)
+    begin
+        if rising_edge(sysclk) then
+            if sd_bvalid = '1' then
+                sd_buf(to_integer(unsigned(sd_bindex))) <= sd_bdata;
+            end if;
+            disk_data <= sd_buf(to_integer(unsigned(disk_addr)));
+        end if;
+    end process;
     io_rd20 <= '1' when (cpu_iorq_n = '0' and cpu_rd_n = '0'
                           and cpu_a(7 downto 0) = x"20" and wd_read = '1') else '0';
 
@@ -407,6 +432,7 @@ begin
                 inta_seen <= '0'; eni50_seen <= '0';
                 wd_read <= '0'; wd_idx <= (others => '0');
                 wd_lba <= (others => '0'); wd_valid <= '0'; io_rd20_d <= '0'; io_done <= '0';
+                wd_busy <= '0'; wd_rd_pending <= '0'; sd_rd_req <= '0'; sd_busy_d <= '0';
                 dbg_in27 <= (others => '0'); dbg_in27_seen <= '0';
                 dbg_rdcmd <= '0'; dbg_in20_seen <= '0';
                 dbg_lba <= (others => '0'); dbg_b0 <= (others => '0'); dbg_b1 <= (others => '0'); dbg_b2 <= (others => '0'); dbg_b3 <= (others => '0'); dbg_cap <= '0';
@@ -443,6 +469,8 @@ begin
                                 ((unsigned(wd_cylhigh) & unsigned(wd_cyllow)) * 6
                                  + resize(unsigned(wd_head(4 downto 0)), 16)) * 32
                                 + resize(unsigned(wd_secnum), 16), 16);
+                            wd_busy <= '1';            -- lance la lecture SD (statut BSY)
+                            wd_rd_pending <= '1';
                         elsif cpu_do = x"30" then                -- WRITE SECTOR (lecture seule : ignoré)
                             wd_read <= '0'; wd_idx <= (others => '0');
                         else
@@ -450,8 +478,19 @@ begin
                         end if;
                     end if;
                 end if;
-                -- validité du secteur (dans le sous-ensemble embarqué de 96 secteurs)
-                if wd_lba < 64 then wd_valid <= '1'; else wd_valid <= '0'; end if;
+                wd_valid <= '1';   -- disque complet sur SD : tout secteur est lisible
+                -- gestion de la lecture SD : déclenche le bloc (LBA/2) quand la carte est prête,
+                -- retombe BSY quand le bloc est chargé dans le tampon (front descendant de sd_busy)
+                sd_busy_d <= sd_busy;
+                sd_rd_req <= '0';
+                if wd_rd_pending = '1' and sd_ready = '1' and sd_busy = '0' then
+                    sd_rd_req     <= '1';
+                    sd_rd_lba     <= std_logic_vector(resize(wd_lba(15 downto 1), 32));
+                    wd_rd_pending <= '0';
+                elsif wd_busy = '1' and wd_rd_pending = '0'
+                      and sd_busy = '0' and sd_busy_d = '1' then
+                    wd_busy <= '0';
+                end if;
                 -- verrou du n° de port au DÉBUT du cycle I/O (cpu_a transitionne en cours d'IN (C))
                 iorq_n_d <= cpu_iorq_n;
                 if cpu_iorq_n = '0' and iorq_n_d = '1' then
@@ -668,50 +707,26 @@ begin
         end if;
     end process;
 
-    -- ===== test carte micro-SD : lit le bloc 0, capture les 4 premiers octets =====
+    -- ===== carte micro-SD : lecture du bloc demandé par le WD1002 =====
     u_sd : entity work.sd_spi
         port map (clk => sysclk, reset => rst,
                   cs_n => sd_cs, sclk => sd_sclk, mosi => sd_mosi, miso => sd_miso,
-                  rd_req => sd_rd_req, rd_lba => x"00000000",
+                  rd_req => sd_rd_req, rd_lba => sd_rd_lba,
                   busy => sd_busy, ready => sd_ready, err => sd_err,
                   bvalid => sd_bvalid, bdata => sd_bdata, bindex => sd_bindex,
                   dbg_state => sd_dbg_state, dbg_r1 => sd_dbg_r1);
-    process(sysclk)
-    begin
-        if rising_edge(sysclk) then
-            if rst = '1' then
-                sd_trig <= '0'; sd_rd_req <= '0';
-            else
-                sd_rd_req <= '0';
-                if sd_ready = '1' and sd_busy = '0' and sd_trig = '0' then  -- carte prête -> lit bloc 0
-                    sd_rd_req <= '1'; sd_trig <= '1';
-                end if;
-                if sd_bvalid = '1' then
-                    case sd_bindex is
-                        when "000000000" => sd_b0 <= sd_bdata;
-                        when "000000001" => sd_b1 <= sd_bdata;
-                        when "000000010" => sd_b2 <= sd_bdata;
-                        when "000000011" => sd_b3 <= sd_bdata;
-                        when others => null;
-                    end case;
-                end if;
-            end if;
-        end if;
-    end process;
 
-    -- LED : SW3 relâché = scancode PS/2 ; SW3 enfoncé = diagnostic SD
-    --   SW3 seul -> dbg_state : poids fort = état (0001 POWUP, 0010 INIT_SEQ, 0011 SENDCMD,
-    --               0100 GETR1, 0101 EXTRA, 0110 READY, 0111..1001 lecture, 1111 ERR),
-    --               poids faible = init_step (0 CMD0,1 CMD8,2 CMD55,3-4 ACMD41,5 CMD58,6 fini)
-    --   SW3+SW2  -> dbg_r1 : dernière réponse R1 de la carte (0x01=idle, 0x00=prêt, 0xFF=muet)
-    process(btn2, btn3, ps2_last, sd_dbg_state, sd_dbg_r1)
+    -- LED : SW3 relâché = scancode PS/2 ; SW3 enfoncé seul = dbg_state (init SD, 0110_0110=READY) ;
+    --       SW3+SW2 = activité disque (D0 wd_busy, D1 sd_busy, D2 sd_ready, D3 sd_err, D7 heartbeat)
+    process(btn2, btn3, ps2_last, sd_dbg_state, wd_busy, sd_busy, sd_ready, sd_err, blink_div)
     begin
         if btn3 = '1' then
             led <= ps2_last;
         elsif btn2 = '1' then
-            led <= sd_dbg_state;       -- état init SD (objectif 0110_0110 = READY)
+            led <= sd_dbg_state;
         else
-            led <= sd_b0;              -- 1er octet du bloc 0 (attendu 0x53 'S' avec l'image)
+            led <= (0 => wd_busy, 1 => sd_busy, 2 => sd_ready, 3 => sd_err,
+                    7 => blink_div(24), others => '0');
         end if;
     end process;
 

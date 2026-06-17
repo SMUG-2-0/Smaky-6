@@ -17,7 +17,7 @@ use ieee.numeric_std.all;
 entity sd_spi is
     generic (
         DIV_SLOW : integer := 128;    -- demi-période SPI init (~195 kHz @ 50 MHz, marge)
-        DIV_FAST : integer := 4       -- demi-période SPI data (~6 MHz)
+        DIV_FAST : integer := 128     -- demi-période SPI data (= init : fiable sur câble bricolé)
     );
     port (
         clk    : in  std_logic;                       -- 50 MHz
@@ -228,7 +228,8 @@ begin
                         cs_n <= '0';
                         if spi_busy = '0' and spi_start = '0' then
                             if rx_byte = x"FE" then byte_idx <= 0; mstate <= M_RD_DATA;
-                            elsif poll_cnt >= 20000 then mstate <= M_ERR;
+                            elsif poll_cnt >= 20000 then  -- échec de lecture : on NE verrouille PAS,
+                                cs_n <= '1'; mstate <= M_READY;  -- on revient prêt (réessai possible)
                             else tx_byte <= x"FF"; spi_start <= '1'; poll_cnt <= poll_cnt + 1; end if;
                         end if;
 

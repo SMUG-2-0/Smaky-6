@@ -390,3 +390,27 @@ Init SDHC + lecture bloc 0 = 0x53 ('S') confirmés ! Parcours de debug :
 ### ▶ RESTE : intégration WD1002 <-> SD (disque complet)
 Tampon 512o (= 2 secteurs Smaky) + mapping LBA_smaky->bloc SD (LBA/2) + BSY pendant
 lecture SD + gel CPU (reset) jusqu'à init SD. Remplace disk_rom (16 Ko).
+
+## 🎉 DISQUE COMPLET SUR MICRO-SD — Smaky 6 pleinement opérationnel (2026-06-17)
+Le Smaky 6 boote depuis la carte micro-SD (disque entier) -> SAMOS -> CLI, et lance
+des programmes (testé : SMILE.SM, éditeur-assembleur) ! Fini la limite de 16 Ko.
+
+Intégration WD1002 <-> SD :
+- `disk_rom` (16 Ko bloc-RAM) remplacé par un tampon 512 o rempli par le flux SD.
+- Mapping : secteur Smaky 256 o -> bloc SD 512 o = 2 secteurs. LBA_SD = LBA_smaky/2,
+  offset dans le tampon = (LBA_smaky mod 2)*256 + index (disk_addr = wd_lba(0) & wd_idx).
+- OUT $27=0x20 -> wd_busy=1 + lecture du bloc SD ; statut $27 = 0x80 BSY pendant la
+  lecture (le boot attend dans sa boucle IN $27), 0x50 quand le tampon est prêt.
+- CPU figé (reset) jusqu'à la 1ʳᵉ init SD (latch sd_init_done) ; pas reseté ensuite.
+- Lecture SD à 195 kHz (DIV_FAST=DIV_SLOW) : 6 MHz échouait sur le câble bricolé ->
+  M_ERR -> sd_ready tombait -> CPU resetait -> boucle de redémarrage. Corrigé.
+- Échec de lecture -> retour M_READY (pas M_ERR) : pas de blocage.
+
+Mémoire : 51 200 bits (vs 178 176 avec disk_rom). Boot ~2 s (init SD + lectures 195 kHz).
+
+### ▶ IDÉES FUTURES
+- SDSC (≤2 Go) : adressage par octets (×512) selon CCS de CMD58.
+- Accélérer la lecture SD (DIV_FAST plus rapide si câblage propre / OneChipBook).
+- Écriture disque (CMD24) si SAMOS sauvegarde.
+- Touches mortes clavier (â ê î ô û ë ï).
+- Migration OneChipBook (EP1C12, micro-SD native).
