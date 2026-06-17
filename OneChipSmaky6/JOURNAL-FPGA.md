@@ -352,7 +352,7 @@ lecture disque (wd_read reste à 1) -> l'ISR 50 Hz de SAMOS ne tournait plus ->
 pas de clavier. Retiré : le masque eni50 seul suffit (la ROM/SAMOS baissent eni50
 pendant les lectures, comme le vrai matériel).
 
-### ▶ RESTE clavier
+### ▶ RESTE clavier (super-shift FAIT ✓ 2026-06-17)
 - **Super-shift** (touches Smaky) via les modificateurs PS/2 : Ctrl-G=Cursor(40),
   Win-G=Kill(10), Alt-G=Copy(20), AltGr=Progra(08), Win-D=Show(04), Menu=Search(02),
   Ctrl-D=Change(01). État make/break -> bits fn_keys, présentés sur $0 sans strobe.

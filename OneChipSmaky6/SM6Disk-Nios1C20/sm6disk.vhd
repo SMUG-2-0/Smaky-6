@@ -164,6 +164,7 @@ architecture rtl of sm6disk is
     signal ps2_last     : std_logic_vector(7 downto 0) := (others => '0'); -- dernier scancode (LED)
     signal kb_char      : std_logic_vector(7 downto 0);   -- ASCII traduit
     signal kb_char_valid: std_logic;
+    signal kb_fn        : std_logic_vector(6 downto 0);   -- super-shift (fn_keys)
     -- FIFO clavier (8 entrées de 7 bits)
     type kbfifo_t is array(0 to 7) of std_logic_vector(6 downto 0);
     signal kb_fifo      : kbfifo_t;
@@ -645,7 +646,7 @@ begin
                   scancode => ps2_scancode, valid => ps2_valid);
     u_kbtr : entity work.ps2_to_smaky
         port map (clk => sysclk, scancode => ps2_scancode, valid => ps2_valid,
-                  char => kb_char, char_valid => kb_char_valid);
+                  char => kb_char, char_valid => kb_char_valid, fn_keys => kb_fn);
     process(sysclk)
     begin
         if rising_edge(sysclk) then
@@ -661,7 +662,7 @@ begin
     io_rd0   <= '1' when (cpu_iorq_n = '0' and cpu_rd_n = '0' and io_port = x"00") else '0';
     kb_push  <= '1' when (kb_char_valid = '1' and kb_count < 8) else '0';
     kb_pop   <= '1' when (kb_tick = '1' and kb_state = "00" and kb_count > 0) else '0';
-    kb_port0 <= '1' & kb_curcode when kb_latch = '1' else x"00";
+    kb_port0 <= '1' & kb_curcode when kb_latch = '1' else '0' & kb_fn;  -- char|0x80 ou super-shift
     kb_port1 <= (3 => timer_pending, 2 => kb_latch, others => '0');
     kb_port3 <= (2 => kb_latch, others => '0');
 

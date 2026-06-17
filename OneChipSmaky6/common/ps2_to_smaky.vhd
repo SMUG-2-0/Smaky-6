@@ -16,7 +16,8 @@ entity ps2_to_smaky is
         scancode   : in  std_logic_vector(7 downto 0);
         valid      : in  std_logic;                       -- impulsion : scancode présent
         char       : out std_logic_vector(7 downto 0);    -- ASCII 7 bits
-        char_valid : out std_logic
+        char_valid : out std_logic;
+        fn_keys    : out std_logic_vector(6 downto 0)      -- super-shift (état des 7 modificateurs)
     );
 end entity;
 
@@ -78,9 +79,28 @@ architecture rtl of ps2_to_smaky is
     signal break_f : std_logic := '0';   -- prochain code = relâchement
     signal ext_f   : std_logic := '0';   -- prochain code = étendu (0xE0)
     signal shift   : std_logic := '0';   -- un Shift est enfoncé
+    signal fn      : std_logic_vector(6 downto 0) := (others => '0'); -- état super-shift
+
+    -- masques fn_keys (super-shift Smaky)
+    constant CURSOR_M : std_logic_vector(6 downto 0) := "1000000"; -- 0x40
+    constant COPY_M   : std_logic_vector(6 downto 0) := "0100000"; -- 0x20
+    constant KILL_M   : std_logic_vector(6 downto 0) := "0010000"; -- 0x10
+    constant PROGRA_M : std_logic_vector(6 downto 0) := "0001000"; -- 0x08
+    constant SHOW_M   : std_logic_vector(6 downto 0) := "0000100"; -- 0x04
+    constant SEARCH_M : std_logic_vector(6 downto 0) := "0000010"; -- 0x02
+    constant CHANGE_M : std_logic_vector(6 downto 0) := "0000001"; -- 0x01
 begin
+    fn_keys <= fn;
+
     process(clk)
         variable c : std_logic_vector(7 downto 0);
+
+        -- met à jour un bit fn_keys selon make (break_f=0) / break (break_f=1)
+        procedure setfn(mask : std_logic_vector(6 downto 0)) is
+        begin
+            if break_f = '0' then fn <= fn or mask;
+            else                  fn <= fn and not mask; end if;
+        end procedure;
     begin
         if rising_edge(clk) then
             char_valid <= '0';
@@ -90,17 +110,30 @@ begin
                 elsif scancode = x"E0" then
                     ext_f <= '1';
                 elsif scancode = x"12" or scancode = x"59" then   -- Shift G/D
-                    shift   <= not break_f;     -- make -> 1, break -> 0
-                    break_f <= '0';
-                    ext_f   <= '0';
+                    shift   <= not break_f;
+                    break_f <= '0'; ext_f <= '0';
+                -- ====== super-shift (modificateurs -> fn_keys) ======
+                elsif scancode = x"14" then                        -- Ctrl
+                    if ext_f = '1' then setfn(CHANGE_M);           -- Ctrl-D = Change
+                    else                setfn(CURSOR_M); end if;   -- Ctrl-G = Cursor
+                    break_f <= '0'; ext_f <= '0';
+                elsif scancode = x"11" then                        -- Alt
+                    if ext_f = '1' then setfn(PROGRA_M);           -- AltGr = Progra
+                    else                setfn(COPY_M); end if;     -- Alt-G = Copy
+                    break_f <= '0'; ext_f <= '0';
+                elsif scancode = x"1F" and ext_f = '1' then        -- Win-G = Kill
+                    setfn(KILL_M);   break_f <= '0'; ext_f <= '0';
+                elsif scancode = x"27" and ext_f = '1' then        -- Win-D = Show
+                    setfn(SHOW_M);   break_f <= '0'; ext_f <= '0';
+                elsif scancode = x"2F" and ext_f = '1' then        -- Menu = Search
+                    setfn(SEARCH_M); break_f <= '0'; ext_f <= '0';
                 else
                     if break_f = '0' and ext_f = '0' then          -- touche "make" normale
                         c := sc2char(scancode, shift);
                         char <= c;
                         if c /= x"00" then char_valid <= '1'; end if;
                     end if;
-                    break_f <= '0';
-                    ext_f   <= '0';
+                    break_f <= '0'; ext_f <= '0';
                 end if;
             end if;
         end if;
