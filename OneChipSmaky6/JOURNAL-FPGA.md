@@ -374,3 +374,19 @@ micro-SD en SPI (= ce qu'a le OneChipBook -> code réutilisable).
 - Tester le lecteur SD isolé (câble + carte) via les LED.
 - Intégration WD1002 : tampon 512 o + mapping secteur Smaky->bloc SD (LBA/2) +
   statut BSY pendant la lecture SD -> remplace disk_rom (disque complet).
+
+## 💾 Lecteur micro-SD VALIDÉ sur matériel (2026-06-17)
+Init SDHC + lecture bloc 0 = 0x53 ('S') confirmés ! Parcours de debug :
+- Bug : `cmd_idx range 0 to 6` mais M_POWUP compte jusqu'à 10 -> bloqué dans POWUP. Élargi à 0..15.
+- Échantillonnage MISO déplacé sur le front descendant (MISO stable après la période haute).
+- Horloge init ralentie à ~195 kHz (DIV_SLOW=128).
+- Brochage SD : numérotation 9-1-2-3-4-5-6-7-8 (contre-intuitif !).
+- Modules SD avec level-shifters 5V = à éviter (5V sur MISO = danger ; 3,3V LDO retiré = ~1V bâtard).
+  -> câblage direct adaptateur SD->microSD, carte native 3,3V, pull-ups 10k sur MISO/DAT1/DAT2.
+- Broches finales : CS=H14, CLK=J17, MOSI=K15, MISO=V18 (changées par sécurité après expo 5V).
+- SDSC (1 Go, ≤2 Go, adressage octet) PAS encore gérée ; SDHC (4 Go, adressage bloc) OK.
+- Diagnostic LED : SW3=dbg_state (0110_0110=READY), SW3+SW2=sd_b0 (0x53 attendu).
+
+### ▶ RESTE : intégration WD1002 <-> SD (disque complet)
+Tampon 512o (= 2 secteurs Smaky) + mapping LBA_smaky->bloc SD (LBA/2) + BSY pendant
+lecture SD + gel CPU (reset) jusqu'à init SD. Remplace disk_rom (16 Ko).

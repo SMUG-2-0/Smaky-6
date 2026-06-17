@@ -16,7 +16,7 @@ use ieee.numeric_std.all;
 
 entity sd_spi is
     generic (
-        DIV_SLOW : integer := 64;     -- demi-période SPI init (~390 kHz @ 50 MHz)
+        DIV_SLOW : integer := 128;    -- demi-période SPI init (~195 kHz @ 50 MHz, marge)
         DIV_FAST : integer := 4       -- demi-période SPI data (~6 MHz)
     );
     port (
@@ -36,7 +36,10 @@ entity sd_spi is
         -- flux des 512 octets du bloc
         bvalid : out std_logic;                        -- impulsion par octet
         bdata  : out std_logic_vector(7 downto 0);
-        bindex : out std_logic_vector(8 downto 0)      -- 0..511
+        bindex : out std_logic_vector(8 downto 0);     -- 0..511
+        -- diagnostic
+        dbg_state : out std_logic_vector(7 downto 0);  -- (7:4)=état, (3:0)=init_step
+        dbg_r1    : out std_logic_vector(7 downto 0)   -- dernière réponse R1 de la carte
     );
 end entity;
 
@@ -61,7 +64,7 @@ architecture rtl of sd_spi is
     signal mstate   : mstate_t := M_RST;
     signal retstate : mstate_t := M_RST;        -- où revenir après SENDCMD/GETR1
     signal cmd_buf  : std_logic_vector(47 downto 0);  -- 6 octets de commande
-    signal cmd_idx  : integer range 0 to 6 := 0;
+    signal cmd_idx  : integer range 0 to 15 := 0;   -- jusqu'à 10 (powerup) et 6 (commande)
     signal r1       : std_logic_vector(7 downto 0);
     signal extra_n  : integer range 0 to 4 := 0;       -- octets supplémentaires (R3/R7)
     signal poll_cnt : integer range 0 to 65535 := 0;
@@ -77,6 +80,13 @@ architecture rtl of sd_spi is
     end function;
 begin
     sclk  <= sclk_i;
+    dbg_r1 <= r1;
+    with mstate select dbg_state(7 downto 4) <=
+        "0000" when M_RST,      "0001" when M_POWUP,   "0010" when M_INIT_SEQ,
+        "0011" when M_SENDCMD,  "0100" when M_GETR1,   "0101" when M_EXTRA,
+        "0110" when M_READY,    "0111" when M_RD_TOKEN,"1000" when M_RD_DATA,
+        "1001" when M_RD_CRC,   "1111" when M_ERR,     "1110" when others;
+    dbg_state(3 downto 0) <= std_logic_vector(to_unsigned(init_step, 4));
     busy  <= '0' when mstate = M_READY else '1';
     ready <= '1' when (mstate = M_READY or mstate = M_RD_TOKEN or mstate = M_RD_DATA
                        or mstate = M_RD_CRC) else '0';
@@ -101,15 +111,15 @@ begin
                     when SP_RUN =>
                         if divcnt >= hp - 1 then
                             divcnt <= 0;
-                            if phase = '0' then           -- front montant : échantillonne MISO
+                            if phase = '0' then           -- front montant : on lève juste l'horloge
                                 sclk_i <= '1';
-                                rx_sh  <= rx_sh(6 downto 0) & miso;
                                 phase  <= '1';
-                            else                          -- front descendant : bit suivant
-                                sclk_i <= '0';
+                            else                          -- front descendant : MISO stable (période
+                                sclk_i <= '0';            -- haute écoulée) -> on l'échantillonne ici
                                 phase  <= '0';
+                                rx_sh  <= rx_sh(6 downto 0) & miso;
                                 if bitc = 0 then
-                                    rx_byte  <= rx_sh;
+                                    rx_byte  <= rx_sh(6 downto 0) & miso;
                                     spi_busy <= '0';
                                     sstate   <= SP_IDLE;
                                 else

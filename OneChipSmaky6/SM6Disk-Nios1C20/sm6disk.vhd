@@ -191,6 +191,7 @@ architecture rtl of sm6disk is
     signal sd_bindex  : std_logic_vector(8 downto 0);
     signal sd_trig    : std_logic := '0';                 -- bloc 0 déjà demandé
     signal sd_b0, sd_b1, sd_b2, sd_b3 : std_logic_vector(7 downto 0) := (others => '0');
+    signal sd_dbg_state, sd_dbg_r1 : std_logic_vector(7 downto 0);
 
     signal vb_addr  : std_logic_vector(10 downto 0);   -- port B (lecture VGA)
     signal vb_data  : std_logic_vector(7 downto 0);    -- code caractère lu
@@ -673,7 +674,8 @@ begin
                   cs_n => sd_cs, sclk => sd_sclk, mosi => sd_mosi, miso => sd_miso,
                   rd_req => sd_rd_req, rd_lba => x"00000000",
                   busy => sd_busy, ready => sd_ready, err => sd_err,
-                  bvalid => sd_bvalid, bdata => sd_bdata, bindex => sd_bindex);
+                  bvalid => sd_bvalid, bdata => sd_bdata, bindex => sd_bindex,
+                  dbg_state => sd_dbg_state, dbg_r1 => sd_dbg_r1);
     process(sysclk)
     begin
         if rising_edge(sysclk) then
@@ -697,18 +699,19 @@ begin
         end if;
     end process;
 
-    -- LED : SW3 relâché = scancode PS/2 ; SW3 enfoncé = test SD
-    --   SW3 seul -> statut (D0 ready, D1 err, D2 busy, D3 trig, D7 heartbeat)
-    --   SW3+SW2  -> sd_b0 (1er octet du bloc 0, attendu 0x53 'S')
-    process(btn2, btn3, ps2_last, sd_b0, sd_ready, sd_err, sd_busy, sd_trig, blink_div)
+    -- LED : SW3 relâché = scancode PS/2 ; SW3 enfoncé = diagnostic SD
+    --   SW3 seul -> dbg_state : poids fort = état (0001 POWUP, 0010 INIT_SEQ, 0011 SENDCMD,
+    --               0100 GETR1, 0101 EXTRA, 0110 READY, 0111..1001 lecture, 1111 ERR),
+    --               poids faible = init_step (0 CMD0,1 CMD8,2 CMD55,3-4 ACMD41,5 CMD58,6 fini)
+    --   SW3+SW2  -> dbg_r1 : dernière réponse R1 de la carte (0x01=idle, 0x00=prêt, 0xFF=muet)
+    process(btn2, btn3, ps2_last, sd_dbg_state, sd_dbg_r1)
     begin
         if btn3 = '1' then
             led <= ps2_last;
-        elsif btn2 = '0' then
-            led <= sd_b0;
+        elsif btn2 = '1' then
+            led <= sd_dbg_state;       -- état init SD (objectif 0110_0110 = READY)
         else
-            led <= (0 => sd_ready, 1 => sd_err, 2 => sd_busy, 3 => sd_trig,
-                    7 => blink_div(24), others => '0');
+            led <= sd_b0;              -- 1er octet du bloc 0 (attendu 0x53 'S' avec l'image)
         end if;
     end process;
 

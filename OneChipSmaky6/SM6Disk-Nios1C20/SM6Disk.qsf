@@ -109,8 +109,8 @@ set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to ps2_clk
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to ps2_data
 
 # --- Carte micro-SD (SPI ; alim 3,3V + GND sur header) ---
-set_location_assignment PIN_J14 -to sd_cs
-set_location_assignment PIN_J18 -to sd_sclk
-set_location_assignment PIN_W18 -to sd_mosi
-set_location_assignment PIN_V19 -to sd_miso
+set_location_assignment PIN_H14 -to sd_cs
+set_location_assignment PIN_J17 -to sd_sclk
+set_location_assignment PIN_K15 -to sd_mosi
+set_location_assignment PIN_V18 -to sd_miso
 set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to sd_miso
