@@ -333,3 +333,27 @@ Derniers points débloquants :
 - Sous-ensemble disque = 64 secteurs (16 Ko) : suffit pour SYS+CLI+catalogue mais limite
   l'accès aux fichiers plus loin sur le disque. Étendre (mécanisme de chargement externe).
 - Clavier (port $0) toujours à 0x00 : implémenter l'entrée clavier pour interagir avec CLI.
+
+## ⌨️ Clavier PS/2 fonctionnel — saisie suisse romande (2026-06-17)
+Clavier PS/2 sur header J12 (CLK=U20, DATA=J15, alim 5V+GND), pull-ups internes.
+Chaîne : `ps2_rx` (trames 11 bits) -> `ps2_to_smaky` (scancode -> code Smaky,
+layout SUISSE ROMAND QWERTZ + accents directs è é à / ü ö ä, ç=Maj+4) -> FIFO +
+machine d'état 50 Hz -> ports $0/$1/$3.
+
+Protocole clavier Smaky (répliqué du simulateur) :
+- $0 = char|0x80 quand strobe armé, sinon fn_keys (super-shift, =0 pour l'instant).
+- $1 bit2 = strobe, bit3 = timer 50 Hz ; $3 bit2 = strobe ; lecture de $0 efface le strobe.
+- Codes accents Smaky (table _S2I) : à=10 â=11 é=12 è=13 ë=14 ê=15 ï=16 î=17 ô=18
+  ù=19 û=1A ä=1B ö=1C ç=1D ü=0F «=1E »=1F ; 32-127 = ASCII.
+
+⚠️ Point débloquant : le garde-fou `wd_read='0'` sur INT_n (ajouté pour protéger
+l'INIR avant la correction du bug T80) laissait l'interruption coupée APRÈS la
+lecture disque (wd_read reste à 1) -> l'ISR 50 Hz de SAMOS ne tournait plus ->
+pas de clavier. Retiré : le masque eni50 seul suffit (la ROM/SAMOS baissent eni50
+pendant les lectures, comme le vrai matériel).
+
+### ▶ RESTE clavier
+- **Super-shift** (touches Smaky) via les modificateurs PS/2 : Ctrl-G=Cursor(40),
+  Win-G=Kill(10), Alt-G=Copy(20), AltGr=Progra(08), Win-D=Show(04), Menu=Search(02),
+  Ctrl-D=Change(01). État make/break -> bits fn_keys, présentés sur $0 sans strobe.
+- Touches mortes ^ ¨ ` (â ê î ô û ë ï).

@@ -17,6 +17,7 @@ set_global_assignment -name VHDL_FILE ../common/vram.vhd
 set_global_assignment -name VHDL_FILE char_rom.vhd
 set_global_assignment -name VHDL_FILE disk_rom.vhd
 set_global_assignment -name VHDL_FILE ../common/ps2_rx.vhd
+set_global_assignment -name VHDL_FILE ../common/ps2_to_smaky.vhd
 set_global_assignment -name VHDL_FILE sm6disk.vhd
 
 set_location_assignment PIN_K5 -to clk

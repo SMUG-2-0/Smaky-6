@@ -158,10 +158,25 @@ architecture rtl of sm6disk is
     signal va_we    : std_logic;
     signal ld_rom_addr : std_logic_vector(10 downto 0);   -- adresse boot_rom (loader bootstrap)
 
-    -- clavier PS/2 (étape 1 : récepteur + affichage scancode sur LED pour test)
+    -- clavier PS/2
     signal ps2_scancode : std_logic_vector(7 downto 0);
     signal ps2_valid    : std_logic;
-    signal ps2_last     : std_logic_vector(7 downto 0) := (others => '0'); -- dernier scancode latché
+    signal ps2_last     : std_logic_vector(7 downto 0) := (others => '0'); -- dernier scancode (LED)
+    signal kb_char      : std_logic_vector(7 downto 0);   -- ASCII traduit
+    signal kb_char_valid: std_logic;
+    -- FIFO clavier (8 entrées de 7 bits)
+    type kbfifo_t is array(0 to 7) of std_logic_vector(6 downto 0);
+    signal kb_fifo      : kbfifo_t;
+    signal kb_wr, kb_rd : unsigned(2 downto 0) := (others => '0');
+    signal kb_count     : unsigned(3 downto 0) := (others => '0');
+    signal kb_state     : unsigned(1 downto 0) := "00";   -- 00 idle, 01 pending, 10 gap
+    signal kb_latch     : std_logic := '0';               -- strobe (bit2 de $1)
+    signal kb_curcode   : std_logic_vector(6 downto 0) := (others => '0');
+    signal kb_gapcnt    : unsigned(2 downto 0) := (others => '0');
+    signal kb_tick      : std_logic;                       -- impulsion 50 Hz
+    signal io_rd0, io_rd0_d : std_logic := '0';            -- IN $0 en cours
+    signal kb_push, kb_pop  : std_logic;
+    signal kb_port0, kb_port1, kb_port3 : std_logic_vector(7 downto 0);
 
     signal vb_addr  : std_logic_vector(10 downto 0);   -- port B (lecture VGA)
     signal vb_data  : std_logic_vector(7 downto 0);    -- code caractère lu
@@ -345,7 +360,9 @@ begin
               wd_cyllow    when io_port = x"24" else
               wd_cylhigh   when io_port = x"25" else
               wd_head      when io_port = x"26" else
-              x"00"        when io_port = x"00" else  -- clavier au repos (bit7=0)
+              kb_port0     when io_port = x"00" else  -- clavier : char|0x80 ou fn_keys
+              kb_port1     when io_port = x"01" else  -- bit2=strobe, bit3=timer 50 Hz
+              kb_port3     when io_port = x"03" else  -- bit2=strobe
               x"FF";                                  -- non décodé = bus flottant (open bus)
     -- données vers le CPU :
     --   INTA (IORQ+M1) -> 0xFF = RST 38h (IM 0) ; IN périphérique -> wd_din ; mémoire -> SDRAM
@@ -361,9 +378,10 @@ begin
                           and cpu_a(7 downto 0) = x"20" and wd_read = '1') else '0';
 
     -- timer 50 Hz + interruption (RST 38h via le bus en INTA)
-    -- INT_n masqué par eni50 ET pendant la lecture WD (wd_read=1) : TEST pour savoir si
-    -- l'interruption 50 Hz corrompt l'INIR (block I/O) du transfert de secteur.
-    cpu_int_n <= '0' when (int_req = '1' and eni50 = '1' and wd_read = '0') else '1';
+    -- INT_n masqué par la bascule eni50 (comme le matériel Smaky) : la ROM/SAMOS baissent eni50
+    -- pendant les lectures disque (INIR) pour ne pas que l'ISR corrompe B/C. Hors lecture,
+    -- eni50=1 -> l'ISR 50 Hz tourne (RTC, clavier...).
+    cpu_int_n <= '0' when (int_req = '1' and eni50 = '1') else '1';
 
     process(sysclk)
     begin
@@ -621,19 +639,73 @@ begin
     -- LED : PC de la 1ère écriture 0x58xx + 1ère adresse (quelle instruction écrit, et où)
     --   rien=PC bas (attendu ~0x52/0x53 = INIR)  SW3=PC haut (attendu 0x03)
     --   SW2=wa0 (adresse, attendu 0x00)          SW2+SW3=wa3
-    -- récepteur clavier PS/2 + latch du dernier scancode reçu
+    -- récepteur clavier PS/2 -> scancode, puis traduction -> ASCII
     u_ps2 : entity work.ps2_rx
         port map (clk => sysclk, ps2_clk => ps2_clk, ps2_data => ps2_data,
                   scancode => ps2_scancode, valid => ps2_valid);
+    u_kbtr : entity work.ps2_to_smaky
+        port map (clk => sysclk, scancode => ps2_scancode, valid => ps2_valid,
+                  char => kb_char, char_valid => kb_char_valid);
     process(sysclk)
     begin
         if rising_edge(sysclk) then
             if ps2_valid = '1' then ps2_last <= ps2_scancode; end if;
         end if;
     end process;
+    led <= ps2_last;   -- LED = dernier scancode (debug)
 
-    -- LED = dernier scancode PS/2 (test du câble + récepteur ; presse une touche)
-    led <= ps2_last;
+    -- ====================== Interface clavier Smaky =======================
+    -- (cf. simulateur) port $0 = char|0x80 quand strobe armé, sinon 0 (fn_keys) ;
+    --  $1 bit2 = strobe, bit3 = timer 50 Hz ; $3 bit2 = strobe ; cadence 50 Hz.
+    kb_tick  <= '1' when int_cnt = to_unsigned(INT_PERIOD - 1, int_cnt'length) else '0';
+    io_rd0   <= '1' when (cpu_iorq_n = '0' and cpu_rd_n = '0' and io_port = x"00") else '0';
+    kb_push  <= '1' when (kb_char_valid = '1' and kb_count < 8) else '0';
+    kb_pop   <= '1' when (kb_tick = '1' and kb_state = "00" and kb_count > 0) else '0';
+    kb_port0 <= '1' & kb_curcode when kb_latch = '1' else x"00";
+    kb_port1 <= (3 => timer_pending, 2 => kb_latch, others => '0');
+    kb_port3 <= (2 => kb_latch, others => '0');
+
+    process(sysclk)
+    begin
+        if rising_edge(sysclk) then
+            if rst = '1' then
+                kb_wr <= (others => '0'); kb_rd <= (others => '0');
+                kb_count <= (others => '0'); kb_state <= "00";
+                kb_latch <= '0'; kb_gapcnt <= (others => '0'); io_rd0_d <= '0';
+            else
+                io_rd0_d <= io_rd0;
+                -- push : nouvel ASCII du clavier dans la FIFO
+                if kb_push = '1' then
+                    kb_fifo(to_integer(kb_wr)) <= kb_char(6 downto 0);
+                    kb_wr <= kb_wr + 1;
+                end if;
+                -- pop (tick 50 Hz, état idle) : armer le strobe avec le prochain char
+                if kb_pop = '1' then
+                    kb_curcode <= kb_fifo(to_integer(kb_rd));
+                    kb_rd      <= kb_rd + 1;
+                    kb_latch   <= '1';
+                    kb_state   <= "01";          -- pending
+                end if;
+                -- compteur FIFO
+                if kb_push = '1' and kb_pop = '0' then
+                    kb_count <= kb_count + 1;
+                elsif kb_pop = '1' and kb_push = '0' then
+                    kb_count <= kb_count - 1;
+                end if;
+                -- fin de IN $0 (front descendant) : la lecture efface le strobe -> gap
+                if io_rd0 = '0' and io_rd0_d = '1' and kb_state = "01" then
+                    kb_latch  <= '0';
+                    kb_state  <= "10";           -- gap
+                    kb_gapcnt <= to_unsigned(2, 3);
+                end if;
+                -- gap : quelques ticks à strobe=0 avant le char suivant
+                if kb_tick = '1' and kb_state = "10" then
+                    if kb_gapcnt = 0 then kb_state <= "00";
+                    else kb_gapcnt <= kb_gapcnt - 1; end if;
+                end if;
+            end if;
+        end if;
+    end process;
 
     -- ========================= VRAM + char-gen ============================
     rom_addr <= ld_rom_addr;     -- boot_rom : adresse du loader (bootstrap ROM18 -> SDRAM)
