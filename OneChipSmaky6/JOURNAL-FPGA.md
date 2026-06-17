@@ -69,13 +69,37 @@ internes + pull-down externe → la LED s'allume). Câble VGA DE-15 fait maison 
 
 ### Étape 1 (mire VGA) validée séparément : **`VGATest-Nios1C20/`** (mire grille + test char-gen).
 
-### ▶ SUITE : émuler le **WD1002** (contrôleur disque dur)
-Le boot teste le WD1002 (ports **$20–$27**), le trouve absent → « Disque souple ». À implémenter
-d'après `../Simulateur-JS/smaky.js` (`_wd1002In`/`_wd1002Out`, `hdEnabled`) : registres style
-WD1010, secteur 256 o, 32 sect/piste, LBA=((cyl*heads)+head)*sect+sec. **Contenu disque fixe**
-dispo dans **`../Simulateur-JS/HD0.JS`** (16 MB, ~270 ko utiles) → charger en SDRAM (on a 16 MB).
-NB : récupérer la version à jour du simulateur depuis `github.com/SMUG-2-0/Smaky-6` (le local
-`Simulateur-JS-old` est périmé ; fait via `git checkout origin/master -- Simulateur-JS`).
+## Avancement — WD1002 (disque dur) ⏳ implémenté, À TESTER (2026-06-17, nuit)
+**`SM6Disk-Nios1C20/`** = `sm6video` + contrôleur **WD1002** (ports **$20–$27**) émulé d'après
+`../Simulateur-JS/smaky.js`. Construit, compilé (fMAX 60,9 MHz), **SVF prêt** — mais **NON testé
+sur la carte** (fait de nuit, sans observation moniteur).
+
+### Implémentation (`sm6disk.vhd` + `disk_rom.vhd`)
+- Registres $22-$26 (secteur/cyl/tête) latchés sur OUT ; **statut $27 = 0x50** (DRDY+DSC, prêt) ;
+  commande $27 : **0x20=read**, 0x30=write (ignoré, lecture seule), 0x1x=seek.
+- **LBA = ((cyl*6)+head)*32 + secteur** (6 têtes, 32 sect/piste). Lecture octet par octet via IN
+  $20 (index auto-incrémenté en fin d'IN). Pas de « busy » (comme le simulateur).
+- **Disque = sous-ensemble de HD0.JS** : `disk_rom.mif` = **16 Ko = 64 secteurs** (LBA 0-63),
+  en **bloc-RAM** (lecture seule). ⚠️ pourquoi 16 Ko : un sous-ensemble plus grand (24 Ko) avec
+  garde d'adresse s'est synthétisé en **logique** (>20060 LC, ne tient pas) ; 16 Ko en puissance
+  de 2 sans garde infère proprement en bloc-RAM. 64 secteurs = cyl 0, têtes 0-1 du disque.
+
+### ⚠️ À TESTER au réveil (`cd SM6Disk-Nios1C20 && ./program-sram.sh`)
+- **Attendu** : le test WD1002 voit le disque (statut 0x50) → **plus de « Disque souple »**, le
+  boot lit le catalogue + SYS et avance (peut-être un prompt SAMOS, ou au moins un autre message).
+- **Risque 1** : si le boot lit au-delà de 64 secteurs (LBA ≥ 64), retour 0 → échec/blocage. On
+  saura combien il lit. Solution si besoin : charger l'image complète (270 ko) — mais ça ne tient
+  PAS en bloc-RAM (~30 ko max) ni en SDRAM facilement (pas d'init au config) → mécanisme à trouver
+  (flash de carte, ou chargeur série/JTAG). À discuter.
+- **Risque 2** : timing de l'incrément `wd_idx` (front descendant de l'IN $20) ou de la latence
+  `disk_rom` — non vérifié. Si charabia après détection disque, c'est là.
+- **Risque 3** : format/offset du secteur. L'image HD0 est linéaire par LBA (octet = lba*256) ;
+  supposé correct mais à valider.
+- Les **LED clignotent** toujours (succès CPU). Le débogueur à poussoirs (max_pc, derail) est
+  toujours là si le boot déraille.
+
+NB simulateur : version à jour récupérée depuis `github.com/SMUG-2-0/Smaky-6`
+(`git checkout origin/master -- Simulateur-JS`) ; `Simulateur-JS-old` = périmé.
 
 ## Avancement — M2 « Smaky 6 boote sur SDRAM » ✅✅ (2026-06-16)
 **Le Smaky 6 démarre sur le FPGA** : Z80 (T80) exécutant `ROM18.bin` depuis 64 kB de SDRAM,
