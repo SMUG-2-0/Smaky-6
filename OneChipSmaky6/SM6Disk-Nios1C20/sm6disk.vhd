@@ -25,6 +25,8 @@ entity sm6disk is
         btn1      : in    std_logic;                      -- SW1 actif bas (PIN_Y4) : gel machine
         btn2      : in    std_logic;                      -- SW2 actif bas (PIN_V4) : sélecteur
         btn3      : in    std_logic;                      -- SW3 actif bas (PIN_W4) : sélecteur
+        ps2_clk   : in    std_logic;                      -- clavier PS/2 CLK  (PIN_U20, J12)
+        ps2_data  : in    std_logic;                      -- clavier PS/2 DATA (PIN_J15, J12)
         led       : out   std_logic_vector(7 downto 0);
         video     : out   std_logic;                      -- VGA video  (PIN_C19)
         hsync     : out   std_logic;                      -- VGA hsync  (PIN_D20)
@@ -155,6 +157,12 @@ architecture rtl of sm6disk is
     signal va_addr  : std_logic_vector(10 downto 0);   -- port A (snoop CPU)
     signal va_we    : std_logic;
     signal ld_rom_addr : std_logic_vector(10 downto 0);   -- adresse boot_rom (loader bootstrap)
+
+    -- clavier PS/2 (étape 1 : récepteur + affichage scancode sur LED pour test)
+    signal ps2_scancode : std_logic_vector(7 downto 0);
+    signal ps2_valid    : std_logic;
+    signal ps2_last     : std_logic_vector(7 downto 0) := (others => '0'); -- dernier scancode latché
+
     signal vb_addr  : std_logic_vector(10 downto 0);   -- port B (lecture VGA)
     signal vb_data  : std_logic_vector(7 downto 0);    -- code caractère lu
     signal crom_addr: std_logic_vector(10 downto 0);
@@ -613,13 +621,19 @@ begin
     -- LED : PC de la 1ère écriture 0x58xx + 1ère adresse (quelle instruction écrit, et où)
     --   rien=PC bas (attendu ~0x52/0x53 = INIR)  SW3=PC haut (attendu 0x03)
     --   SW2=wa0 (adresse, attendu 0x00)          SW2+SW3=wa3
-    -- LED : jalons WD1002 + heartbeat (D0 IN$27 vu, D1 disque détecté, D2 read, D3 transfert)
-    led(0) <= dbg_in27_seen;
-    led(1) <= dbg_found;
-    led(2) <= dbg_rdcmd;
-    led(3) <= dbg_in20_seen;
-    led(6 downto 4) <= (others => '0');
-    led(7) <= blink_div(24);
+    -- récepteur clavier PS/2 + latch du dernier scancode reçu
+    u_ps2 : entity work.ps2_rx
+        port map (clk => sysclk, ps2_clk => ps2_clk, ps2_data => ps2_data,
+                  scancode => ps2_scancode, valid => ps2_valid);
+    process(sysclk)
+    begin
+        if rising_edge(sysclk) then
+            if ps2_valid = '1' then ps2_last <= ps2_scancode; end if;
+        end if;
+    end process;
+
+    -- LED = dernier scancode PS/2 (test du câble + récepteur ; presse une touche)
+    led <= ps2_last;
 
     -- ========================= VRAM + char-gen ============================
     rom_addr <= ld_rom_addr;     -- boot_rom : adresse du loader (bootstrap ROM18 -> SDRAM)
