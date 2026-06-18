@@ -210,6 +210,17 @@ architecture rtl of sm6disk is
     signal it1, it2 : std_logic := '0';                          -- in_text pipeliné
     signal iv1, iv2 : std_logic := '0';                          -- inverse pipeliné
 
+    -- ===================== écran GRAPHIQUE (VRAM $4600) =====================
+    signal eline    : unsigned(7 downto 0) := (others => '0');   -- ligne élémentaire 0..239
+    signal gv_waddr : std_logic_vector(11 downto 0);            -- adresse écriture CPU (snoop)
+    signal gv_we    : std_logic;
+    signal gb_addr  : std_logic_vector(11 downto 0);           -- adresse lecture VGA
+    signal gb_data  : std_logic_vector(7 downto 0);
+    signal gfx_bit1 : std_logic := '0';                        -- bit graphique aligné sur le glyphe
+    signal gfx_gros : std_logic := '1';                        -- 1 = pixel gros 2×2, 0 = petit 1×1
+    signal gfx_gra  : std_logic := '0';                        -- afficher l'écran graphique
+    signal gfx_nox  : std_logic := '0';                        -- masquer l'écran alphanumérique
+
     -- ===================== WD1002 (disque dur, ports $20-$27) ===============
     signal wd_seccount : std_logic_vector(7 downto 0) := (others => '0');
     signal wd_secnum   : std_logic_vector(7 downto 0) := (others => '0');
@@ -445,6 +456,7 @@ begin
         if rising_edge(sysclk) then
             if rst = '1' then
                 eni50 <= '0'; int_cnt <= (others => '0');
+                gfx_gros <= '1'; gfx_gra <= '0'; gfx_nox <= '0';   -- texte seul au reset
                 int_req <= '0'; timer_pending <= '0';
                 inta_seen <= '0'; eni50_seen <= '0';
                 wd_read <= '0'; wd_write <= '0'; wd_idx <= (others => '0');
@@ -470,6 +482,9 @@ begin
                     if cpu_a(7 downto 0) = x"00" then
                         eni50 <= cpu_do(0);
                         if cpu_do(0) = '1' then eni50_seen <= '1'; end if;
+                        gfx_gros <= not cpu_do(1);  -- bit1 : 0=gros 2×2, 1=petit 1×1
+                        gfx_gra  <= cpu_do(2);      -- bit2 : afficher le graphique
+                        gfx_nox  <= cpu_do(3);      -- bit3 : masquer l'alphanumérique
                     elsif cpu_a(7 downto 0) = x"01" and cpu_do(3) = '1' then
                         timer_pending <= '0';
                     elsif cpu_a(7 downto 0) = x"22" then wd_seccount <= cpu_do;
@@ -840,6 +855,19 @@ begin
                   addr_a => va_addr, din_a => cpu_do, we_a => va_we, dout_a => open,
                   addr_b => vb_addr, dout_b => vb_data);
 
+    -- Snoop graphique : écriture CPU dans 0x4600-0x54FF -> gvram (offset = adr - 0x4600).
+    gv_waddr <= std_logic_vector(resize(unsigned(cpu_a) - to_unsigned(16#4600#, 16), 12));
+    gv_we    <= '1' when (mstate = M_REQ and is_write = '1'
+                          and unsigned(cpu_a) >= to_unsigned(16#4600#, 16)
+                          and unsigned(cpu_a) <  to_unsigned(16#5500#, 16)) else '0';
+    -- adresse de lecture VGA : octet = paire(0..59) & colonne(0..63) ; paire = eline/4
+    gb_addr  <= std_logic_vector(eline(7 downto 2)) & std_logic_vector(vhrel(8 downto 3));
+
+    u_gvram : entity work.gvram
+        port map (clk => sysclk,
+                  addr_a => gv_waddr, din_a => cpu_do, we_a => gv_we,
+                  addr_b => gb_addr, dout_b => gb_data);
+
     u_crom : entity work.char_rom
         port map (clk => sysclk, addr => crom_addr, data => crom_data);
 
@@ -862,7 +890,7 @@ begin
                     vhc <= (others => '0');
                     if vvc = 524 then                  -- haut de trame : remet les compteurs
                         vvc <= (others => '0');
-                        chr_y <= 0; txt_row <= 0; vdbl <= '0';
+                        chr_y <= 0; txt_row <= 0; vdbl <= '0'; eline <= (others => '0');
                     else
                         vvc <= vvc + 1;
                         if vvc < 479 then              -- zone active : avance les compteurs caractère
@@ -870,6 +898,7 @@ begin
                                 vdbl <= '1';
                             else                       -- 2e ligne -> ligne Smaky suivante
                                 vdbl <= '0';
+                                eline <= eline + 1;    -- ligne élémentaire 0..239 (graphique)
                                 if chr_y = 11 then chr_y <= 0; txt_row <= txt_row + 1;
                                 else chr_y <= chr_y + 1; end if;
                             end if;
@@ -885,8 +914,22 @@ begin
                 cx1 <= vhrel(2 downto 0); cx2 <= cx1;
                 it1 <= v_intxt;           it2 <= it1;
                 iv1 <= vb_data(7); iv2 <= iv1;             -- bit inverse vidéo (2 étages, aligné sur cx2/it2)
-                if it2 = '1' and (crom_data(to_integer(cx2)) xor iv2) = '1' then
-                    video <= '1';
+
+                -- Chaîne GRAPHIQUE : décodage du bit au niveau gb_data, avec cx1 = vhrel(2:0)
+                -- retardé d'1 (même latence) ; un registre (gfx_bit1) l'aligne sur le glyphe.
+                if eline(1) = '0' then                     -- ligne haute de la paire -> bits 7..4
+                    gfx_bit1 <= gb_data(7 - to_integer(cx1(2 downto 1)));
+                else                                       -- ligne basse -> bits 3..0
+                    gfx_bit1 <= gb_data(3 - to_integer(cx1(2 downto 1)));
+                end if;
+                if gfx_gros = '0' and (eline(0) = '1' or cx1(0) = '1') then
+                    gfx_bit1 <= '0';                       -- mode petit : seul le pixel haut-gauche
+                end if;
+
+                -- Combinaison : (texte sauf si NOX) OU (graphique si GRA), dans la zone active.
+                if it2 = '1' then
+                    video <= (((crom_data(to_integer(cx2)) xor iv2) and not gfx_nox)
+                              or (gfx_bit1 and gfx_gra));
                 else
                     video <= '0';
                 end if;

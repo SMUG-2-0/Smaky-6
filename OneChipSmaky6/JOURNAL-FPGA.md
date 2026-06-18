@@ -506,8 +506,20 @@ Nécessaire pour l'écran graphique à venir : pixel graphique = 2 × 2 pixels �
 zone 256 × 120, superposable au texte en OU ; registre de contrôle (gros/petit pixel,
 texte visible, graphique visible).
 
+## 🎨 Écran GRAPHIQUE implémenté (2026-06-18)
+Chaîne graphique superposée au texte (OU), conforme à `screenRenderer.js` :
+- **256 × 120 pixels graphiques**, chacun 2×2 pixels élémentaires (mode gros) ou 1×1
+  haut-gauche (mode petit) -> couvre 512 × 240 élémentaires (= l'écran).
+- VRAM graphique `gvram.vhd` (4 Ko, $4600..$54FF), snoop des écritures CPU, port de
+  lecture VGA dédié. Octet = 4 px ligne haute (bits 7..4) + 4 px ligne basse (bits 3..0)
+  d'une paire de lignes. Adresse = (eline/4)·64 + colonne.
+- Registre de contrôle = **OUT $0** : bit1 `gros` (inversé : 0=gros 2×2, 1=petit 1×1),
+  bit2 `gra` (afficher graphique), bit3 `nox` (masquer texte). bit0 = eni50 (déjà là).
+- Compteur `eline` (0..239) pour l'adressage graphique ; bit graphique pipeliné (gfx_bit1)
+  aligné sur le glyphe. Combinaison : (texte si !NOX) OU (graphique si GRA).
+- Au reset : texte seul (gra=0, nox=0). Ressources : 19 % LE, 30 % mémoire.
+
 ### ▶ IDÉES FUTURES
-- Écran graphique (VRAM $4600) : 256 × 120 pixels graphiques, OU avec le texte.
 - SDSC (≤2 Go) : adressage par octets (×512) selon CCS de CMD58.
 - Accélérer la lecture SD (DIV_FAST plus rapide si câblage propre / OneChipBook).
 - Touches mortes clavier (â ê î ô û ë ï).
