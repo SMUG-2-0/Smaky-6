@@ -66,7 +66,8 @@ architecture rtl of ps2_to_smaky is
             when x"5A" => c := x"0D";   -- Entrée (CR)
             when x"66" => c := x"08";   -- Backspace
             when x"0D" => c := x"09";   -- Tab
-            when x"76" => c := x"1B";   -- Esc
+            when x"76" => c := x"06";   -- ESC (touche Esc -> ESC6 du Smaky 6)
+            when x"0E" => c := x"1B";   -- § (position Esc du clavier PC) -> ESC 0x1B
             when others => c := x"00";
         end case;
         -- MAJUSCULES pour les lettres si shift
@@ -127,6 +128,13 @@ begin
                     setfn(SHOW_M);   break_f <= '0'; ext_f <= '0';
                 elsif scancode = x"2F" and ext_f = '1' then        -- Menu = Search
                     setfn(SEARCH_M); break_f <= '0'; ext_f <= '0';
+                -- touches étendues produisant un caractère Smaky
+                elsif scancode = x"69" and ext_f = '1' then        -- End -> END (0x04)
+                    if break_f = '0' then char <= x"04"; char_valid <= '1'; end if;
+                    break_f <= '0'; ext_f <= '0';
+                elsif scancode = x"70" and ext_f = '1' then        -- Insert -> DEFINE (0x1F)
+                    if break_f = '0' then char <= x"1F"; char_valid <= '1'; end if;
+                    break_f <= '0'; ext_f <= '0';
                 else
                     if break_f = '0' and ext_f = '0' then          -- touche "make" normale
                         c := sc2char(scancode, shift);
