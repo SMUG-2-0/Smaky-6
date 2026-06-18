@@ -1,0 +1,33 @@
+# ===========================================================================
+# Contraintes de broches — Colorlight 5A-75B  (ECP5 LFE5U-25F, CABGA256)
+# ===========================================================================
+# Format LPF (Lattice). Syntaxe : LOCATE COMP "<port>" SITE "<ball>";
+#
+# ⚠️  À VÉRIFIER selon TA version de carte (v6.1 / v7.0 / v8.0) : les broches
+#     varient un peu entre révisions. Sources de référence faisant autorité :
+#       - litex-boards : platforms/colorlight_5a_75b.py
+#       - openFPGALoader (board colorlight-5a-75b)
+#       - rétro-ingénierie communautaire (pinouts HUB75 / RJ45 / SDRAM)
+#
+#     L'horloge 25 MHz sur P6 est stable sur les versions récentes (v7.0/v8.0).
+# ===========================================================================
+
+# ---- Horloge 25 MHz ----
+LOCATE COMP "clk25" SITE "P6";
+IOBUF  PORT "clk25" IO_TYPE=LVCMOS33;
+FREQUENCY PORT "clk25" 25 MHZ;
+
+# ---- Sortie de test (à remplacer par une vraie broche HUB75 vérifiée) ----
+# Exemple : une ligne de donnée d'un connecteur HUB75 (3,3 V).
+# REMPLACE "C4" par une broche que tu auras vérifiée sur ta carte.
+LOCATE COMP "led" SITE "C4";
+IOBUF  PORT "led" IO_TYPE=LVCMOS33 DRIVE=4;
+
+# ===========================================================================
+# Pour la suite (Smaky), tu ajouteras ici, depuis la référence ci-dessus :
+#   - VGA  : R/G/B (ou 1 bit `video`), HSYNC, VSYNC   -> GPIO HUB75
+#   - SDRAM: CLK, CKE, CS, RAS, CAS, WE, BA[1:0], A[12:0], DQ[15:0], DQM, ...
+#   - micro-SD : CS, SCLK, MOSI, MISO
+#   - PS/2 : CLK, DATA
+#   - éventuellement RJ45 (PHY) si tu veux du réseau plus tard
+# ===========================================================================
