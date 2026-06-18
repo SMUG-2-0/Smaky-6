@@ -408,9 +408,89 @@ Intégration WD1002 <-> SD :
 
 Mémoire : 51 200 bits (vs 178 176 avec disk_rom). Boot ~2 s (init SD + lectures 195 kHz).
 
+## ✍️ ÉCRITURE SUR LA CARTE SD (CMD24) — SAMOS peut sauvegarder (2026-06-18)
+Implémentation de l'écriture de secteur WD1002 -> carte SD, pour que SAMOS écrive
+(sauvegarde de fichiers, mise à jour du répertoire).
+
+- `sd_spi.vhd` : FSM d'écriture CMD24 (WRITE_BLOCK). États M_WR_TOKEN (garde 0xFF +
+  token 0xFE), M_WR_DATA (512 o depuis le tampon via `wdata`@`bindex`), M_WR_CRC,
+  M_WR_RESP (token de réponse data), M_WR_BUSY (attente MISO bas pendant l'écriture
+  carte). Nouveaux ports : `wr_req`, `wdata`. `rd_lba` partagé lecture/écriture.
+- Secteur Smaky 256 o = demi-bloc SD 512 o -> **read-modify-write** : OUT $27=0x30
+  lit d'abord le bloc (BSY) pour préserver le secteur voisin, puis le flux OUT $20
+  remplit la moitié concernée, et le 256ᵉ octet déclenche l'écriture SD (BSY).
+- `sd_buf` (tampon 512 o) devient bi-directionnel : écrit par le flux SD (lecture/RMW)
+  OU par le CPU (OUT $20) ; relu par `disk_addr` (IN $20) et par `bindex` (source de
+  l'écriture SD `sd_wdata`).
+- BSY ($27=0x80) pendant la lecture RMW ET pendant l'écriture du bloc : SAMOS attend
+  dans sa boucle IN $27 (symétrie avec la lecture qui marche déjà).
+- À tester : sauvegarde d'un fichier depuis SMILE / commande SAMOS d'écriture.
+
+### 🐛 2 bugs d'écriture corrigés (1er essai « delete X » détruisait le directoire)
+1. **1er octet de chaque bloc faux** : dans `M_WR_DATA`, `bindex` est registré (latence
+   2 cycles vers `wdata`) ; le tout 1er octet partait avant stabilisation -> octet 0 lu
+   à un index périmé. Corrigé par un petit settle (poll_cnt < 4) avant chaque envoi.
+2. **Course flux OUT $20 ↔ lecture RMW** : `OUT $27=0x30` lançait aussitôt la lecture SD
+   (RMW) avec BSY ; si SAMOS n'attend pas le BSY là, son flux OUT $20 écrivait dans
+   `sd_buf` pendant que la lecture SD le remplissait. Corrigé : 0x30 ne fait plus
+   d'accès SD ; le RMW (lecture du voisin + écriture) ne démarre qu'au 256e octet, et
+   la lecture RMW **préserve** la moitié déjà remplie par le CPU (`wr_rmw`/`wr_half`).
+   Plus aucune course : pas d'accès SD pendant le flux.
+3. **Capture des octets OUT $20 sur front (et non par niveau)** : `sd_buf` était écrit
+   au seul front montant de l'OUT $20, où `cpu_do` n'est pas encore stable -> octets
+   garbled (« SME » + caractères spéciaux, comportement inchangé après les fix 1-2).
+   Les registres WD `$22-$26` (eux corrects) capturent par NIVEAU (`if WR bas`). Passé
+   `OUT $20` en capture par niveau (dernière valeur stable gagne) -> aligné sur eux.
+4. **LE vrai bug (dump SD à l'appui) : SAMOS n'attend pas le BSY entre écritures.**
+   `delete X` (entrée à 0x2e8, secteur smaky 2 = bloc SD 1, moitié 0) : le secteur 2 était
+   correct (X effacé) MAIS le secteur 3 (bloc 1 moitié 1, du CODE à préserver) était écrasé
+   par le contenu du secteur 1. Déterministe -> pas une simple course matérielle mais un
+   PIPELINE logiciel : pendant mon RMW (lecture du voisin + réécriture, ~50 ms), SAMOS
+   enchaîne déjà le secteur suivant -> `wd_lba` change et `sd_buf` est réécrit en cours
+   d'opération -> mon RMW lit/écrit le mauvais bloc. CORRIGÉ en **gelant le CPU**
+   (`wd_wr_active` -> `cpu_cen=0`, comme le stall SDRAM) pendant toute l'écriture SD :
+   plus aucune commande ni flux ne peut s'intercaler, chaque secteur est écrit
+   atomiquement. Diagnostic clé : `sudo dd` de la carte + comparaison octet à octet avec
+   l'image d'origine (le « SMEozoo » vu à l'écran était en fait du contenu normal).
+
+## 🧭 SIMPLIFICATION : 1 secteur Smaky = 1 bloc SD (abandon du RMW) (2026-06-18)
+Idée de PYR : au lieu de loger 2 secteurs Smaky (256 o) par bloc SD (512 o) — ce qui
+imposait un **read-modify-write** pour préserver le secteur voisin lors d'une écriture
+(source du bug « secteur 3 détruit » sur `delete X`) — on mappe **1 secteur ↔ 1 bloc SD** :
+on n'utilise que les 256 premiers octets du bloc, les 256 suivants sont du bourrage ignoré.
+
+Conséquences :
+- **Plus de RMW** : écrire un secteur = écrire un bloc SD entier, rien à préserver. Le bug
+  disparaît par construction. Supprimé : `wr_rmw`/`wr_half`/`wr_after_read`, le chaînage
+  lecture→écriture, la préservation de moitié, et le gel CPU `wd_wr_active` (inutile : SAMOS
+  attend déjà le BSY, confirmé par l'émulateur STM32 de PYR sur Smaky réel).
+- Mapping : `sd_rd_lba = wd_lba` (bloc = secteur), `disk_addr = '0' & wd_idx` (1re moitié).
+- Même vitesse : on relisait déjà 1 bloc par secteur (pas de cache), donc inchangé.
+- **Image SD à régénérer** : `HD0.img` (secteurs 256 o jointifs) -> `HD0-sd.img` (chaque
+  secteur complété à 512 o, 2de moitié à zéro). Script : voir génération `HD0-sd.img`
+  (1054 secteurs -> 1054 blocs, 539 648 o). À écrire avec `dd` sur TOUT le device.
+
+NB : le bug RMW initial (`delete X` détruisait le secteur de code voisin) a été diagnostiqué
+par dump `dd` + comparaison à l'image d'origine ; la cause exacte du décalage est restée
+floue, mais la simplification la rend caduque.
+
+## 🎯 LE VRAI bug : lecture-après-écriture (désélection SD manquante) (2026-06-18)
+Après la simplification, `delete X` montrait TOUJOURS « SMEozoo » à l'écran. Mais un dump
+`dd` (nouveau mapping) a prouvé que **le disque est PARFAIT** : secteurs 0,1,2 intacts,
+entrée X bien effacée (zéros). Donc l'écriture marche ; « SME… » = le **contenu du secteur 2**
+(dernier secteur écrit, resté dans `sd_buf`) servi à la place du secteur 0 demandé.
+=> **bug de lecture-après-écriture** : après un `CMD24`, le `CMD17` suivant échoue (carte
+encore occupée / mal désélectionnée) et on sert le tampon périmé.
+Correctif tenté 1 (`sd_spi.vhd`) : état **M_WR_DONE** après l'écriture — CS haut + clocks de
+garde (désélection SPI standard) avant M_READY. **Sans effet** (« SMEozoo » persiste).
+Confirmation que le disque est OK : un Reset (SW1) reboote et X a bien disparu.
+Correctif tenté 2 : **ré-essai du CMD17** (`M_RD_RETRY`, jusqu'à 10 fois) si pas de R1 ou pas
+de token de données — au lieu de servir le tampon périmé. À tester. Si insuffisant, l'outil
+Smile (write secteur N puis read secteurs N / autre) pointera la cause exacte (échec SD vs
+BSY non attendu vs tampon).
+
 ### ▶ IDÉES FUTURES
 - SDSC (≤2 Go) : adressage par octets (×512) selon CCS de CMD58.
 - Accélérer la lecture SD (DIV_FAST plus rapide si câblage propre / OneChipBook).
-- Écriture disque (CMD24) si SAMOS sauvegarde.
 - Touches mortes clavier (â ê î ô û ë ï).
 - Migration OneChipBook (EP1C12, micro-SD native).

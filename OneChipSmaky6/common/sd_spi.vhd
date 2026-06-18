@@ -27,16 +27,18 @@ entity sd_spi is
         sclk   : out std_logic;
         mosi   : out std_logic;
         miso   : in  std_logic;
-        -- interface lecture de bloc
+        -- interface lecture / écriture de bloc
         rd_req : in  std_logic;                        -- impulsion : lance une lecture
+        wr_req : in  std_logic;                        -- impulsion : lance une écriture
         rd_lba : in  std_logic_vector(31 downto 0);    -- n° de bloc (unités 512 o, SDHC)
-        busy   : out std_logic;                        -- lecture en cours
+        wdata  : in  std_logic_vector(7 downto 0);     -- octet du tampon à l'index bindex (écriture)
+        busy   : out std_logic;                        -- accès en cours
         ready  : out std_logic;                        -- carte initialisée
         err    : out std_logic;
-        -- flux des 512 octets du bloc
-        bvalid : out std_logic;                        -- impulsion par octet
+        -- flux des 512 octets du bloc lu
+        bvalid : out std_logic;                        -- impulsion par octet (remplissage tampon)
         bdata  : out std_logic_vector(7 downto 0);
-        bindex : out std_logic_vector(8 downto 0);     -- 0..511
+        bindex : out std_logic_vector(8 downto 0);     -- 0..511 (index lecture ET écriture)
         -- diagnostic
         dbg_state : out std_logic_vector(7 downto 0);  -- (7:4)=état, (3:0)=init_step
         dbg_r1    : out std_logic_vector(7 downto 0)   -- dernière réponse R1 de la carte
@@ -60,7 +62,9 @@ architecture rtl of sd_spi is
 
     -- ----- FSM principale -----
     type mstate_t is (M_RST, M_POWUP, M_SENDCMD, M_GETR1, M_EXTRA,
-                      M_INIT_SEQ, M_READY, M_RD_TOKEN, M_RD_DATA, M_RD_CRC, M_ERR);
+                      M_INIT_SEQ, M_READY, M_RD_TOKEN, M_RD_DATA, M_RD_CRC,
+                      M_WR_TOKEN, M_WR_DATA, M_WR_CRC, M_WR_RESP, M_WR_BUSY, M_WR_DONE,
+                      M_RD_RETRY, M_ERR);
     signal mstate   : mstate_t := M_RST;
     signal retstate : mstate_t := M_RST;        -- où revenir après SENDCMD/GETR1
     signal cmd_buf  : std_logic_vector(47 downto 0);  -- 6 octets de commande
@@ -70,6 +74,7 @@ architecture rtl of sd_spi is
     signal poll_cnt : integer range 0 to 65535 := 0;
     signal init_step: integer range 0 to 7 := 0;
     signal byte_idx : integer range 0 to 512 := 0;
+    signal rd_tries : integer range 0 to 15 := 0;   -- ré-essais d'un CMD17 qui échoue
     signal acmd41_tries : integer range 0 to 65535 := 0;
 
     -- construit une commande SPI : 0x40|cmd, arg(32), crc|0x01
@@ -89,7 +94,9 @@ begin
     dbg_state(3 downto 0) <= std_logic_vector(to_unsigned(init_step, 4));
     busy  <= '0' when mstate = M_READY else '1';
     ready <= '1' when (mstate = M_READY or mstate = M_RD_TOKEN or mstate = M_RD_DATA
-                       or mstate = M_RD_CRC) else '0';
+                       or mstate = M_RD_CRC or mstate = M_WR_TOKEN or mstate = M_WR_DATA
+                       or mstate = M_WR_CRC or mstate = M_WR_RESP or mstate = M_WR_BUSY
+                       or mstate = M_WR_DONE or mstate = M_RD_RETRY) else '0';
     err   <= '1' when mstate = M_ERR else '0';
 
     -- ============ moteur SPI : transfère tx_byte, reçoit rx_byte ============
@@ -203,7 +210,13 @@ begin
                                 if extra_n > 0 then byte_idx <= 0; mstate <= M_EXTRA;
                                 else mstate <= retstate; end if;
                             elsif poll_cnt >= 1000 then
-                                mstate <= M_ERR;
+                                -- pas de R1 : si c'est un CMD17, on ré-essaie ; sinon erreur (init)
+                                if retstate = M_RD_TOKEN and rd_tries > 0 then
+                                    rd_tries <= rd_tries - 1; cs_n <= '1'; byte_idx <= 0;
+                                    mstate <= M_RD_RETRY;
+                                else
+                                    mstate <= M_ERR;
+                                end if;
                             else
                                 tx_byte <= x"FF"; spi_start <= '1'; poll_cnt <= poll_cnt + 1;
                             end if;
@@ -215,22 +228,39 @@ begin
                             else tx_byte <= x"FF"; spi_start <= '1'; byte_idx <= byte_idx + 1; end if;
                         end if;
 
-                    -- ---- lecture d'un bloc à la demande ----
+                    -- ---- lecture / écriture d'un bloc à la demande ----
                     when M_READY =>
                         cs_n <= '1'; fast <= '1';
                         if rd_req = '1' then
                             cs_n <= '0';
                             cmd_buf <= mkcmd(17, rd_lba, x"01"); extra_n <= 0;
+                            rd_tries <= 10;                       -- jusqu'à 10 ré-essais du CMD17
                             retstate <= M_RD_TOKEN; mstate <= M_SENDCMD;
+                        elsif wr_req = '1' then
+                            cs_n <= '0';
+                            cmd_buf <= mkcmd(24, rd_lba, x"01"); extra_n <= 0;  -- WRITE_BLOCK
+                            byte_idx <= 0; retstate <= M_WR_TOKEN; mstate <= M_SENDCMD;
                         end if;
 
                     when M_RD_TOKEN =>                    -- attend le token de données 0xFE
                         cs_n <= '0';
                         if spi_busy = '0' and spi_start = '0' then
                             if rx_byte = x"FE" then byte_idx <= 0; mstate <= M_RD_DATA;
-                            elsif poll_cnt >= 20000 then  -- échec de lecture : on NE verrouille PAS,
-                                cs_n <= '1'; mstate <= M_READY;  -- on revient prêt (réessai possible)
+                            elsif poll_cnt >= 2000 then   -- pas de token : on ré-essaie le CMD17
+                                if rd_tries > 0 then
+                                    rd_tries <= rd_tries - 1; cs_n <= '1'; byte_idx <= 0;
+                                    mstate <= M_RD_RETRY;
+                                else cs_n <= '1'; mstate <= M_READY; end if;  -- abandon (sert périmé)
                             else tx_byte <= x"FF"; spi_start <= '1'; poll_cnt <= poll_cnt + 1; end if;
+                        end if;
+
+                    when M_RD_RETRY =>                    -- désélection puis nouvelle tentative de CMD17
+                        cs_n <= '1';
+                        if spi_busy = '0' and spi_start = '0' then
+                            if byte_idx >= 3 then
+                                cs_n <= '0'; cmd_buf <= mkcmd(17, rd_lba, x"01"); extra_n <= 0;
+                                poll_cnt <= 0; retstate <= M_RD_TOKEN; mstate <= M_SENDCMD;
+                            else tx_byte <= x"FF"; spi_start <= '1'; byte_idx <= byte_idx + 1; end if;
                         end if;
 
                     when M_RD_DATA =>                     -- 512 octets de données
@@ -247,6 +277,57 @@ begin
                     when M_RD_CRC =>                      -- 2 octets CRC, ignorés
                         if spi_busy = '0' and spi_start = '0' then
                             if byte_idx >= 2 then cs_n <= '1'; poll_cnt <= 0; mstate <= M_READY;
+                            else tx_byte <= x"FF"; spi_start <= '1'; byte_idx <= byte_idx + 1; end if;
+                        end if;
+
+                    -- ---- écriture d'un bloc (CMD24 déjà envoyée) ----
+                    when M_WR_TOKEN =>                    -- octet de garde puis token de données 0xFE
+                        cs_n <= '0';
+                        if spi_busy = '0' and spi_start = '0' then
+                            if    byte_idx = 0 then tx_byte <= x"FF"; spi_start <= '1'; byte_idx <= 1;
+                            elsif byte_idx = 1 then tx_byte <= x"FE"; spi_start <= '1'; byte_idx <= 2;
+                            else  byte_idx <= 0; bindex <= (others => '0'); poll_cnt <= 0;
+                                  mstate <= M_WR_DATA; end if;
+                        end if;
+
+                    when M_WR_DATA =>                     -- 512 octets depuis le tampon (wdata @ bindex)
+                        cs_n   <= '0';
+                        bindex <= std_logic_vector(to_unsigned(byte_idx, 9));
+                        if spi_busy = '0' and spi_start = '0' then
+                            if poll_cnt < 4 then         -- laisse wdata se stabiliser (latence bindex->wdata)
+                                poll_cnt <= poll_cnt + 1;
+                            elsif byte_idx >= 512 then
+                                byte_idx <= 0; mstate <= M_WR_CRC;
+                            else
+                                tx_byte <= wdata; spi_start <= '1';
+                                byte_idx <= byte_idx + 1; poll_cnt <= 0;
+                            end if;
+                        end if;
+
+                    when M_WR_CRC =>                      -- 2 octets CRC (factices)
+                        if spi_busy = '0' and spi_start = '0' then
+                            if byte_idx >= 2 then poll_cnt <= 0; mstate <= M_WR_RESP;
+                            else tx_byte <= x"FF"; spi_start <= '1'; byte_idx <= byte_idx + 1; end if;
+                        end if;
+
+                    when M_WR_RESP =>                     -- token de réponse data (xxx0_0101 = accepté)
+                        if spi_busy = '0' and spi_start = '0' then
+                            if rx_byte /= x"FF" then poll_cnt <= 0; mstate <= M_WR_BUSY;
+                            elsif poll_cnt >= 1000 then cs_n <= '1'; mstate <= M_READY;
+                            else tx_byte <= x"FF"; spi_start <= '1'; poll_cnt <= poll_cnt + 1; end if;
+                        end if;
+
+                    when M_WR_BUSY =>                     -- la carte tient MISO bas pendant l'écriture
+                        if spi_busy = '0' and spi_start = '0' then
+                            if rx_byte /= x"00" then cs_n <= '1'; byte_idx <= 0; mstate <= M_WR_DONE;
+                            elsif poll_cnt >= 60000 then cs_n <= '1'; byte_idx <= 0; mstate <= M_WR_DONE; -- sécurité (~2,5 s)
+                            else tx_byte <= x"FF"; spi_start <= '1'; poll_cnt <= poll_cnt + 1; end if;
+                        end if;
+
+                    when M_WR_DONE =>                     -- désélection : CS haut + clocks de garde, sinon
+                        cs_n <= '1';                      -- la carte reste occupée et le CMD17 suivant rate
+                        if spi_busy = '0' and spi_start = '0' then
+                            if byte_idx >= 3 then mstate <= M_READY;
                             else tx_byte <= x"FF"; spi_start <= '1'; byte_idx <= byte_idx + 1; end if;
                         end if;
 

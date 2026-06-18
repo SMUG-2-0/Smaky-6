@@ -59,7 +59,7 @@ architecture rtl of sm6disk is
     -- reset / heartbeat
     signal por       : std_logic_vector(3 downto 0) := (others => '0');
     signal rst       : std_logic;
-    signal blink_div : unsigned(24 downto 0) := (others => '0');
+    signal blink_div : unsigned(26 downto 0) := (others => '0');
 
     -- boot_rom
     signal rom_addr : std_logic_vector(10 downto 0);
@@ -183,8 +183,10 @@ architecture rtl of sm6disk is
     signal kb_push, kb_pop  : std_logic;
     signal kb_port0, kb_port1, kb_port3 : std_logic_vector(7 downto 0);
 
-    -- carte micro-SD (test : lecture du bloc 0)
+    -- carte micro-SD (lecture / écriture de blocs)
     signal sd_rd_req  : std_logic := '0';
+    signal sd_wr_req  : std_logic := '0';
+    signal sd_wdata   : std_logic_vector(7 downto 0);   -- octet du tampon présenté à sd_spi (@ bindex)
     signal sd_busy, sd_ready, sd_err : std_logic;
     signal sd_bvalid  : std_logic;
     signal sd_bdata   : std_logic_vector(7 downto 0);
@@ -212,6 +214,7 @@ architecture rtl of sm6disk is
     signal wd_cylhigh  : std_logic_vector(7 downto 0) := (others => '0');
     signal wd_head     : std_logic_vector(7 downto 0) := (others => '0');
     signal wd_read     : std_logic := '0';                 -- mode lecture secteur
+    signal wd_write    : std_logic := '0';                 -- mode écriture secteur
     signal wd_idx      : unsigned(7 downto 0) := (others => '0');   -- octet 0..255
     signal wd_lba      : unsigned(15 downto 0) := (others => '0');  -- n° secteur
     signal wd_valid    : std_logic := '0';                 -- secteur lisible
@@ -222,8 +225,9 @@ architecture rtl of sm6disk is
     type sdbuf_t is array(0 to 511) of std_logic_vector(7 downto 0);
     signal sd_buf      : sdbuf_t;
     signal sd_rd_lba   : std_logic_vector(31 downto 0) := (others => '0'); -- n° bloc SD demandé
-    signal wd_busy     : std_logic := '0';                 -- lecture SD en cours (statut BSY)
-    signal wd_rd_pending : std_logic := '0';               -- read demandé, attend l'init SD
+    signal wd_busy     : std_logic := '0';                 -- accès SD en cours (statut BSY)
+    signal wd_rd_pending : std_logic := '0';               -- read (ou RMW) demandé, attend l'init SD
+    signal wd_wr_pending : std_logic := '0';               -- write demandé, attend la fin du flux
     signal sd_busy_d   : std_logic := '0';
     signal sd_init_done : std_logic := '0';                -- carte SD initialisée (latché)
     signal wd_status   : std_logic_vector(7 downto 0);     -- statut WD1002 ($27)
@@ -233,6 +237,8 @@ architecture rtl of sm6disk is
     signal wd_din      : std_logic_vector(7 downto 0);
     signal io_rd20     : std_logic;
     signal io_rd20_d   : std_logic := '0';
+    signal io_wr20     : std_logic;
+    signal io_wr20_d   : std_logic := '0';
     signal io_done     : std_logic := '0';     -- IN $20 : 1 cycle de gel puis libère
 
     -- diagnostic WD : valeur lue à IN $27 + jalons
@@ -245,6 +251,7 @@ architecture rtl of sm6disk is
     signal dbg_b0, dbg_b1, dbg_b2, dbg_b3 : std_logic_vector(7 downto 0) := (others => '0'); -- 4 1ers octets
     signal dbg_r0, dbg_r1, dbg_r2, dbg_r3 : std_logic_vector(7 downto 0) := (others => '0'); -- RAM 0x5800-3 écrits
     signal dbg_cap       : std_logic := '0';
+    -- diagnostic ÉCRITURE : 4 1ers octets envoyés par le CPU (OUT $20) au 1er write + LBA
 
 begin
 
@@ -402,20 +409,27 @@ begin
               wd_din when cpu_iorq_n = '0' else
               di_reg;
 
-    -- adresse dans le tampon SD : bit 8 = secteur pair/impair du bloc (LBA mod 2), bits 7:0 = index
-    disk_addr <= std_logic_vector(wd_lba(0 downto 0)) & std_logic_vector(wd_idx);
-    -- tampon SD 512 o : écrit par le flux SD (sd_bvalid/sd_bindex/sd_bdata), lu par disk_addr
+    -- 1 secteur Smaky (256 o) <-> 1 bloc SD (512 o) : on n'utilise que les octets 0..255
+    -- du bloc (le reste = bourrage, ignoré). disk_addr = index dans la 1re moitié.
+    disk_addr <= '0' & std_logic_vector(wd_idx);
+    -- tampon SD 512 o : rempli par le flux SD (lecture, octets 0..255 utiles) OU par le CPU
+    -- (OUT $20, octets 0..255), lu par disk_addr (IN $20) et par sd_bindex (écriture SD).
     process(sysclk)
     begin
         if rising_edge(sysclk) then
-            if sd_bvalid = '1' then
+            if sd_bvalid = '1' then                              -- remplissage depuis la carte SD
                 sd_buf(to_integer(unsigned(sd_bindex))) <= sd_bdata;
-            end if;
-            disk_data <= sd_buf(to_integer(unsigned(disk_addr)));
+            elsif io_wr20 = '1' then                             -- octet CPU pendant l'OUT $20 :
+                sd_buf(to_integer(unsigned(disk_addr))) <= cpu_do;  -- capture par NIVEAU (dernière
+            end if;                                              -- valeur stable, comme les reg. $22-$26)
+            disk_data <= sd_buf(to_integer(unsigned(disk_addr)));      -- lecture CPU (IN $20)
+            sd_wdata  <= sd_buf(to_integer(unsigned(sd_bindex)));      -- source écriture SD (@ bindex)
         end if;
     end process;
     io_rd20 <= '1' when (cpu_iorq_n = '0' and cpu_rd_n = '0'
                           and cpu_a(7 downto 0) = x"20" and wd_read = '1') else '0';
+    io_wr20 <= '1' when (cpu_iorq_n = '0' and cpu_wr_n = '0'
+                          and cpu_a(7 downto 0) = x"20" and wd_write = '1') else '0';
 
     -- timer 50 Hz + interruption (RST 38h via le bus en INTA)
     -- INT_n masqué par la bascule eni50 (comme le matériel Smaky) : la ROM/SAMOS baissent eni50
@@ -430,9 +444,10 @@ begin
                 eni50 <= '0'; int_cnt <= (others => '0');
                 int_req <= '0'; timer_pending <= '0';
                 inta_seen <= '0'; eni50_seen <= '0';
-                wd_read <= '0'; wd_idx <= (others => '0');
-                wd_lba <= (others => '0'); wd_valid <= '0'; io_rd20_d <= '0'; io_done <= '0';
-                wd_busy <= '0'; wd_rd_pending <= '0'; sd_rd_req <= '0'; sd_busy_d <= '0';
+                wd_read <= '0'; wd_write <= '0'; wd_idx <= (others => '0');
+                wd_lba <= (others => '0'); wd_valid <= '0'; io_rd20_d <= '0'; io_wr20_d <= '0'; io_done <= '0';
+                wd_busy <= '0'; wd_rd_pending <= '0'; wd_wr_pending <= '0';
+                sd_rd_req <= '0'; sd_wr_req <= '0'; sd_busy_d <= '0';
                 dbg_in27 <= (others => '0'); dbg_in27_seen <= '0';
                 dbg_rdcmd <= '0'; dbg_in20_seen <= '0';
                 dbg_lba <= (others => '0'); dbg_b0 <= (others => '0'); dbg_b1 <= (others => '0'); dbg_b2 <= (others => '0'); dbg_b3 <= (others => '0'); dbg_cap <= '0';
@@ -461,7 +476,7 @@ begin
                     elsif cpu_a(7 downto 0) = x"26" then wd_head     <= cpu_do;
                     elsif cpu_a(7 downto 0) = x"27" then          -- commande WD1002
                         if cpu_do = x"20" then                   -- READ SECTOR
-                            wd_read <= '1';
+                            wd_read <= '1'; wd_write <= '0';
                             wd_idx  <= (others => '0');
                             dbg_rdcmd <= '1';
                             -- LBA = ((cyl*6)+head)*32 + secteur
@@ -471,24 +486,36 @@ begin
                                 + resize(unsigned(wd_secnum), 16), 16);
                             wd_busy <= '1';            -- lance la lecture SD (statut BSY)
                             wd_rd_pending <= '1';
-                        elsif cpu_do = x"30" then                -- WRITE SECTOR (lecture seule : ignoré)
-                            wd_read <= '0'; wd_idx <= (others => '0');
+                        elsif cpu_do = x"30" then                -- WRITE SECTOR
+                            -- Pas d'accès SD ici : le flux OUT $20 remplit d'abord sd_buf[0..255] ;
+                            -- l'écriture du bloc se déclenche au 256e octet (BSY).
+                            wd_write <= '1'; wd_read <= '0';
+                            wd_idx  <= (others => '0');
+                            wd_lba  <= resize(
+                                ((unsigned(wd_cylhigh) & unsigned(wd_cyllow)) * 6
+                                 + resize(unsigned(wd_head(4 downto 0)), 16)) * 32
+                                + resize(unsigned(wd_secnum), 16), 16);
                         else
-                            wd_read <= '0';                      -- seek / autre
+                            wd_read <= '0'; wd_write <= '0';     -- seek / autre
                         end if;
                     end if;
                 end if;
                 wd_valid <= '1';   -- disque complet sur SD : tout secteur est lisible
-                -- gestion de la lecture SD : déclenche le bloc (LBA/2) quand la carte est prête,
-                -- retombe BSY quand le bloc est chargé dans le tampon (front descendant de sd_busy)
+                -- gestion SD : bloc SD = secteur smaky (mapping direct, pas de RMW). BSY retombe
+                -- quand l'accès (lecture OU écriture) est terminé (front descendant de sd_busy).
                 sd_busy_d <= sd_busy;
                 sd_rd_req <= '0';
+                sd_wr_req <= '0';
                 if wd_rd_pending = '1' and sd_ready = '1' and sd_busy = '0' then
-                    sd_rd_req     <= '1';
-                    sd_rd_lba     <= std_logic_vector(resize(wd_lba(15 downto 1), 32));
+                    sd_rd_req     <= '1';                                  -- lecture du bloc
+                    sd_rd_lba     <= std_logic_vector(resize(wd_lba, 32));
                     wd_rd_pending <= '0';
-                elsif wd_busy = '1' and wd_rd_pending = '0'
-                      and sd_busy = '0' and sd_busy_d = '1' then
+                elsif wd_wr_pending = '1' and sd_ready = '1' and sd_busy = '0' then
+                    sd_wr_req     <= '1';                                  -- écriture du bloc
+                    sd_rd_lba     <= std_logic_vector(resize(wd_lba, 32));
+                    wd_wr_pending <= '0';
+                elsif wd_busy = '1' and wd_rd_pending = '0' and wd_wr_pending = '0'
+                      and sd_busy = '0' and sd_busy_d = '1' then           -- accès SD terminé
                     wd_busy <= '0';
                 end if;
                 -- verrou du n° de port au DÉBUT du cycle I/O (cpu_a transitionne en cours d'IN (C))
@@ -506,6 +533,18 @@ begin
                 end if;
                 if io_rd20 = '0' and io_rd20_d = '1' and wd_read = '1' then  -- front descendant
                     wd_idx <= wd_idx + 1;
+                end if;
+                -- OUT $20 en écriture : l'octet est rangé dans sd_buf (process sd_buf) ; au front
+                -- descendant on post-incrémente, et au 256e octet on déclenche l'écriture du bloc
+                -- SD (CMD24) avec BSY, et on quitte le mode write. Pas de RMW (1 secteur = 1 bloc).
+                io_wr20_d <= io_wr20;
+                if io_wr20 = '0' and io_wr20_d = '1' and wd_write = '1' then  -- front descendant
+                    wd_idx <= wd_idx + 1;
+                    if wd_idx = 255 then                         -- dernier octet du secteur
+                        wd_write      <= '0';
+                        wd_busy       <= '1';
+                        wd_wr_pending <= '1';                    -- écrit directement le bloc SD
+                    end if;
                 end if;
                 -- diagnostic : que rend IN $27, et a-t-on lu $20 ?
                 if cpu_iorq_n = '0' and cpu_rd_n = '0' and cpu_a(7 downto 0) = x"27" then
@@ -711,14 +750,16 @@ begin
     u_sd : entity work.sd_spi
         port map (clk => sysclk, reset => rst,
                   cs_n => sd_cs, sclk => sd_sclk, mosi => sd_mosi, miso => sd_miso,
-                  rd_req => sd_rd_req, rd_lba => sd_rd_lba,
+                  rd_req => sd_rd_req, wr_req => sd_wr_req, rd_lba => sd_rd_lba,
+                  wdata => sd_wdata,
                   busy => sd_busy, ready => sd_ready, err => sd_err,
                   bvalid => sd_bvalid, bdata => sd_bdata, bindex => sd_bindex,
                   dbg_state => sd_dbg_state, dbg_r1 => sd_dbg_r1);
 
-    -- LED : SW3 relâché = scancode PS/2 ; SW3 enfoncé seul = dbg_state (init SD, 0110_0110=READY) ;
-    --       SW3+SW2 = activité disque (D0 wd_busy, D1 sd_busy, D2 sd_ready, D3 sd_err, D7 heartbeat)
-    process(btn2, btn3, ps2_last, sd_dbg_state, wd_busy, sd_busy, sd_ready, sd_err, blink_div)
+    -- LED : SW3 seul = scancode PS/2 ; SW2 seul = dbg_state SD (0110_0110=READY) ;
+    --       sinon = activité disque (D0 wd_busy, D1 sd_busy, D2 sd_ready, D3 sd_err, D7 heartbeat)
+    process(btn2, btn3, ps2_last, sd_dbg_state,
+            wd_busy, sd_busy, sd_ready, sd_err, blink_div)
     begin
         if btn3 = '1' then
             led <= ps2_last;
