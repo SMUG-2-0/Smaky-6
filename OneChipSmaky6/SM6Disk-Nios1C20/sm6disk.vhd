@@ -201,7 +201,10 @@ architecture rtl of sm6disk is
     signal vpix : std_logic := '0';
     signal vhc  : unsigned(9 downto 0) := (others => '0');  -- 0..799
     signal vvc  : unsigned(9 downto 0) := (others => '0');  -- 0..524
-    signal vhrel, vvrel : unsigned(9 downto 0);
+    signal vhrel    : unsigned(9 downto 0);                     -- position horizontale relative
+    signal chr_y    : integer range 0 to 11 := 0;              -- ligne dans la cellule (12 hautes)
+    signal txt_row  : integer range 0 to 31 := 0;              -- rangée de texte (0..19 utilisées)
+    signal vdbl     : std_logic := '0';                        -- doublement vertical (1 ligne Smaky = 2 VGA)
     signal v_intxt : std_logic;
     signal cx1, cx2 : unsigned(2 downto 0) := (others => '0');   -- char_x pipeliné
     signal it1, it2 : std_logic := '0';                          -- in_text pipeliné
@@ -842,11 +845,13 @@ begin
 
     -- ============================ Contrôleur VGA ===========================
     vhrel <= vhc - 64;
-    vvrel <= vvc - 80;
-    v_intxt <= '1' when (vhc >= 64 and vhc < 576 and vvc >= 80 and vvc < 400) else '0';
-    -- cellule = ligne(4:0) & colonne(5:0) ; adresse fonte = code(6:0) & char_y(3:0)
-    vb_addr   <= std_logic_vector(vvrel(8 downto 4)) & std_logic_vector(vhrel(8 downto 3));
-    crom_addr <= vb_data(6 downto 0) & std_logic_vector(vvrel(3 downto 0));
+    -- Écran Smaky : 512 × 240 pixels élémentaires, cellule 8 × 12 (PROM rows 0..11 ; rows
+    -- 12..15 stockées mais NON câblées). VGA : 1× horizontal (512, centré), 2× vertical
+    -- (240 -> 480, plein écran). Compteurs chr_y/txt_row car la hauteur 12 n'est pas une 2^n.
+    v_intxt <= '1' when (vhc >= 64 and vhc < 576 and vvc < 480) else '0';
+    -- VRAM texte = rangée(0..19) & colonne(0..63) ; adresse fonte = code(6:0) & chr_y(0..11)
+    vb_addr   <= std_logic_vector(to_unsigned(txt_row, 5)) & std_logic_vector(vhrel(8 downto 3));
+    crom_addr <= vb_data(6 downto 0) & std_logic_vector(to_unsigned(chr_y, 4));
 
     process(sysclk)
     begin
@@ -855,7 +860,21 @@ begin
             if vpix = '1' then                         -- 1 pixel tous les 2 cycles (25 MHz)
                 if vhc = 799 then
                     vhc <= (others => '0');
-                    if vvc = 524 then vvc <= (others => '0'); else vvc <= vvc + 1; end if;
+                    if vvc = 524 then                  -- haut de trame : remet les compteurs
+                        vvc <= (others => '0');
+                        chr_y <= 0; txt_row <= 0; vdbl <= '0';
+                    else
+                        vvc <= vvc + 1;
+                        if vvc < 479 then              -- zone active : avance les compteurs caractère
+                            if vdbl = '0' then         -- 1re des 2 lignes VGA d'une ligne Smaky
+                                vdbl <= '1';
+                            else                       -- 2e ligne -> ligne Smaky suivante
+                                vdbl <= '0';
+                                if chr_y = 11 then chr_y <= 0; txt_row <= txt_row + 1;
+                                else chr_y <= chr_y + 1; end if;
+                            end if;
+                        end if;
+                    end if;
                 else
                     vhc <= vhc + 1;
                 end if;
@@ -865,8 +884,8 @@ begin
                 -- pipeline pour aligner sur la latence VRAM(1)+char_rom(1)
                 cx1 <= vhrel(2 downto 0); cx2 <= cx1;
                 it1 <= v_intxt;           it2 <= it1;
-                iv1 <= vb_data(7);                         -- bit inverse vidéo
-                if it2 = '1' and (crom_data(to_integer(cx2)) xor iv1) = '1' then
+                iv1 <= vb_data(7); iv2 <= iv1;             -- bit inverse vidéo (2 étages, aligné sur cx2/it2)
+                if it2 = '1' and (crom_data(to_integer(cx2)) xor iv2) = '1' then
                     video <= '1';
                 else
                     video <= '0';

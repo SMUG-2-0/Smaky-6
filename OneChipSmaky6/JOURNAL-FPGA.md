@@ -493,7 +493,21 @@ de token de données — au lieu de servir le tampon périmé. À tester. Si ins
 Smile (write secteur N puis read secteurs N / autre) pointera la cause exacte (échec SD vs
 BSY non attendu vs tampon).
 
+## 🖥️ Écran : cellule caractère 8 × 12 (et non 16) — prépare le graphique (2026-06-18)
+La PROM de caractères stocke 16 lignes/caractère, mais le Smaky 6 n'en affiche que **12**
+(rows 0..11 ; rows 12..15 stockées mais non câblées). L'implémentation utilisait des cellules
+de 16 -> corrigé en 12. Comme 12 n'est pas une puissance de 2, on remplace le découpage de
+bits de `vvc` par des **compteurs** `chr_y` (0..11) et `txt_row` (0..19), avancés ligne par
+ligne. Géométrie de référence (cf. `Simulateur-JS/screenRenderer.js`) :
+- Écran : **512 × 240 pixels élémentaires** ; cellule 8 × 12 ; texte 64 col × 20 rangées.
+- VGA : 1× horizontal (512, centré, bords 64 px), **2× vertical** (240 -> 480, plein écran).
+- VRAM texte $4000..$44FF (1280 o = 64 × 20), adresse = txt_row × 64 + col (inchangé).
+Nécessaire pour l'écran graphique à venir : pixel graphique = 2 × 2 pixels élémentaires,
+zone 256 × 120, superposable au texte en OU ; registre de contrôle (gros/petit pixel,
+texte visible, graphique visible).
+
 ### ▶ IDÉES FUTURES
+- Écran graphique (VRAM $4600) : 256 × 120 pixels graphiques, OU avec le texte.
 - SDSC (≤2 Go) : adressage par octets (×512) selon CCS de CMD58.
 - Accélérer la lecture SD (DIV_FAST plus rapide si câblage propre / OneChipBook).
 - Touches mortes clavier (â ê î ô û ë ï).
