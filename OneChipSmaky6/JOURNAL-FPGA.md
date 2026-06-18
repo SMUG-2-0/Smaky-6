@@ -467,8 +467,12 @@ Conséquences :
 - Mapping : `sd_rd_lba = wd_lba` (bloc = secteur), `disk_addr = '0' & wd_idx` (1re moitié).
 - Même vitesse : on relisait déjà 1 bloc par secteur (pas de cache), donc inchangé.
 - **Image SD à régénérer** : `HD0.img` (secteurs 256 o jointifs) -> `HD0-sd.img` (chaque
-  secteur complété à 512 o, 2de moitié à zéro). Script : voir génération `HD0-sd.img`
-  (1054 secteurs -> 1054 blocs, 539 648 o). À écrire avec `dd` sur TOUT le device.
+  secteur complété à 512 o, 2de moitié à zéro). Outil : **`img2sd.py`** —
+  `python3 img2sd.py <entree> <sortie>` (avertit si > 65 536 secteurs = limite 16 Mio).
+  À écrire avec `dd` sur TOUT le device.
+- **Taille utilisable** : `wd_lba` est sur 16 bits -> max 65 536 secteurs × 256 o = **16 Mio**,
+  exactement la taille du disque Rodime d'origine du Smaky 6. Sur la carte : ×2 (32 Mio,
+  bourrage compris).
 
 NB : le bug RMW initial (`delete X` détruisait le secteur de code voisin) a été diagnostiqué
 par dump `dd` + comparaison à l'image d'origine ; la cause exacte du décalage est restée
