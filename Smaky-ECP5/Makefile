@@ -15,8 +15,10 @@ PACKAGE   = CABGA256
 SPEED     = 6
 VHDL_STD  = 08                 # VHDL-2008
 
-# ---- Sonde de programmation (FT232H par défaut ; voir : openFPGALoader --list-cables) ----
-CABLE     = ft232
+# ---- Sonde de programmation (voir : openFPGALoader --list-cables) ----
+#   dirtyJtag = Raspberry Pi Pico sous firmware DirtyJTAG (GPIO 3,3 V, pas d'adaptateur)
+#   ft232     = module FT232H        |  ft2232 = module FT2232H
+CABLE     = dirtyJtag
 
 # ---- Outils ----
 YOSYS     = yosys

@@ -30,15 +30,28 @@ Le 5A-75B n'a **pas** de programmateur USB intégré : on relie une sonde extern
 aux pads JTAG de la carte (TCK, TMS, TDI, TDO, GND).
 
 Sondes bon marché supportées par openFPGALoader :
-- module **FT232H** (`-c ft232`) — le plus simple
+- **Raspberry Pi Pico** sous **DirtyJTAG** (`-c dirtyJtag`) — ~5 €, **GPIO 3,3 V** =
+  niveau JTAG de l'ECP5, donc **aucun adaptateur de niveau** (le défaut du Makefile)
+- module **FT232H** (`-c ft232`) — simple, plus rapide
 - **FT2232H** (`-c ft2232`) — double canal (JTAG + UART)
-- **Raspberry Pi Pico** (DirtyJTAG), Raspberry Pi (GPIO), J-Link, etc.
+- Raspberry Pi (GPIO), J-Link, etc.
 
-Liste complète : `openFPGALoader --list-cables`. Ajuste `CABLE=` dans le Makefile.
+Liste complète : `openFPGALoader --list-cables`. Sélection via `CABLE=` (Makefile ou ligne de commande).
+
+### Pi Pico + DirtyJTAG (sonde par défaut)
+
+1. **Flasher le firmware** : maintiens **BOOTSEL** en branchant l'USB (le Pico monte
+   comme une clé USB), puis glisse le **`.uf2`** de DirtyJTAG (port RP2040) dessus.
+2. **Câbler** Pico ↔ pads JTAG de la Colorlight : **TCK, TMS, TDI, TDO, GND**.
+   ⚠️ Le mapping GPIO (quel `GPx` = quel signal) est **défini dans le firmware**
+   (typiquement GP0–GP4) — vérifie le README/config du firmware flashé.
+3. Plus lent qu'un FT2232H, mais largement suffisant pour un bitstream ECP5-25.
 
 Vérifier la connexion :
 ```bash
-make detect        # doit afficher l'IDCODE de l'ECP5
+make detect                    # CABLE par défaut = dirtyJtag
+make detect CABLE=ft232        # (ou une autre sonde)
+# doit afficher l'IDCODE de l'ECP5
 ```
 
 ---
