@@ -1,0 +1,580 @@
+	.TITLE	PYTHON.SR
+	.PROC	Z80
+	.REF	FLO
+	.REF	MAT		;BIBLIOTHEQUE VIRGULE FLOTTANTE MATPAC (?Fxxx, ?DECBIN...)
+
+;PYR 18 MAI 2026
+;PETIT-PYTHON -- COMMANDE PYTHON.SM SUR SAMOS.
+;PYTHON <fichier> : compile et execute un .PY.
+;PYTHON (sans argument) : mode interactif (REPL).
+
+
+
+;#############################################################
+;# CONSTANTES                                                #
+;#############################################################
+
+BUFSIZ	= 10000		;TAILLE BUFFER SOURCE EN OCTAL (4 KO)
+BCSIZE	= 4000		;TAILLE BUFFER BYTECODE EN OCTAL (2 KO)
+REPLLEN	= 200		;TAILLE LIGNE INTERACTIVE EN OCTAL (128 OCTETS)
+REPLMXL	= 30.		;NB MAX DE LIGNES D'UN BLOC INTERACTIF
+;ERNSA	= 34		;CODE "NO STARTING ADDRESS" RENDU PAR ?LGO = CHARGEMENT OK
+FTMPSZ	= 200		;TAILLE PILE FLOTTANTS EN OCTAL (128 OCTETS = 16 CELLULES)
+
+
+	.LOC	53000
+
+
+
+;#############################################################
+;# TEXTES                                                    #
+;#############################################################
+
+MERR:	.ASCIZ	"FICHIER .PY INTROUVABLE<CR>"
+MFIN:	.ASCIZ	"<CR>Fin du programme<CR>"
+MBAN:	.ASCIZ	"Petit Python v.0.11<CR>"
+MBCD:	.ASCIZ	"<CR>Bytecode :<CR>"
+MREPL:	.ASCIZ	"Mode interactif - END pour quitter<CR>"
+MPROM:	.ASCIZ	">>> "
+MCONT:	.ASCIZ	"... "
+MMLOV:	.ASCIZ	"<CR>Bloc trop long, abandonne<CR>"
+MMAT:	.ASCIZ	"MATPAC.SY introuvable<CR>"
+TMATH:	.ASCIZ	"MATPAC.SY"
+
+
+
+;#############################################################
+;# VARIABLES                                                 #
+;#############################################################
+
+CANAL:	.BLKB	1
+ARGPTR:	.BLKB	2		;PTR LIGNE DE COMMANDE (DE A L'ENTREE)
+FILEBUF: .BLKB	40.		;NOM DE FICHIER + MARGE POUR EXPANSION SAMOS
+OPTLST:	.BLKB	1		;1 SI /L (affichage bytecode)
+OPTCNT:	.BLKB	1		;1 SI /C (pause clavier a chaque print)
+REPLMOD: .BLKB	1		;1 SI MODE INTERACTIF (REPL)
+REPLNL:	.BLKB	1		;NB DE LIGNES ACCUMULEES (BLOC MULTI-LIGNES)
+
+
+
+;#############################################################
+;# BUFFERS                                                   #
+;#############################################################
+
+SRCBUF:	.BLKB	BUFSIZ
+ENDSRC:	.B	0
+BCBUF:	.BLKB	BCSIZE
+SYMTBL:	.BLKB	512.
+STRBUF:	.BLKB	1000.		;POOL DE CHAINES LITERALES (1000 OCTETS)
+REPLBUF: .BLKB	REPLLEN		;LIGNE DE SAISIE DU MODE INTERACTIF
+FTMP:	.BLKB	FTMPSZ		;PILE DE FLOTTANTS TEMPORAIRES (CELLULES DE 8 OCTETS)
+FTSP:	.BLKB	2		;SOMMET DE FTMP (ADRESSE DE LA PROCHAINE CELLULE LIBRE)
+PSFBUF:	.BLKB	8.		;SCRATCH : CONVERSION D'UN LITTERAL FLOTTANT (PARSE)
+GFCELL:	.BLKB	512.		;CELLULES FLOTTANTES DES VARIABLES GLOBALES (64 x 8)
+FLA:	.BLKB	8.		;OPERANDE FLOTTANT A (SCRATCH ARITHMETIQUE)
+FLB:	.BLKB	8.		;OPERANDE FLOTTANT B (SCRATCH ARITHMETIQUE)
+STSLOT:	.BLKB	1		;SLOT COURANT (LOAD/STORE D'UNE VAR FLOTTANTE)
+
+
+
+;#############################################################
+;# INCLURE PARSER (QUI INCLUT LEXER) ET VM                   #
+;#############################################################
+
+	.INS	PS
+	.INS	VM
+	.INS	DSM
+
+
+
+;#############################################################
+;#############################################################
+;# PROGRAMME PRINCIPAL                                       #
+;#############################################################
+;#############################################################
+
+
+
+START:				;POINT D'ENTREE
+	;Bascule sur notre pile Z80 (1 kB en 0xF800-0xFBFF, SP demarre a 0xFC00)
+	LOAD	SP,#PILZ80
+	;Samos passe le pointeur de la ligne de commande dans DE
+	LOAD	ARGPTR,DE
+	;Init options /L et /C a 0
+	XOR	A,A
+	LOAD	OPTLST,A
+	LOAD	OPTCNT,A
+	LOAD	REPLMOD,A
+
+
+;==========================================================
+; ETAPE 0 : ECRAN ALPHA COMPLET + BANNIERE
+;==========================================================
+
+	LOAD	C,#20.
+	.W	?IDIS
+
+	LOAD	HL,#MBAN
+	.W	?DITEXT
+
+
+;==========================================================
+; ETAPE 0b : CHARGER LA BIBLIOTHEQUE FLOTTANTE MATPAC
+;==========================================================
+;Initialise l'extension de la table des appels (TABEX) puis
+;charge MATPAC.SY. ?LGO rend A = ERNSA si tout est correct
+;(une bibliotheque n'a pas d'adresse de demarrage).
+
+	LOAD	HL,#VATABEX	;ADRESSE DE L'EXTENSION DE TABLE
+	LOAD	TABEX,HL
+	LOAD	DE,#TMATH	;NOM DU PACKAGE
+	.W	?LGO		;CHARGE MATPAC.SY
+	COMP	A,#ERNSA
+	JUMP	EQ,MATOK
+	;ECHEC DE CHARGEMENT : MESSAGE ET RETOUR SAMOS
+	LOAD	HL,#MMAT
+	.W	?DITEXT
+	.W	?GETCAR
+	.W	?RTN
+MATOK:	;FORMAT D'AFFICHAGE PAR DEFAUT : VIRGULE FLOTTANTE (B=0, C=0)
+	LOAD	BC,#0
+	.W	?DECFOR
+
+
+;==========================================================
+; ETAPE 1 : ZERO LE BUFFER SOURCE
+;==========================================================
+
+	LOAD	HL,#SRCBUF
+	XOR	A,A
+	LOAD	(HL),A
+	LOAD	DE,#SRCBUF+1
+	LOAD	BC,#BUFSIZ-1
+	LDIR
+
+
+;==========================================================
+; ETAPE 2 : DETERMINER LE NOM DE FICHIER
+;==========================================================
+;Si ARGPTR pointe sur un nom non-vide, on le copie dans FILEBUF.
+;Sinon (pas d'argument), on entre en mode interactif (REPL).
+
+	LOAD	HL,ARGPTR
+SKSPLP:	LOAD	A,(HL)
+	COMP	A,#SPACE	;saute espaces
+	JUMP	NE,SKSPDN
+	INC	HL
+	JUMP	SKSPLP
+SKSPDN:	;Premier non-espace : 0 ou CR -> pas de fichier -> REPL
+	OR	A,A
+	JUMP	EQ,REPLST
+	COMP	A,#CR
+	JUMP	EQ,REPLST
+	;Slash option ? Format /L ou /C, peuvent etre cumules.
+	COMP	A,#'/
+	JUMP	NE,COPNAM
+	INC	HL
+	LOAD	A,(HL)
+	COMP	A,#'L		;/L = listing bytecode
+	JUMP	NE,OPTC
+	LOAD	A,#1
+	LOAD	OPTLST,A
+	JUMP	OPTNXT
+OPTC:	COMP	A,#'C		;/C = pause clavier a chaque print
+	JUMP	NE,OPTNXT
+	LOAD	A,#1
+	LOAD	OPTCNT,A
+OPTNXT:	INC	HL
+	JUMP	SKSPLP		;reprend, peut y avoir d'autres options
+COPNAM:	;Copie HL -> FILEBUF, arret a 0 / CR / espace
+	LOAD	DE,#FILEBUF
+	LOAD	B,#30.
+CPLP:	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,CPDN
+	COMP	A,#CR
+	JUMP	EQ,CPDN
+	COMP	A,#SPACE
+	JUMP	EQ,CPDN
+	LOAD	(DE),A
+	INC	HL
+	INC	DE
+	DECJ	NE,B,CPLP
+CPDN:	XOR	A,A
+	LOAD	(DE),A		;null-termine
+	;Ajoute .PY si le nom n'a pas d'extension (habitude Smaky 6)
+	LOAD	HL,#FILEBUF
+CHKDOT:	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,APYE		;fin atteinte sans trouver de point
+	COMP	A,#'.
+	JUMP	EQ,HASDOT	;extension presente
+	INC	HL
+	JUMP	CHKDOT
+APYE:	;HL pointe sur le 0 ; ajoute .PY puis 0
+	LOAD	A,#'.
+	LOAD	(HL),A
+	INC	HL
+	LOAD	A,#'P
+	LOAD	(HL),A
+	INC	HL
+	LOAD	A,#'Y
+	LOAD	(HL),A
+	INC	HL
+	XOR	A,A
+	LOAD	(HL),A
+HASDOT:	LOAD	DE,#FILEBUF
+
+
+;==========================================================
+; ETAPE 3 : OUVRIR / LIRE / FERMER LE FICHIER
+;==========================================================
+
+OPNF:	.W	?OPEN
+	JUMP	CS,STERR
+	LOAD	CANAL,A
+
+	LOAD	A,CANAL
+	LOAD	BC,#BUFSIZ
+	LOAD	DE,#SRCBUF
+	.W	?RDBYTE
+
+	LOAD	A,CANAL
+	.W	?CLOSE
+
+
+;==========================================================
+; ETAPE 3 : LEX + PARSE
+;==========================================================
+	LOAD	HL,#SRCBUF
+	CALL	LXINIT
+	CALL	PSINIT
+	CALL	PSPARS
+
+
+;==========================================================
+; ETAPE 4 : AFFICHE BYTECODE (uniquement si /L)
+;==========================================================
+	LOAD	A,OPTLST
+	OR	A,A
+	JUMP	EQ,SKPDSM
+	LOAD	HL,#MBCD
+	.W	?DITEXT
+	LOAD	HL,#BCBUF
+	LOAD	DE,BCPTR	;DE = ptr fin de bytecode emis
+	CALL	DISASM
+SKPDSM:
+
+
+;==========================================================
+; ETAPE 5 : EXECUTION DU BYTECODE
+;==========================================================
+	LOAD	HL,#BCBUF
+	CALL	VMRUN
+
+
+;==========================================================
+; ETAPE 6 : MESSAGE DE FIN
+;==========================================================
+;PLUS D'ATTENTE DE TOUCHE : LE PROGRAMME REND LA MAIN A
+;SAMOS DIRECTEMENT. UTILISER getkey() DANS LE .PY SI BESOIN.
+
+	LOAD	HL,#MFIN
+	.W	?DITEXT
+
+
+;==========================================================
+; ETAPE 7 : RETOUR SAMOS
+;==========================================================
+
+	.W	?RTN
+
+
+
+;----- GESTION D'ERREUR D'OUVERTURE -----
+
+STERR:	LOAD	HL,#MERR
+	.W	?DITEXT
+	.W	?GETCAR
+	.W	?RTN
+
+
+
+;==========================================================
+; MODE INTERACTIF (REPL)
+;==========================================================
+;LIT UNE LIGNE, LA COMPILE, L'EXECUTE, RECOMMENCE. LES
+;VARIABLES PERSISTENT ENTRE LES LIGNES. END POUR SORTIR.
+;UNE LIGNE FINISSANT PAR ':' DECLENCHE LA SAISIE D'UN
+;BLOC MULTI-LIGNES (VOIR REPLMU), TERMINEE PAR UNE LIGNE
+;VIDE.
+
+REPLST:	LOAD	A,#1
+	LOAD	REPLMOD,A
+	LOAD	HL,#MREPL
+	.W	?DITEXT
+	;INIT COMPLET, UNE SEULE FOIS
+	CALL	PSINIT
+	CALL	VMZVAR
+
+REPLLP:	;AFFICHE LE PROMPT PRINCIPAL
+	LOAD	HL,#MPROM
+	.W	?DITEXT
+	;LIT UNE LIGNE AU CLAVIER
+	CALL	RLINE
+	OR	A,A
+	JUMP	NE,REPLQ	;END PRESSEE -> SORTIE
+	;LIGNE VIDE -> RE-PROMPT
+	LOAD	HL,#REPLBUF
+	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,REPLLP
+	;LA LIGNE OUVRE-T-ELLE UN BLOC (FIN PAR ':') ?
+	CALL	REPLCO
+	OR	A,A
+	JUMP	NE,REPLMU	;OUI -> SAISIE MULTI-LIGNES
+	;MONO-LIGNE : COMPILE ET EXECUTE REPLBUF
+	LOAD	HL,#REPLBUF
+	CALL	LXINIT
+	CALL	PSREPL
+	CALL	PSPARS
+	LOAD	HL,#BCBUF
+	CALL	VMRUNR
+	JUMP	REPLLP
+
+REPLQ:	.W	?RETURN
+	.W	?RTN
+
+
+
+;==========================================================
+; SAISIE MULTI-LIGNES (BLOCS if / while / for / def)
+;==========================================================
+;REPLBUF CONTIENT DEJA LA LIGNE D'EN-TETE (ELLE FINIT PAR ':').
+;ON ACCUMULE LES LIGNES DANS SRCBUF (LIBRE EN MODE REPL)
+;JUSQU'A UNE LIGNE VIDE, PUIS ON COMPILE ET EXECUTE LE BLOC
+;COMPLET COMME UN FICHIER. PROMPT DE CONTINUATION : "... ".
+
+REPLMU:	;DE = CURSEUR D'ECRITURE DANS SRCBUF
+	LOAD	DE,#SRCBUF
+	;APPEND LA LIGNE D'EN-TETE
+	CALL	REPLAP
+	LOAD	A,#1
+	LOAD	REPLNL,A	;1 LIGNE ACCUMULEE
+
+REPLM1:	;PROMPT DE CONTINUATION (DE SAUVE PENDANT LES APPELS)
+	PUSH	DE
+	LOAD	HL,#MCONT
+	.W	?DITEXT
+	;LIT LA LIGNE SUIVANTE
+	CALL	RLINE
+	POP	DE
+	OR	A,A
+	JUMP	NE,REPLQ	;END -> SORTIE
+	;LIGNE VIDE -> FIN DU BLOC
+	LOAD	HL,#REPLBUF
+	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,REPLMD
+	;LIMITE DE LIGNES ATTEINTE ?
+	LOAD	A,REPLNL
+	COMP	A,#REPLMXL
+	JUMP	CC,REPLOV	;A >= REPLMXL -> BLOC TROP LONG
+	;APPEND LA LIGNE ET COMPTE
+	CALL	REPLAP
+	LOAD	A,REPLNL
+	INC	A
+	LOAD	REPLNL,A
+	JUMP	REPLM1
+
+REPLMD:	;BLOC TERMINE : NULL-TERMINE SRCBUF PUIS COMPILE
+	XOR	A,A
+	LOAD	(DE),A
+	LOAD	HL,#SRCBUF
+	CALL	LXINIT
+	CALL	PSREPL
+	CALL	PSPARS
+	LOAD	HL,#BCBUF
+	CALL	VMRUNR
+	JUMP	REPLLP
+
+REPLOV:	;BLOC TROP LONG : ON ABANDONNE LA SAISIE
+	LOAD	HL,#MMLOV
+	.W	?DITEXT
+	JUMP	REPLLP
+
+
+
+;==========================================================
+; REPLAP : APPEND REPLBUF + CR DANS (DE)
+;==========================================================
+;IN  : DE = CURSEUR D'ECRITURE
+;OUT : DE AVANCE APRES LE CR AJOUTE
+;USES: A, HL, DE
+
+REPLAP:	LOAD	HL,#REPLBUF
+REPLA1:	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,REPLA2
+	LOAD	(DE),A
+	INC	HL
+	INC	DE
+	JUMP	REPLA1
+REPLA2:	LOAD	A,#CR
+	LOAD	(DE),A
+	INC	DE
+	RET
+
+
+
+;==========================================================
+; REPLCO : LA LIGNE DANS REPLBUF OUVRE-T-ELLE UN BLOC ?
+;==========================================================
+;OUT : A = 1 SI LE DERNIER CARACTERE SIGNIFICATIF EST ':',
+;      A = 0 SINON.
+;IGNORE LES ESPACES DE FIN ET UN COMMENTAIRE '#...'. UN ':'
+;A L'INTERIEUR D'UNE CHAINE "..." NE COMPTE PAS : C'EST LE
+;'"' FERMANT QUI EST RETENU COMME CARACTERE SIGNIFICATIF.
+;USES: A, B, C, HL
+
+REPLCO:	LOAD	HL,#REPLBUF
+	LOAD	C,#0		;C = DERNIER CAR SIGNIFICATIF
+	LOAD	B,#0		;B = FLAG "DANS UNE CHAINE"
+RPCO1:	LOAD	A,(HL)
+	OR	A,A
+	JUMP	EQ,RPCO9	;FIN DE LIGNE (0)
+	COMP	A,#CR
+	JUMP	EQ,RPCO9	;FIN DE LIGNE (CR)
+	LOAD	A,B
+	OR	A,A
+	JUMP	NE,RPCOS	;DANS UNE CHAINE
+	;HORS CHAINE
+	LOAD	A,(HL)
+	COMP	A,#'#
+	JUMP	EQ,RPCO9	;COMMENTAIRE -> FIN
+	COMP	A,#SPACE
+	JUMP	EQ,RPCON	;ESPACE -> IGNORE
+	COMP	A,#'"
+	JUMP	NE,RPCO2
+	;GUILLEMET OUVRANT
+	LOAD	B,#1
+	LOAD	C,#'"
+	JUMP	RPCON
+RPCO2:	LOAD	C,A		;CAR SIGNIFICATIF ORDINAIRE
+	JUMP	RPCON
+RPCOS:	;DANS UNE CHAINE : SEUL LE '"' FERMANT COMPTE
+	LOAD	A,(HL)
+	COMP	A,#'"
+	JUMP	NE,RPCON
+	LOAD	B,#0
+	LOAD	C,#'"
+RPCON:	INC	HL
+	JUMP	RPCO1
+RPCO9:	LOAD	A,C
+	COMP	A,#':
+	JUMP	EQ,RPCOY
+	XOR	A,A
+	RET
+RPCOY:	LOAD	A,#1
+	RET
+
+
+
+;==========================================================
+; RLINE : LIT UNE LIGNE AU CLAVIER DANS REPLBUF
+;==========================================================
+;OUT : A = 0 LIGNE NORMALE (REPLBUF NULL-TERMINEE)
+;      A = 1 TOUCHE END PRESSEE
+;ECHO DES CARACTERES, GESTION DU BACKSPACE.
+
+RLINE:	LOAD	HL,#REPLBUF
+	LOAD	C,#0		;C = NB DE CARACTERES SAISIS
+RL_LP:	PUSH	HL
+	PUSH	BC
+	.W	?GETCAR		;A = CARACTERE
+	POP	BC
+	POP	HL
+	COMP	A,#END
+	JUMP	EQ,RL_END
+	COMP	A,#CR
+	JUMP	EQ,RL_CR
+	COMP	A,#BS
+	JUMP	EQ,RL_BS
+	COMP	A,#SPACE
+	JUMP	LO,RL_LP	;CARACTERE DE CONTROLE -> IGNORE
+	;CARACTERE IMPRIMABLE : SAUVE DANS D
+	LOAD	D,A
+	;TAMPON PLEIN ?
+	LOAD	A,C
+	COMP	A,#REPLLEN-1
+	JUMP	CC,RL_LP	;C >= REPLLEN-1 -> PLEIN, IGNORE
+	;STOCKE
+	LOAD	A,D
+	LOAD	(HL),A
+	INC	HL
+	INC	C
+	;ECHO
+	PUSH	HL
+	PUSH	BC
+	LOAD	A,D
+	.W	?DICAR
+	POP	BC
+	POP	HL
+	JUMP	RL_LP
+
+RL_BS:	;BACKSPACE
+	LOAD	A,C
+	OR	A,A
+	JUMP	EQ,RL_LP	;RIEN A EFFACER
+	DEC	HL
+	DEC	C
+	PUSH	HL
+	PUSH	BC
+	LOAD	A,#BS
+	.W	?DICAR
+	LOAD	A,#SPACE
+	.W	?DICAR
+	LOAD	A,#BS
+	.W	?DICAR
+	POP	BC
+	POP	HL
+	JUMP	RL_LP
+
+RL_CR:	;FIN DE LIGNE
+	XOR	A,A
+	LOAD	(HL),A		;NULL-TERMINE
+	LOAD	A,#CR
+	.W	?DICAR		;ECHO DU CR
+	XOR	A,A		;A = 0 : LIGNE NORMALE
+	RET
+
+RL_END:	;TOUCHE END
+	XOR	A,A
+	LOAD	(HL),A		;NULL-TERMINE
+	LOAD	A,#1		;A = 1 : QUITTER
+	RET
+
+
+
+;==========================================================
+; ERRDIE : SORTIE COMMUNE DES ERREURS LX / PS / VM
+;==========================================================
+;IN : HL = MESSAGE D'ERREUR (NULL-TERMINE)
+;MODE FICHIER : AFFICHE, ATTEND UNE TOUCHE, REND LA MAIN.
+;MODE REPL    : AFFICHE ET RETOURNE A LA BOUCLE.
+
+ERRDIE:	.W	?DITEXT
+	LOAD	A,REPLMOD
+	OR	A,A
+	JUMP	NE,ERRREP
+	;MODE FICHIER : COMPORTEMENT D'ORIGINE
+	.W	?GETCAR
+	.W	?RTN
+ERRREP:	;MODE REPL : ON REVIENT A LA BOUCLE
+	ION
+	LOAD	SP,#PILZ80
+	JUMP	REPLLP
+
+
+
+	.END	START

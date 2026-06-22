@@ -112,6 +112,14 @@ class Smaky {
         // auto-repeat de chars identiques).
         this.kbFnHoldGapTicks = 4;
 
+        // Appui automatique d'une touche fonction (EOF auto du $PR).
+        // _autoFnKeys est OR-é avec fn_keys à la lecture du port $0,
+        // puis relâché après autoFnPressTicks périodes 50 Hz — comme
+        // un bref appui physique sur la touche.
+        this._autoFnKeys      = 0;
+        this._autoFnLeft      = 0;
+        this.autoFnPressTicks = 10;   // ~200 ms à 50 Hz
+
         // ── USART 8251 (ports 4-5) ───────────────────────────────
         this._8251phase = 'mode';  // 'mode' | 'cmd' (après reset)
         this._prFifo    = [];      // Paper Reader : octets en attente (entrée)
@@ -161,6 +169,56 @@ class Smaky {
         this._wdLastRead    = null;
         this._wdLastReadLba = null;
 
+        // ── FDC (Floppy Disk Controller, ports $18–$1B) ──────────
+        // $19 : contrôle (OUT) / statut (IN)
+        // $18 : données write
+        // $1A : statut bit7=prêt (IN) et données write (OUT)
+        // $1B : données read (IN)
+        this._fdcImages   = [null, null];  // ArrayBuffer DX1: DX2:
+        this._fdcNames    = [null, null];  // noms des images
+        // Flags utilisateur par lecteur (contrôlés via UI)
+        this._fdcInserted = [true, true];  // false = drive vu comme vide même si image chargée
+        this._fdcWriteProtect = [false, false]; // true = bit 7 du statut $19 = 0 (TAB WP)
+        // Timestamps des derniers accès périphériques (pour les LEDs 3D).
+        this._lastFloppyAccessMs = 0;
+        this._lastHDAccessMs     = 0;
+        this._fdcControl  = 0;             // dernier OUT $19
+        this._fdcDrive    = -1;            // drive courant (0=FD1, 1=FD2, -1=aucun)
+        this._fdcLogCount = 0;
+        this._fdcLogMax   = 10000;         // étendu pour capturer une session de read complète
+        // Transfert FDC en cours (Lot 2b)
+        this._fdcXferBuf    = null;        // Uint8Array : header + data + checksum
+        this._fdcXferPos    = 0;
+        this._fdcXferActive = false;
+        this._fdcSector     = [0, 0];      // n° secteur courant par drive (auto-incrémenté)
+        this._fdcIntPending = false;       // IT FDC à délivrer dès que IFF1 = 1
+        // Write FDC (Lot 3) — collecteur d'écriture
+        this._fdcWriteBuf     = null;      // Uint8Array de 300 octets
+        this._fdcWritePos     = 0;
+        this._fdcWriteActive  = false;     // collection en cours (300 OUT $18)
+        this._fdcWritePending = false;     // attend l'ack ($0F) pour préparer
+        this._fdcWriteOffset  = 0;
+        this._fdcWriteDrive   = -1;
+        // Mode "read after write" : set quand un write se termine avec masque
+        // vidé. Dans ce mode, L_2211 a ré-installé le handler RST 1 à $212A,
+        // qui chaîne sur $2135 — un handler de read qui NE fait PAS L_22B4
+        // (= pas de re-issue OUT $19 ← $4C). On doit donc déclencher l'IT
+        // pour chaque bloc lu nous-mêmes. Reset quand le masque redevient 0.
+        this._fdcReadVerifyMode = false;
+        // Position physique de la tête, par drive. Trackée via les pulses
+        // STPCMD ($1A). Reset à 0 sur opcode init/calibrate ($12), +1 par
+        // step pulse (opcode $1A = $12 | $08, bit 3 = 1 = direction in).
+        this._fdcStepPulses = [0, 0];      // pulses cumulés par drive
+        this._fdcLogLast  = '';            // pour compression des répétitions
+        this._fdcLogRepeat = 0;
+
+        // ── Détection JP 0 (bascule ROM18 → SYS.SY) ─────────────
+        // ROM18 et SYS.SY partagent le même premier octet (F3 = DI).
+        // On utilise un mot à l'offset 2 qui diffère : ROM18[2]=00, SYS.SY[2]=30.
+        // Dès que mem[2..3] change, LDIR a copié SYS.SY et JP 0 est imminent.
+        this._romWord2    = 0xFFFF;  // initialisé par loadROM()
+        this._sysSyActive = false;
+
         // ── E405 RTC (Micro Electronic Marin, port $8) ───────────
         // Bit-banging sériel : bit0=data, bit1=master OE, bit2=CS,
         // bit3=clk. Adresse 4 bits LSB-first ($0F=lecture, $07=écri-
@@ -189,6 +247,10 @@ class Smaky {
 
         // ── Nom du disque courant (pour onDiskWrite) ─────────────
         this.diskName     = null;   // ex. 'SM6WIN0.DSK'
+
+        // Disque dur activé. false → les ports WD1002 ($20–$27) renvoient
+        // 0x00 (contrôleur vu comme absent) → la ROM démarre sur disquette.
+        this.hdEnabled    = true;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -203,6 +265,20 @@ class Smaky {
         const data = (buffer instanceof Uint8Array) ? buffer : new Uint8Array(buffer);
         const len  = Math.min(data.length, 65536);
         for (let i = 0; i < len; i++) this.cpu.mem[i] = data[i];
+        this._romWord2    = this.cpu.mem[2] | (this.cpu.mem[3] << 8);
+        this._sysSyActive = false;
+        this._fdcLogCount = 0;
+        this._fdcDrive    = -1;
+        this._fdcControl  = 0;
+        this._fdcXferActive = false;
+        this._fdcXferPos    = 0;
+        this._fdcSector     = [0, 0];
+        this._fdcIntPending = false;
+        this._fdcStepPulses = [0, 0];
+        this._fdcWriteActive    = false;
+        this._fdcWritePending   = false;
+        this._fdcWritePos       = 0;
+        this._fdcReadVerifyMode = false;
     }
 
     /**
@@ -223,6 +299,36 @@ class Smaky {
         this._wdData    = new Uint8Array(0);
         this._wdDataIdx = 0;
         this._wdError   = 0;
+    }
+
+    /**
+     * Charge une image disquette (index 0 = DX1:, index 1 = DX2:).
+     * buffer = ArrayBuffer ou null pour éjecter.
+     */
+    loadFloppy(index, buffer, name) {
+        if (index < 0 || index > 1) return;
+        if (buffer) {
+            this._fdcImages[index] = buffer;
+            this._fdcNames[index]  = name || `DX${index + 1}:`;
+            console.log(`FDC: loadFloppy(${index}, ${name}) — ${buffer.byteLength} octets`);
+        } else {
+            this._fdcImages[index] = null;
+            this._fdcNames[index]  = null;
+            console.log(`FDC: loadFloppy(${index}, ${name}) — buffer null, drive éjecté`);
+        }
+    }
+
+    /** Bascule l'état "inséré" d'un floppy sans détruire le buffer.
+     *  Si false, le FDC répondra "absent" aux prochaines requêtes Smaky. */
+    setFloppyInserted(index, inserted) {
+        if (index < 0 || index > 1) return;
+        this._fdcInserted[index] = !!inserted;
+    }
+
+    /** Bascule la TAB Write-Protect d'un floppy. */
+    setFloppyWriteProtect(index, wp) {
+        if (index < 0 || index > 1) return;
+        this._fdcWriteProtect[index] = !!wp;
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -340,12 +446,23 @@ class Smaky {
                 return;
             }
 
+            // IT FDC pending (RST 1) : délivrée dès que IFF1 = 1 (= sortie
+            // d'un handler IT précédent + ION). On essaie à chaque chunk.
+            if (this._fdcIntPending) {
+                cpu.intVector = 0xCF;          // RST 1 → 0x08
+                if (cpu.handleActiveInt()) {
+                    this._fdcIntPending = false;
+                }
+                // sinon : reste pending jusqu'au prochain chunk
+            }
+
             // Timer 50 Hz : déclenche une interruption toutes les 70000 T-states
             this.ticksSinceInt += chunk;
             if (this.eni50 && this.ticksSinceInt >= TICKS_PER_FRAME) {
                 this.ticksSinceInt -= TICKS_PER_FRAME;
                 this._timer50Pending = true;
                 this._kbTick();
+                cpu.intVector = 0xFF;          // RST 7 → 0x38
                 cpu.handleActiveInt();
             }
         }
@@ -409,6 +526,12 @@ class Smaky {
 
     /** Avancer la FSM clavier d'un tick 50 Hz. */
     _kbTick() {
+        // Appui automatique d'une touche fonction : relâcher au terme
+        // du délai imparti (EOF auto du $PR).
+        if (this._autoFnLeft > 0 && --this._autoFnLeft === 0) {
+            this._autoFnKeys = 0;
+        }
+
         // Tant que le strobe n'a pas été lu, on attend.
         if (this._kbState === 'pending') return;
 
@@ -458,6 +581,17 @@ class Smaky {
     /** Définir fn_keys directement. */
     setFnKeys(val) {
         this._fnKeys = val & 0x7F;
+    }
+
+    /**
+     * Simuler un bref appui sur une ou plusieurs touches fonction.
+     * Les bits `mask` sont forcés dans fn_keys pendant `ticks` périodes
+     * 50 Hz, puis relâchés automatiquement. Utilisé par l'EOF auto du
+     * $PR pour émettre Kill en fin de transfert.
+     */
+    pressFnKey(mask, ticks = this.autoFnPressTicks) {
+        this._autoFnKeys = mask & 0x7F;
+        this._autoFnLeft = Math.max(1, ticks | 0);
     }
 
     /** Déclencher un NMI → push PC, IFF1=0, PC=0x0066. */
@@ -517,7 +651,7 @@ class Smaky {
                 head: this._wdHead, mode: this._wdMode, idx: this._wdDataIdx,
             },
             eni50:  this.eni50,
-            fnKeys: this._fnKeys,
+            fnKeys: this._fnKeys | this._autoFnKeys,
             kbFifoLen: this._kbFifo.length,
         };
     }
@@ -586,7 +720,7 @@ class Smaky {
                 return code | 0x80;
             }
             if (this._kbState === 'fn_expose') {
-                return this._kbCurFn & 0x7F;
+                return (this._kbCurFn | this._autoFnKeys) & 0x7F;
             }
             // Pendant 'gap' (juste après lecture du char), garder le bit
             // cursor co-tenu : sur le vrai Smaky 6, la flèche maintient
@@ -594,9 +728,9 @@ class Smaky {
             // est lue. Sans ça, la ROM relit fn_keys=0 et traite le char
             // comme un littéral.
             if (this._kbState === 'gap' && this._kbCurFn !== null) {
-                return this._kbCurFn & 0x7F;
+                return (this._kbCurFn | this._autoFnKeys) & 0x7F;
             }
-            return this._fnKeys & 0x7F;
+            return (this._fnKeys | this._autoFnKeys) & 0x7F;
         }
 
         if (p === 0x01) {
@@ -629,7 +763,7 @@ class Smaky {
 
         if (p >= 0x20 && p <= 0x27) return this._wd1002In(p);
 
-        if (p === 0x19) return 0xFF;  // pas de FDC : timeout
+        if (p >= 0x18 && p <= 0x1B) return this._fdcIn(p);
 
         return 0;
     }
@@ -679,9 +813,9 @@ class Smaky {
 
         if (p === 0x08) { this._rtcOut(v); return; }
 
-        if (p >= 0x20 && p <= 0x27) { this._wd1002Out(p, v); return; }
+        if (p >= 0x20 && p <= 0x27) { if (this.hdEnabled) this._wd1002Out(p, v); return; }
 
-        if (p === 0x19) return;
+        if (p >= 0x18 && p <= 0x1B) { this._fdcOut(p, v); return; }
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -720,6 +854,7 @@ class Smaky {
     }
 
     _wd1002In(p) {
+        this._lastHDAccessMs = performance.now();
         if (p === 0x20) {
             if (this._wdMode === 'read') {
                 const v = this._wdDataIdx < this._wdData.length
@@ -736,11 +871,20 @@ class Smaky {
         if (p === 0x24) return this._wdCylLow       & 0xFF;
         if (p === 0x25) return this._wdCylHigh      & 0xFF;
         if (p === 0x26) return this._wdHead         & 0xFF;
-        if (p === 0x27) return 0x50;   // DRDY + DSC, toujours prêt
+        if (p === 0x27) {
+            // Registre de statut. 0x50 (DRDY+DSC, prêt) seulement si le
+            // disque dur est actif ET une image est chargée. Sinon 0x11
+            // (DSC=1, ERR=1, DRDY=0, BSY=0) : la ROM18 ($030C) comme SAMOS
+            // (L_1F89) y concluent « pas de disque dur » — sans rester
+            // bloqués (un statut sans bit 4 ferait boucler L_1F89 à
+            // l'infini ; avec bit 7 il bouclerait aussi).
+            return (this.hdEnabled && this._wdImage) ? 0x50 : 0x11;
+        }
         return 0;
     }
 
     _wd1002Out(p, v) {
+        this._lastHDAccessMs = performance.now();
         if (p === 0x20) {
             if (this._wdMode === 'write') {
                 if (this._wdDataIdx < this._wdData.length) {
@@ -780,6 +924,369 @@ class Smaky {
             } else {
                 this._wdMode = null; this._wdData = new Uint8Array(0); this._wdDataIdx = 0;
             }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // FDC — contrôleur disquette (ports $18–$1B)
+    // ─────────────────────────────────────────────────────────────
+
+    _fdcLog(msg) {
+        if (!this._sysSyActive) return;
+        if (this._fdcLogCount >= this._fdcLogMax) return;
+        if (msg === this._fdcLogLast) {
+            this._fdcLogRepeat++;
+            return;
+        }
+        if (this._fdcLogRepeat > 0) {
+            console.log(`FDC: … × ${this._fdcLogRepeat + 1} répétitions`);
+            this._fdcLogCount++;
+            this._fdcLogRepeat = 0;
+        }
+        this._fdcLogLast = msg;
+        console.log(msg);
+        this._fdcLogCount++;
+        if (this._fdcLogCount === this._fdcLogMax)
+            console.log('FDC: log plafonné (' + this._fdcLogMax + ' entrées)');
+    }
+
+    _fdcLogFlush() {
+        if (this._fdcLogRepeat > 0) {
+            console.log(`FDC: … × ${this._fdcLogRepeat + 1} répétitions`);
+            this._fdcLogRepeat = 0;
+        }
+    }
+
+    _fdcCheckHandoff() {
+        const w2 = this.cpu.mem[2] | (this.cpu.mem[3] << 8);
+        if (!this._sysSyActive && w2 !== this._romWord2) {
+            this._sysSyActive = true;
+            this._fdcLogCount = 0;
+            console.log('FDC: JP 0 détecté — SYS.SY actif, floppy visible');
+        }
+    }
+
+    /**
+     * Décodage de la commande écrite sur $19 (CONTR) : bits 0-4 = opcode,
+     * bits de poids fort = sélection du LECTEUR. L'encodage diffère selon
+     * la phase de boot :
+     *   - ROM phantom (chargement) : bit 5 ($20) = 1er floppy (drive 0),
+     *     bit 6 ($40) = 2e floppy (drive 1).
+     *   - SAMOS : bit 6 ($40) = DX1 (drive 0), bit 7 ($80) = DX2 (drive 1).
+     * Retourne l'index du lecteur (0 ou 1), ou -1 si aucun lecteur visé.
+     * La présence d'une DISQUETTE dans le lecteur est, elle, vérifiée
+     * séparément (_fdcImages / _fdcInserted) — distinction lecteur/disquette.
+     */
+    _fdcDriveFromMask(mask) {
+        if (!this._sysSyActive) {
+            // Phase ROM phantom : lecteurs sur les bits 5-6.
+            if (mask & 0x20) return 0;
+            if (mask & 0x40) return 1;
+            return -1;
+        }
+        // Phase SAMOS : lecteurs sur les bits 6-7.
+        switch (mask & 0xC0) {
+            case 0x40: return 0;  // FD1 / DX1
+            case 0x80: return 1;  // FD2 / DX2
+            default:   return -1;
+        }
+    }
+
+    /** Décode une valeur écrite sur $19 en label lisible. */
+    _fdcDecodeCmd(v) {
+        const driveMask = v & 0xC0;
+        const opcode    = v & 0x1F;
+        const drive = driveMask === 0x40 ? 'FD1' :
+                      driveMask === 0x80 ? 'FD2' :
+                      driveMask === 0x00 ? '---' : `mask${driveMask.toString(16)}`;
+        const op = {
+            0x00: 'select',
+            0x02: 'wait_ready',
+            0x0A: 'seek?',
+            0x0C: 'read_sec',
+            0x0E: 'write_sec',
+            0x0F: 'reset/ack',
+            0x12: 'init/calib',
+        }[opcode] || `op_${opcode.toString(16).toUpperCase()}`;
+        return `${drive} ${op}`;
+    }
+
+    _fdcIn(p) {
+        this._lastFloppyAccessMs = performance.now();
+        this._fdcCheckHandoff();
+        let val;
+        if (p === 0x19) {
+            // CONTR en lecture = statut.
+            //   bit 6 = 0 → drive prêt, 1 → absent/occupé
+            //   bit 4 = 0 → pas busy interne (sinon SAMOS attend dans L_2183)
+            //   bits 0-3 = code de cause IT (utilisé par L_2169 / L_223C)
+            const drive = this._fdcDrive;
+            const ready = drive >= 0 && this._fdcImages[drive] && this._fdcInserted[drive];
+            const wp    = ready && this._fdcWriteProtect[drive];
+            // Statut de base : bit 7 = 1 si non protégé, 0 si WP. Bit 6 = 0
+            // si prêt. Drive absent → 0xFF (bit 6 et 7 à 1).
+            const baseStatus = ready ? (wp ? 0x00 : 0x80) : 0xFF;
+            if (this._fdcXferActive) {
+                // Read en cours : E mémorisé au moment du OUT $19 ← cmd_read.
+                val = 0x80 | this._fdcXferE;
+            } else if (this._fdcWritePending || this._fdcWriteActive
+                       || this._fdcReadVerifyMode) {
+                // Mode write OU read-after-write : recalcule dynamiquement
+                // E = position du 1er bit set du masque actuel (qui peut
+                // avoir été clearé par SAMOS dans le handler précédent).
+                const wantMask = this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8);
+                if (wantMask === 0) {
+                    // Plus rien à transférer — sortie du mode.
+                    this._fdcWritePending   = false;
+                    this._fdcReadVerifyMode = false;
+                    val = baseStatus;
+                } else {
+                    let E = 0;
+                    for (let i = 0; i < 16; i++) {
+                        if (wantMask & (1 << i)) { E = i; break; }
+                    }
+                    this._fdcXferE = E;  // mémorisé pour OUT $19 ← $0F (write) ou re-issue read
+                    val = 0x80 | E;
+                }
+            } else {
+                val = baseStatus;
+            }
+        } else if (p === 0x18) {
+            // WRBYT en lecture = DRQ pour write. SAMOS fait TEST $(C) avec
+            // C=$30 et JUMP PL pour attendre que bit 7 soit set. On retourne
+            // bit 7 = 1 quand on est prêt à recevoir un byte.
+            val = (this._fdcWriteActive && this._fdcWritePos < this._fdcWriteBuf.length) ? 0x80 : 0xFF;
+            return val;  // pas loggué (polling)
+        } else if (p === 0x1A) {
+            // RDREQ — bit 7 = DRQ (octet prêt). Pas loggué : c'est juste
+            // du polling très bruyant.
+            val = (this._fdcXferActive && this._fdcXferPos < this._fdcXferBuf.length) ? 0x80 : 0x00;
+            return val;
+        } else if (p === 0x1B) {
+            // RDBYT — sert l'octet courant du buffer de transfert.
+            if (this._fdcXferActive && this._fdcXferBuf && this._fdcXferPos < this._fdcXferBuf.length) {
+                val = this._fdcXferBuf[this._fdcXferPos++];
+                if (this._fdcXferPos >= this._fdcXferBuf.length) {
+                    this._fdcXferActive = false;
+                    console.log(`FDC: transfert fini (E=${this._fdcXferE}, ${this._fdcXferBuf.length} octets)`);
+                    if (this._sysSyActive) {
+                        // Annule l'IT fantôme du re-issue intra-L_2169.
+                        this._fdcIntPending = false;
+                        // L_2169 va clear le bit du bloc courant juste après
+                        // notre finalize. On calcule le masque AVEC ce bit
+                        // déjà retiré pour décider de la suite.
+                        const wantMask      = this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8);
+                        const remainingMask = wantMask & ~(1 << this._fdcXferE);
+                        // En mode read-after-write : déclencher IT pour le
+                        // bloc suivant (le handler $2135 ne fait pas L_22B4) ;
+                        // sinon le handler $2107 re-issue via L_22B4.
+                        if (this._fdcReadVerifyMode && remainingMask !== 0) {
+                            this._fdcIntPending = true;
+                        }
+                        if (remainingMask === 0) {
+                            this._fdcReadVerifyMode = false;
+                        }
+                    }
+                    // Phase ROM phantom (boot) : ne pas toucher _fdcIntPending
+                    // — le gestionnaire de boot ($025A) ré-arme lui-même via
+                    // son OUT $19,$0C suivant.
+                }
+            } else {
+                val = 0xFF;
+            }
+            return val;  // pas loggué non plus
+        } else {
+            val = 0xFF;
+        }
+        const name = ['$18','$19','$1A','$1B'][p - 0x18];
+        this._fdcLog(`FDC IN  ${name} → ${val.toString(16).toUpperCase().padStart(2,'0')}H`);
+        return val;
+    }
+
+    _fdcOut(p, v) {
+        this._lastFloppyAccessMs = performance.now();
+        this._fdcCheckHandoff();
+        const name = ['$18','$19','$1A','$1B'][p - 0x18];
+        const vh   = v.toString(16).toUpperCase().padStart(2,'0');
+        if (p === 0x19) {
+            this._fdcLog(`FDC OUT $19 ← ${vh}H  [${this._fdcDecodeCmd(v)}]`);
+            this._fdcControl = v;
+            this._fdcDrive   = this._fdcDriveFromMask(v);
+            // Lot 2b : exécution de la commande read sector ($0C).
+            // Format du transfert (déduit empiriquement) :
+            //   byte 0       : pré-data (lu mais non comparé)
+            //   byte 1       : marker (= mem[$2B8C+drive_offset], comparé)
+            //   bytes 2..257 : 256 octets de data
+            //   byte 258     : checksum (somme modulo 256 des 256 data)
+            // Choix de E : on lit le masque "sectors voulus" mem[$2B9F] et
+            // on prend le 1er bit set. SAMOS clear ce bit après chaque
+            // transfert. E est ensuite servi en bits 0-3 du statut $19, et
+            // sert aussi à indexer la table buffers $2BA3 + 2*E.
+            // L'offset physique sur l'image = E * 256 (= sector E).
+            const opcode = v & 0x1F;
+            if (opcode === 0x0C && this._fdcDrive >= 0) {
+                const drive    = this._fdcDrive;
+                const img      = this._fdcImages[drive];
+                // Masque 16-bit "sectors voulus" : mem[$2B9F] = bits 0-7,
+                // mem[$2BA0] = bits 8-15. L_223C utilise bit 3 de E pour
+                // choisir entre les deux octets, et les bits 0-2 indexent
+                // dans la table $244F (= 1<<n). Donc E ∈ {0..15} et chaque
+                // valeur de E correspond directement à un bit du masque
+                // 16-bit complet.
+                // Choix du secteur E selon la phase de boot :
+                //  - SAMOS actif : 1er bit set du masque "secteurs voulus".
+                //  - ROM phantom (avant JP 0) : secteur voulu dans mem[$4503]
+                //    (la ROM de chargement a son propre protocole de lecture).
+                const wantMask = this._sysSyActive
+                    ? (this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8))
+                    : 0;
+                let E = -1;
+                if (this._sysSyActive) {
+                    for (let i = 0; i < 16; i++) {
+                        if (wantMask & (1 << i)) { E = i; break; }
+                    }
+                } else {
+                    E = this.cpu.mem[0x4503] & 0x0F;
+                }
+                if (img && E >= 0) {
+                    // Floppy Micropolis Smaky 6 : 1 pulse STPCMD = 1 track,
+                    // 16 secteurs par track (= 32 sec/track c'était pour le HD).
+                    // Confirmé par PYR : bloc 128 = 8 pulses = track 8.
+                    const SECTORS_PER_TRACK = 16;
+                    const track  = this._fdcStepPulses[drive];
+                    const offset = (track * SECTORS_PER_TRACK + E) * 256;
+                    if (offset + 256 <= img.byteLength) {
+                        const data = new Uint8Array(img, offset, 256);
+                        // Marker physique sur la disquette = track.
+                        const expectedMarker = track & 0xFF;
+                        // Pour debug : comparer avec ce que SAMOS s'attend à
+                        // recevoir (mem[$2B8C+drive_offset]). Si ça diverge,
+                        // c'est qu'on a un bug de tracking.
+                        const samosExpected = drive === 0 ? this.cpu.mem[0x2B8C] : this.cpu.mem[0x2B8D];
+                        const markerWarning = (this._sysSyActive && expectedMarker !== samosExpected)
+                            ? ` ⚠ SAMOS attend $${samosExpected.toString(16).toUpperCase().padStart(2,'0')}`
+                            : '';
+                        const buf = new Uint8Array(259);
+                        buf[0] = 0x00;
+                        buf[1] = expectedMarker;
+                        buf.set(data, 2);
+                        let sum = 0;
+                        for (let i = 0; i < 256; i++) sum = (sum + data[i]) & 0xFF;
+                        buf[258] = sum;
+                        this._fdcXferBuf    = buf;
+                        this._fdcXferPos    = 0;
+                        this._fdcXferActive = true;
+                        this._fdcXferE      = E;
+                        // Dump compact : 16 premiers bytes en hex+ASCII
+                        const lines = [];
+                        let hex = '', ascii = '';
+                        for (let col = 0; col < 16; col++) {
+                            const b = data[col];
+                            hex += b.toString(16).toUpperCase().padStart(2, '0') + ' ';
+                            ascii += (b >= 0x20 && b < 0x7F) ? String.fromCharCode(b) : '.';
+                        }
+                        lines.push(`  data: ${hex} ${ascii}`);
+                        console.log(`FDC: read track=${track} E=${E} (offset=$${offset.toString(16)}, bloc=${track * SECTORS_PER_TRACK + E}, masque=$${wantMask.toString(16).toUpperCase().padStart(2,'0')}, marker=$${expectedMarker.toString(16).toUpperCase().padStart(2,'0')}, chk=$${sum.toString(16).toUpperCase().padStart(2,'0')})${markerWarning}\n${lines.join('\n')}`);
+                        this._fdcIntPending = true;
+                    } else {
+                        console.log(`FDC: read E=${E} hors image (taille ${img.byteLength})`);
+                    }
+                }
+            }
+            // Lot 3 : commande write_sec ($0E) — DO_RIBWOD lance le write.
+            // On marque juste "pending" + IT. L'init du buffer se fait à
+            // l'ack ($0F) envoyé par le handler après avoir clearé le bit
+            // dans le masque (= on connaît alors le bon E).
+            if (opcode === 0x0E && this._fdcDrive >= 0) {
+                const wantMask = this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8);
+                if (wantMask !== 0) {
+                    this._fdcWritePending = true;
+                    this._fdcIntPending   = true;
+                    console.log(`FDC: write_sec lancé (drive=${this._fdcDrive}, masque=$${wantMask.toString(16).toUpperCase().padStart(4,'0')})`);
+                }
+            }
+            // Ack ($0F) : envoyé par le handler $21B8 juste après avoir clearé
+            // le bit dans le masque. C'est le moment de préparer le buffer
+            // collecteur pour le bloc dont E vient d'être mémorisé via IN $19.
+            if (opcode === 0x0F && this._fdcWritePending) {
+                const drive  = this._fdcDrive;
+                const img    = this._fdcImages[drive];
+                const E      = this._fdcXferE;
+                const SECTORS_PER_TRACK = 16;
+                const track  = this._fdcStepPulses[drive];
+                const offset = (track * SECTORS_PER_TRACK + E) * 256;
+                if (img && offset + 256 <= img.byteLength) {
+                    this._fdcWriteBuf     = new Uint8Array(300);
+                    this._fdcWritePos     = 0;
+                    this._fdcWriteActive  = true;
+                    this._fdcWritePending = false;
+                    this._fdcWriteOffset  = offset;
+                    this._fdcWriteDrive   = drive;
+                    console.log(`FDC: write track=${track} E=${E} (offset=$${offset.toString(16)}, bloc=${track * SECTORS_PER_TRACK + E})`);
+                }
+            }
+        } else if (p === 0x1A) {
+            // STPCMD — impulsion moteur. Décodage de l'opcode :
+            //   $12 = init/calibrate → tête forcée à track 0 (reset compteur)
+            //   $1A = step pulse vers track haute (compteur += 1)
+            //   $02 = wait, pas de mouvement
+            // 3 pulses STPCMD ($1A) = 1 track (observé : bloc 32 = track 1
+            // = 3 pulses depuis l'init).
+            const stepDrive  = this._fdcDriveFromMask(v);
+            const stepOpcode = v & 0x1F;
+            let stepNote = '';
+            if (stepDrive >= 0) {
+                if (stepOpcode === 0x12) {
+                    // Calibrate / init : tête forcée à track 0
+                    this._fdcStepPulses[stepDrive] = 0;
+                    stepNote = ` [calibrate FD${stepDrive+1} → 0]`;
+                } else if (stepOpcode === 0x1A) {
+                    // Step in (vers track haute) : opcode $0A | $10
+                    this._fdcStepPulses[stepDrive]++;
+                    stepNote = ` [step in FD${stepDrive+1} → ${this._fdcStepPulses[stepDrive]}]`;
+                } else if (stepOpcode === 0x0A) {
+                    // Step out (vers track 0) : opcode $0A sans bit 4
+                    if (this._fdcStepPulses[stepDrive] > 0) this._fdcStepPulses[stepDrive]--;
+                    stepNote = ` [step out FD${stepDrive+1} → ${this._fdcStepPulses[stepDrive]}]`;
+                }
+            }
+            this._fdcLog(`FDC OUT $1A ← ${vh}H  [STPCMD]${stepNote}`);
+        } else if (p === 0x18) {
+            // WRBYT — collecteur d'écriture. Le handler $21B8 envoie 300
+            // octets dans cet ordre : 40 sync ($28), 1 marker ($FF), 1 trk,
+            // 256 data, 1 checksum, 1 trail ($00). On extrait data[42..297].
+            if (this._fdcWriteActive && this._fdcWriteBuf
+                && this._fdcWritePos < this._fdcWriteBuf.length) {
+                this._fdcWriteBuf[this._fdcWritePos++] = v;
+                if (this._fdcWritePos >= this._fdcWriteBuf.length) {
+                    // 300 octets reçus — extraire les 256 data et écrire dans
+                    // l'image. img est un ArrayBuffer (mutable côté RAM ; la
+                    // persistance disque sera ajoutée plus tard).
+                    const img  = this._fdcImages[this._fdcWriteDrive];
+                    const view = new Uint8Array(img, this._fdcWriteOffset, 256);
+                    view.set(this._fdcWriteBuf.subarray(42, 42 + 256));
+                    console.log(`FDC: write done (drive=${this._fdcWriteDrive}, offset=$${this._fdcWriteOffset.toString(16)}, 256 octets écrits en RAM)`);
+                    this._fdcWriteActive = false;
+                    // On déclenche TOUJOURS une IT après chaque transfert :
+                    //   - si masque ≠ 0 : pour le bloc suivant (write)
+                    //   - si masque = 0 : SAMOS exécute L_2211 qui restaure
+                    //     le masque depuis backup et ré-installe le handler
+                    //     RST 1 à $212A (chaîné vers $2135) pour un read de
+                    //     vérification. On entre alors en mode verify pour
+                    //     déclencher les IT successives qui suivent.
+                    this._fdcIntPending = true;
+                    const wantMask = this.cpu.mem[0x2B9F] | (this.cpu.mem[0x2BA0] << 8);
+                    if (wantMask !== 0) {
+                        this._fdcWritePending = true;
+                    } else {
+                        this._fdcWritePending   = false;
+                        this._fdcReadVerifyMode = true;
+                    }
+                }
+            }
+            // Pas loggué (300 OUT $18 par sector, trop verbeux)
+        } else {
+            this._fdcLog(`FDC OUT ${name} ← ${vh}H`);
         }
     }
 

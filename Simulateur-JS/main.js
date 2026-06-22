@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard, screen } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -9,11 +9,18 @@ let zoomFactor = 1.0;
 
 // ─── Fenêtre principale ───────────────────────────────────────────
 function createWindow() {
+    // Dimensionner d'emblée à la zone utile de l'écran principal pour éviter
+    // un flash de fenêtre 960x860 avant maximisation — utile en particulier
+    // sous GNOME/Wayland où `maximize()` avant `show()` est parfois ignoré.
+    const { workArea } = screen.getPrimaryDisplay();
     mainWindow = new BrowserWindow({
-        width:  960,
-        height: 860,
+        x:      workArea.x,
+        y:      workArea.y,
+        width:  workArea.width,
+        height: workArea.height,
         minWidth:  800,
         minHeight: 700,
+        show:    false,              // affichée plus bas, après maximize, pour éviter le flash
         webPreferences: {
             preload:          path.join(__dirname, 'preload.js'),
             contextIsolation: true,
@@ -26,6 +33,21 @@ function createWindow() {
     mainWindow.loadFile('index.html');
     mainWindow.webContents.on('did-finish-load', () => {
         mainWindow.setTitle('SimSmaky6 : simulateur de Smaky 6. Version ' + app.getVersion());
+    });
+
+    // Maximiser la fenêtre (taille de l'écran, barre Windows et croix de
+    // fermeture restent visibles) et forcer le focus au démarrage — sinon,
+    // un lancement via `npm start` depuis un terminal laisse celui-ci
+    // par-dessus, masquant l'animation d'intro 3D.
+    // Sur GNOME (testé sur Zorin OS) il faut appeler `maximize()` APRÈS
+    // `show()`, sinon la requête est ignorée par le compositeur.
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+        mainWindow.maximize();
+        mainWindow.focus();
+        // Astuce Windows : alwaysOnTop bref pour passer devant le terminal
+        mainWindow.setAlwaysOnTop(true);
+        setTimeout(() => mainWindow.setAlwaysOnTop(false), 200);
     });
 
     // Bloquer la touche Meta (Windows) pour éviter que le menu Démarrer
@@ -58,7 +80,7 @@ app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) creat
 // ─── IPC : sélection du dossier disques ──────────────────────────
 ipcMain.handle('pick-disk-dir', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
-        title:       'Dossier des images disque (SM6WIN*.DSK)',
+        title:       'Dossier des images disque (SM6WIN*.DSK + SM6FLO*.DSK)',
         properties:  ['openDirectory'],
         buttonLabel: 'Sélectionner',
     });
@@ -66,7 +88,7 @@ ipcMain.handle('pick-disk-dir', async () => {
     diskDir = result.filePaths[0];
     // Lister les images présentes
     const found = fs.readdirSync(diskDir)
-        .filter(f => /^SM6WIN[0-9]\.DSK$/i.test(f))
+        .filter(f => /^SM6(WIN|FLO)[0-9]\.DSK$/i.test(f))
         .map(f => f.toUpperCase())
         .sort();
     return { dir: diskDir, disks: found };
@@ -77,7 +99,7 @@ ipcMain.handle('restore-disk-dir', (event, savedPath) => {
     if (!savedPath || !fs.existsSync(savedPath)) return null;
     diskDir = savedPath;
     const found = fs.readdirSync(diskDir)
-        .filter(f => /^SM6WIN[0-9]\.DSK$/i.test(f))
+        .filter(f => /^SM6(WIN|FLO)[0-9]\.DSK$/i.test(f))
         .map(f => f.toUpperCase())
         .sort();
     return { dir: diskDir, disks: found };

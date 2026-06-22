@@ -184,9 +184,10 @@ function transcodeLineImpl(zilogText, labels) {
         if (m2) return { calm: `LOAD A,$${fmtByte(m2[1])}`, extraComment: null };
         // IN (HL),(C) : forme non documentée Z80 (ED 70) qui ne stocke rien et
         // n'affecte que les flags. Le désassembleur l'émet ainsi car (HL) est
-        // l'entrée R8[6] sans signification réelle. Pas de mnémonique CALM → .B brut.
+        // l'entrée R8[6] sans signification réelle. CALM 1re gen : TEST $(C).
+        // Confirmé via OCR du source SAMOS 1-E (routine WRBL1/WRBL2, polling DRQ).
         if (args === '(HL),(C)') {
-            return { calm: null, rawBytes: true, extraComment: 'IN F,(C) (Z80 undoc., ED 70) — lit port C, n\'affecte que les flags' };
+            return { calm: 'TEST $(C)', extraComment: '= IN F,(C) (Z80 undoc., ED 70)' };
         }
         // IN r,(C) — Z80 ED-prefix (documenté)
         const m3 = args.match(/^(\w+),\(C\)$/);
@@ -200,26 +201,22 @@ function transcodeLineImpl(zilogText, labels) {
         if (m3) return { calm: `LOAD $(C),${m3[1]}`, extraComment: '?? OUT (C),r — vérifier syntaxe CALM' };
     }
 
-    // SET n,r / RES n,r : pas d'équivalent mnémonique direct en CALM 1re gen.
-    // On émet en .B brut pour préserver l'encodage exact (CB-prefixed, 2 octets).
-    // Un équivalent fonctionnel via OR/AND A,#mask existe pour A, mais l'encodage
-    // diffère (E6/F6 nn vs CB XX) — donc on garde .B même pour A.
-    if (mnem === 'SET' || mnem === 'RES') {
+    // BIT n,r / SET n,r / RES n,r : CALM 1re gen utilise la syntaxe
+    // « TEST/SET/CLR cible:n » où n est le RANG du bit (0..7), PAS le masque.
+    // Confirmé via OCR du source SAMOS 1-E (TEST A:TBITAC, CLR (HL):TBITOP,
+    // SET A:TBITAC) où les TBITxx sont définis par EQU avec des valeurs 0..7
+    // (rang du bit), et confirmé par l'utilisateur (PYR).
+    if (mnem === 'BIT' || mnem === 'SET' || mnem === 'RES') {
         const m2 = args.match(/^(\d+),(.+)$/);
         if (m2) {
+            const bit = parseInt(m2[1], 10);
+            const reg = m2[2];
+            const calmMnem = mnem === 'BIT' ? 'TEST' : (mnem === 'RES' ? 'CLR' : 'SET');
             return {
-                calm: null, rawBytes: true,
-                extraComment: `${mnem} ${m2[1]},${m2[2]} (Zilog) — pas d'équivalent direct 1re gen`
+                calm: `${calmMnem} ${reg}:${bit}`,
+                extraComment: `= ${mnem} ${bit},${reg}`
             };
         }
-    }
-    if (mnem === 'BIT') {
-        // BIT n,r teste le bit sans modifier r ; pas d'équivalent direct en
-        // CALM 1re gen pour r ≠ A. On émet en .B brut pour préserver la taille.
-        return {
-            calm: null, rawBytes: true,
-            extraComment: `BIT ${args} (Zilog) — pas d'équivalent direct 1re gen`
-        };
     }
 
     // LD avec différents cas
@@ -270,14 +267,20 @@ function transcodeLineImpl(zilogText, labels) {
         }
         return { calm: `${calmMnem} ${args}`, extraComment: null };
     }
-    // Shifts : aucun mnémonique disponible en CALM 1re gen Smaky 6.
-    // ASCALM 1985 (Z80.DOK) introduit SL/SR/ASR ; SAMOS Smaky 6 les rejette
-    // tous → on émet les bytes bruts en .B. Seules les rotations (RR/RRC/
-    // RL/RLC, plus haut) sont disponibles en 1re gen.
-    if (mnem === 'SLA') return { calm: null, rawBytes: true, extraComment: `SLA ${args} (Zilog) — pas de mnémonique 1re gen` };
-    if (mnem === 'SRL') return { calm: null, rawBytes: true, extraComment: `SRL ${args} (Zilog) — pas de mnémonique 1re gen` };
-    if (mnem === 'SRA') return { calm: null, rawBytes: true, extraComment: `SRA ${args} (Zilog) — pas de mnémonique 1re gen` };
-    if (mnem === 'SLL') return { calm: null, rawBytes: true, extraComment: `SLL ${args} (Zilog, undoc.) — pas de mnémonique 1re gen` };
+    // Shifts CALM 1re gen — convention :
+    //   suffixe `C` = Clear (insère 0 dans le bit libéré)
+    //   préfixe `A` = Arithmetic (préserve signe, uniquement utile à droite)
+    //   Validé via SMILE par PYR le 14/05/2026 :
+    //     Zilog SLA r → CALM SLC r  (CB 2X, shift left, 0 → bit 0)
+    //     Zilog SRA r → CALM ASR r  (CB 2X+8, préserve bit 7)
+    //     Zilog SRL r → CALM SRC r  (CB 3X+8, 0 → bit 7)
+    //   `ASL r` n'existe PAS (CALM élimine la redondance : aucun bit de signe
+    //   à préserver lors d'un shift left, donc un seul mnémonique = SLC).
+    //   `SLL r` (Zilog undoc., 1 → bit 0) : pas de mnémonique CALM connu → .B brut.
+    if (mnem === 'SLA') return { calm: `SLC ${args}`, extraComment: null };
+    if (mnem === 'SRA') return { calm: `ASR ${args}`, extraComment: null };
+    if (mnem === 'SRL') return { calm: `SRC ${args}`, extraComment: null };
+    if (mnem === 'SLL') return { calm: null, rawBytes: true, extraComment: `SLL ${args} (Z80 undoc., CB 3X) — pas de mnémonique 1re gen connu` };
 
     // PUSH, POP : registre seul
     if (mnem === 'PUSH' || mnem === 'POP') {

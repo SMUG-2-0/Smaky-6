@@ -1,0 +1,267 @@
+	.TITLE	LXTEST.SR
+	.PROC	Z80
+	.REF	FLO
+
+;PYR 17 MAI 2026  TEST DU LEXER PETIT-PYTHON
+;CHARGE TEST.PY, INITIALISE LE LEXER, BOUCLE EN AFFICHANT
+;CHAQUE TOKEN (CODE HEX + VALEUR EVENTUELLE) JUSQU'A EOF.
+
+
+
+;#############################################################
+;# CONSTANTES                                                #
+;#############################################################
+
+
+BUFSIZ	= 4000		;TAILLE BUFFER SOURCE (2 KO OCTAL)
+
+
+	.LOC	53000
+
+
+
+;#############################################################
+;# TEXTES                                                    #
+;#############################################################
+
+
+FNAME:	.ASCIZ	"TEST.PY"
+
+
+
+;#############################################################
+;# VARIABLES                                                 #
+;#############################################################
+
+
+CANAL:	.BLKB	1
+
+
+
+;#############################################################
+;# BUFFER SOURCE                                             #
+;#############################################################
+
+
+SRCBUF:	.BLKB	BUFSIZ
+ENDBUF:	.B	0
+
+
+
+;#############################################################
+;# INCLURE LE LEXER                                          #
+;#############################################################
+
+
+	.INS	LX
+
+
+
+;#############################################################
+;#############################################################
+;# PROGRAMME PRINCIPAL                                       #
+;#############################################################
+;#############################################################
+
+
+
+START:				;POINT D'ENTREE
+
+;==========================================================
+; ETAPE 0 : RECUPERER TOUT L'ECRAN ALPHA
+;==========================================================
+;PAR DEFAUT ON HERITE D'UNE FENETRE REDUITE (4 LIGNES CLI).
+;?IDIS AVEC C=20. (= CODE NLI) RESTITUE LES 32 LIGNES.
+
+	LOAD	C,#20.
+	.W	?IDIS
+
+
+;==========================================================
+; ETAPE 1 : CLEAR DU BUFFER (IDIOME LDIR)
+;==========================================================
+
+	LOAD	HL,#SRCBUF
+	XOR	A,A
+	LOAD	(HL),A
+	LOAD	DE,#SRCBUF+1
+	LOAD	BC,#BUFSIZ-1
+	LDIR
+
+
+;==========================================================
+; ETAPE 2 : OUVRIR TEST.PY
+;==========================================================
+
+	LOAD	DE,#FNAME
+	.W	?OPEN
+	JUMP	CS,STERR
+	LOAD	CANAL,A
+
+
+;==========================================================
+; ETAPE 3 : LIRE LE CONTENU
+;==========================================================
+
+	LOAD	A,CANAL
+	LOAD	BC,#BUFSIZ
+	LOAD	DE,#SRCBUF
+	.W	?RDBYTE
+
+
+;==========================================================
+; ETAPE 4 : FERMER LE FICHIER
+;==========================================================
+
+	LOAD	A,CANAL
+	.W	?CLOSE
+
+
+;==========================================================
+; ETAPE 5 : INITIALISER LE LEXER
+;==========================================================
+
+	LOAD	HL,#SRCBUF
+	CALL	LXINIT
+
+
+;==========================================================
+; ETAPE 6 : BOUCLE D'AFFICHAGE DES TOKENS
+;==========================================================
+;APPEL LXNEXT, AFFICHE, JUSQU'A LXTYPE = TKEOF (= 0)
+
+STLP:	CALL	LXNEXT
+	CALL	PRTOK
+	LOAD	A,LXTYPE
+	OR	A,A
+	JUMP	NE,STLP
+
+
+;==========================================================
+; ETAPE 7 : FIN
+;==========================================================
+
+	.W	?TEXTIM
+	.ASCIZ	"-- FIN --<CR>"
+	.W	?RTN
+
+
+
+;----- GESTION D'ERREUR D'OUVERTURE -----
+
+STERR:	.W	?TEXTIM
+	.ASCIZ	"TEST.PY INTROUVABLE<CR>"
+	.W	?RTN
+
+
+
+;#############################################################
+;# PRTOK : AFFICHE LE TOKEN COURANT                          #
+;#############################################################
+;FORMAT : XX [= VALEUR ou NOM] <CR>
+;XX = CODE HEX DU TYPE ; POUR NUM ET NAME, SUIVI DE LA VALEUR
+
+PRTOK:	LOAD	A,LXTYPE
+	CALL	PRHEX
+	;CAS DES TOKENS A VALEUR
+	LOAD	A,LXTYPE
+	COMP	A,#TKNUM
+	JUMP	NE,PRT1
+	.W	?TEXTIM
+	.ASCIZ	" = "
+	LOAD	HL,LXVAL
+	CALL	PRDEC
+	JUMP	PRT9
+PRT1:	COMP	A,#TKNAME
+	JUMP	NE,PRT9
+	.W	?TEXTIM
+	.ASCIZ	" = "
+	CALL	PRNAME
+PRT9:	.W	?RETURN
+	.W	?GETCAR		;PAUSE : ATTEND UNE TOUCHE POUR DEFILER
+	RET
+
+
+
+;#############################################################
+;# PRNAME : AFFICHE LE NOM (LXIDLN CARS DEPUIS LXVAL)         #
+;#############################################################
+
+PRNAME:	LOAD	HL,LXVAL
+	LOAD	A,LXIDLN
+	LOAD	B,A
+PRNA1:	LOAD	A,(HL)
+	.W	?DICAR
+	INC	HL
+	DEC	B
+	JUMP	NE,PRNA1
+	RET
+
+
+
+;#############################################################
+;# PRHEX : AFFICHE A SUR 2 CHIFFRES HEX                       #
+;#############################################################
+
+PRHEX:	PUSH	AF
+	SRC	A
+	SRC	A
+	SRC	A
+	SRC	A
+	CALL	PRHX1
+	POP	AF
+	AND	A,#H'0F
+	CALL	PRHX1
+	RET
+PRHX1:	;NIBBLE DANS LES 4 BITS DE POIDS FAIBLE DE A
+	COMP	A,#10.
+	JUMP	LO,PRHX2
+	ADD	A,#H'37		;'A' - 10
+	JUMP	PRHX3
+PRHX2:	ADD	A,#H'30		;'0'
+PRHX3:	.W	?DICAR
+	RET
+
+
+
+;#############################################################
+;# PRDEC : AFFICHE HL EN DECIMAL (5 CHIFFRES NON SIGNES)      #
+;#############################################################
+;SIMPLE : DIVISIONS REPETEES PAR 10000, 1000, 100, 10
+
+PRDEC:	LOAD	DE,#10000.
+	CALL	PRDG1
+	LOAD	DE,#1000.
+	CALL	PRDG1
+	LOAD	DE,#100.
+	CALL	PRDG1
+	LOAD	DE,#10.
+	CALL	PRDG1
+	LOAD	A,L
+	ADD	A,#H'30
+	.W	?DICAR
+	RET
+
+PRDG1:	;CALCULE B = NOMBRE DE FOIS DE PEUT ETRE SOUSTRAIT DE HL
+	LOAD	B,#0
+PRDG2:	PUSH	HL		;SAUVE AVANT SOUSTRACTION
+	OR	A,A		;CY := 0
+	LOAD	A,L
+	SUB	A,E
+	LOAD	L,A
+	LOAD	A,H
+	SUBC	A,D		;SOUSTRAIT AVEC EMPRUNT
+	LOAD	H,A
+	JUMP	LO,PRDG3	;CY=1 -> HL ETAIT < DE
+	POP	AF		;JETTE LA SAUVEGARDE
+	INC	B
+	JUMP	PRDG2
+PRDG3:	POP	HL		;RESTAURE HL
+	LOAD	A,B
+	ADD	A,#H'30
+	.W	?DICAR
+	RET
+
+
+
+	.END	START

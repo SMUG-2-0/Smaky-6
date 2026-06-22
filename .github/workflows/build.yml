@@ -1,0 +1,110 @@
+# Construit le Simulateur Smaky 6 pour macOS, Windows et Linux sur les runners
+# gratuits de GitHub, puis rassemble tous les fichiers dans une seule Release
+# publique téléchargeable sans compte GitHub.
+#
+# Pourquoi : produire les binaires des trois systèmes ne peut pas se faire depuis
+# une seule machine. GitHub fournit gratuitement des machines macOS, Windows et
+# Linux « dans le nuage » ; ce workflow les utilise toutes les trois.
+#
+# Le code du simulateur vit dans le sous-dossier Simulateur-JS/ de ce monorepo ;
+# toutes les étapes npm / electron-builder s'exécutent donc dans ce dossier.
+#
+# Déclenchement :
+#   - manuel  : onglet « Actions » -> « Build » -> « Run workflow »
+#               (produit seulement des artefacts, visibles aux personnes connectées) ;
+#   - sur tag : pousser un tag « vX.Y.Z » construit ET crée une Release publique
+#               (téléchargeable SANS compte GitHub) avec tous les binaires.
+#
+# Note signature : aucun binaire n'est signé (pas de compte Apple/Microsoft). Au
+# premier lancement, le système affichera un avertissement ; voir le README pour
+# la marche à suivre.
+
+name: Build (macOS, Windows, Linux)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # nécessaire pour créer une Release sur un tag
+
+jobs:
+  build:
+    name: Construire (${{ matrix.label }})
+    strategy:
+      fail-fast: false # un échec sur un OS n'annule pas les autres
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+            build: npx --no-install electron-builder --mac dmg --universal
+            files: Simulateur-JS/dist/*.dmg
+          - os: windows-latest
+            label: Windows
+            build: npx --no-install electron-builder --win
+            files: Simulateur-JS/dist/*.exe
+          - os: ubuntu-latest
+            label: Linux
+            build: npx --no-install electron-builder --linux
+            files: |
+              Simulateur-JS/dist/*.AppImage
+              Simulateur-JS/dist/*.deb
+              Simulateur-JS/dist/*.tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer les dépendances
+        working-directory: Simulateur-JS
+        run: npm ci
+
+      - name: Construire (${{ matrix.label }}, non signé)
+        working-directory: Simulateur-JS
+        env:
+          # Pas de certificat : on désactive la découverte de signature pour
+          # éviter que la construction n'échoue à chercher une identité.
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: ${{ matrix.build }}
+
+      - name: Publier les fichiers comme artefact du run
+        uses: actions/upload-artifact@v4
+        with:
+          name: Simulateur-Smaky6-${{ matrix.label }}
+          path: ${{ matrix.files }}
+          if-no-files-found: error
+
+  # Rassemble les artefacts des trois OS dans une seule Release (sur tag uniquement).
+  # Un job dédié, lancé après les builds, évite que trois jobs parallèles ne se
+  # disputent la création de la même Release.
+  release:
+    name: Publier la Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Télécharger tous les artefacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Créer la Release et y attacher tous les binaires
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          name: Simulateur Smaky 6 ${{ github.ref_name }}
+          body: |
+            Build automatique multi-plateformes du Simulateur Smaky 6 (non signé).
+
+            - **macOS** : `.dmg` (universel Intel + Apple Silicon)
+            - **Windows** : installeur `.exe` + `.exe` portable
+            - **Linux** : AppImage, `.deb`, `tar.gz`
+
+            Les binaires ne sont pas signés ; voir le README pour l'ouverture.

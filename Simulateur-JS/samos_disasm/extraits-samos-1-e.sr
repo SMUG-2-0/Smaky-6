@@ -1,0 +1,12 @@
+; Extrait du source SAMOS 1-E
+; Pierre-Yves Rochat, 13/05/2026
+
+; CONTROLLER PERIPHERIC ADRESS
+;-----------------------------
+
+WRBYT	=	30	;Bytes output
+CONTR	=	31	;Control
+RDREQ	=	32	;Read request flag
+STPCMD	=	32	;Moror step command
+RDBYT	=	33	;Byte input
+

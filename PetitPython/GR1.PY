@@ -1,0 +1,13 @@
+# Test graphique : cadre + pixels
+cls()
+graph()
+gcls()
+line(20, 10, 230, 10, 2)
+line(20, 110, 230, 110, 2)
+line(20, 10, 20, 110, 2)
+line(230, 10, 230, 110, 2)
+plot(120, 55)
+plot(125, 55)
+plot(130, 55)
+getkey()
+text()

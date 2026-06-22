@@ -1,0 +1,16 @@
+# Dossier de session Claude Code (privé à la machine)
+.claude/
+
+# Sauvegardes Notepad++
+*.bak
+
+# Listings d'assemblage (régénérés à chaque assemblage)
+*.ls
+*.LS
+
+# Bruit système
+Thumbs.db
+.DS_Store
+
+# Scans volumineux d'époque (hors dépôt ; voir MATPAC.md pour la transcription)
+Smaky 6 - 3 MATPAC.pdf

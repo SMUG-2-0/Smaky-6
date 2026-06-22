@@ -35,6 +35,8 @@ body {
     border-radius: 3px;
     margin-bottom: 6px;
     flex-wrap: wrap;
+    position: relative;   /* au-dessus du conteneur 3D plein écran */
+    z-index: 10;
 }
 #load-bar label { color: #666; }
 #load-bar input[type=file] { color: #aaa; font: inherit; font-size: 11px; }
@@ -62,17 +64,56 @@ body {
     display: inline-block;
     line-height: 0;
 }
-#disk-panel {
+/* Conteneur 3D : occupe toute la fenêtre quelle que soit sa taille.
+   Les panneaux flottants et la zone touches fonction passent par-dessus. */
+#three-container {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background: #1a1a1a;
+}
+/* ─── Panneaux flottants ─── */
+.float-panel {
+    position: fixed;
+    z-index: 50;
+    background: #131313;
+    border: 1px solid #444;
+    box-shadow: 0 5px 16px rgba(0,0,0,0.65);
+}
+.float-titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    background: #262626;
+    color: #9a9a9a;
+    font: bold 10px 'Courier New', monospace;
+    padding: 2px 4px 2px 7px;
+    cursor: move;
+    border-bottom: 1px solid #3a3a3a;
+}
+.float-titlebar:hover { background: #2f2f2f; }
+.ft-close {
+    cursor: pointer;
+    color: #777;
+    font-weight: bold;
+    padding: 0 4px;
+    border-radius: 2px;
+}
+.ft-close:hover { color: #ff6666; background: #3a0000; }
+.float-body { font-size: 10px; font-family: 'Courier New', monospace; }
+/* corps « liste » (disque dur, floppy) */
+.fp-body-list {
     display: flex;
     flex-direction: column;
     gap: 2px;
     padding: 3px 4px;
-    border: 1px solid #333;
-    background: #131313;
-    font-size: 10px;
-    font-family: 'Courier New', monospace;
     min-width: 148px;
 }
+/* corps « sections » ($PR/$PP, Affichage) */
+.sp-body { padding: 4px; min-width: 148px; }
+/* corps des panneaux 3D (géométrie, rendu) */
+.geom-body { padding: 8px 10px; width: 190px; }
 .dp-row {
     display: flex;
     align-items: center;
@@ -97,16 +138,20 @@ body {
 .dp-btn-take:hover { background: #005a2a; color: #44ffaa; }
 .dp-btn:disabled { opacity: 0.25; cursor: default; }
 .dp-fkey { color: #3a5a3a; font-size: 9px; width: 16px; text-align: center; }
+.dp-ejected { color: #886633; background: #221a00; }
 
-/* ─── Panneau série ─── */
-#serial-panel {
-    padding: 4px 4px;
-    border: 1px solid #333;
-    background: #131313;
-    font-size: 10px;
-    font-family: 'Courier New', monospace;
-    min-width: 148px;
+/* ─── Cases à cocher (floppy, vue) ─── */
+.fp-cb {
+    display: inline-flex; align-items: center; gap: 2px;
+    cursor: pointer; color: #888; font-size: 9px;
+    user-select: none;
 }
+.fp-cb input { accent-color: #00cc00; cursor: pointer; margin: 0; }
+.fp-cb:hover { color: #ccc; }
+.fp-cb input:disabled { cursor: default; }
+.fp-cb input:disabled + span { opacity: 0.4; }
+
+/* ─── Sections internes des panneaux $PR/$PP et Affichage ─── */
 .sp-section { margin-bottom: 6px; }
 .sp-section:last-child { margin-bottom: 0; }
 .sp-title { color: #2277cc; font-weight: bold; font-size: 10px; margin-bottom: 3px; }
@@ -132,6 +177,7 @@ body {
 #text-canvas {
     display: block;
     cursor: text;
+    outline: none;   /* pas de halo de focus du navigateur */
 }
 
 /* ─── Touches fonction ─── */
@@ -156,6 +202,30 @@ body {
 .fn-btn-key:hover { background: #005a2a; color: #44ffaa; }
 .fn-btn-zoom { background: #001a3a; color: #2277cc; border-color: #003a7a; }
 .fn-btn-zoom:hover { background: #002a5a; color: #44aaff; }
+
+/* ─── Zone touches fonction : collée en bas-gauche en mode 3D ─── */
+#fnkeys-zone.fnz-3d {
+    position: fixed;
+    left: 8px;
+    bottom: 8px;
+    z-index: 45;
+    max-width: calc(100vw - 16px);
+    background: rgba(18,18,18,0.9);
+    border: 1px solid #383838;
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+/* ─── Cases « Panneaux » de la barre du haut ─── */
+.lb-cb {
+    display: inline-flex; align-items: center; gap: 3px;
+    color: #888; font-size: 11px; cursor: pointer;
+}
+.lb-cb input { accent-color: #00cc00; cursor: pointer; }
+.lb-cb:hover { color: #ccc; }
+.lb-cb input:disabled { cursor: default; }
+.lb-cb input:disabled + span { opacity: 0.35; }
+#panel-toggles { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* ─── Zone debug ─── */
 #debug-wrap {
@@ -297,13 +367,17 @@ body {
     <button id="audio-btn" onclick="toggleAudio()" title="Activer / couper le haut-parleur"
             style="margin-left:4px;font-size:13px;padding:1px 6px">🔊</button>
     <span id="load-status" style="margin-left:8px">Sélectionnez le dossier contenant SM6WIN0-7.DSK, puis Démarrer.</span>
+    <span style="color:#666;margin-left:6px">Panneaux :</span>
+    <span id="panel-toggles"></span>
+    <button onclick="resetPanelLayout()" title="Replacer tous les panneaux à leur position par défaut"
+            style="font-size:10px">⟲ positions</button>
 </div>
 
 <!-- ─── Modal aide ─────────────────────────────────────────────── -->
 <div id="help-overlay" onclick="if(event.target===this)closeHelp()">
   <div id="help-box"><button id="help-close" onclick="closeHelp()">✕</button>
 <h1>Simulateur Smaky 6</h1>
-<p>2026 Epsitec SA et Pierre-Yves Rochat, version 0.2<br><br>
+<p>2026 Epsitec SA et Pierre-Yves Rochat, version 0.7.0<br><br>
 <p>Bienvenue dans le simulateur du Smaky 6 !<br>
 Sélectionnez le dossier des images disques, puis cliquez <strong>▶ Démarrer</strong>.<br>
 <small style="color:#888">Vous n'avez pas encore les images ? <a href="#" onclick="closeHelp();openDsk();return false;" style="color:#00cc00">Téléchargez-les ici.</a></small></p>
@@ -334,6 +408,54 @@ Sélectionnez le dossier des images disques, puis cliquez <strong>▶ Démarrer<
 <ul>
   <li><strong>F1–F7</strong> — charger <code>SM6WIN1.DSK</code> … <code>SM6WIN7.DSK</code></li>
   <li><strong>F8</strong> — charger <code>SM6WIN0.DSK</code> (disque principal, chargé au début)</li>
+  <li><strong>Prend</strong> — charger une image <code>.DSK</code> dans cet emplacement</li>
+  <li><strong>⬇</strong> — télécharger l'image actuellement présente</li>
+</ul>
+<hr>
+<h2>Disquettes Micropolis (DX1: et DX2:)</h2>
+<p>Le panneau <em>floppies</em> sous celui des disques durs gère les deux lecteurs de disquettes :</p>
+<ul>
+  <li><strong>SM6FLO0</strong> = <code>DX1:</code>, <strong>SM6FLO1</strong> = <code>DX2:</code></li>
+  <li><strong>Prend</strong> — charger une image <code>.DSK</code> dans le lecteur</li>
+  <li><strong>⬇</strong> — télécharger l'image actuelle</li>
+  <li><strong>Ins.</strong> — case « inséré ». Décocher = floppy retiré du lecteur :
+      le SAMOS verra <code>NO DX1</code> au prochain accès. L'image reste en mémoire,
+      il suffit de re-cocher pour ré-insérer.</li>
+  <li><strong>WP</strong> — Tab Write-Protect. Coché : SAMOS refuse l'écriture
+      (« <em>floppy hors service</em> » / « <em>disque protégé</em> »).</li>
+</ul>
+<hr>
+<h2>Vitesse</h2>
+<ul>
+  <li><strong>100%</strong> — vitesse réelle du Z80 (2,5 MHz)</li>
+  <li><strong>1000%</strong> — mode rapide, pratique pour les assemblages
+      de gros fichiers (SAMOS.SR, SYS.SR, …)</li>
+  <li>Le champ accepte n'importe quelle valeur entre 1 et 9999 %.</li>
+</ul>
+<hr>
+<h2>Écran et phosphore</h2>
+<p>L'écran est composé en pixels élémentaires (512 × 240) à partir de la
+PROM du générateur de caractères TMS2716 et de la VRAM graphique du Smaky.
+Combinaison alpha + graphique en OR booléen, comme sur le hardware.</p>
+<ul>
+  <li><strong>Phosphore</strong> — couleur de la trace lumineuse :
+      <em>Vert P31</em> (le phosphore d'époque, par défaut),
+      <em>Gris</em> (rendu des prototypes avant l'arrivée du vert sur le marché),
+      <em>Ambre</em> (jamais utilisé sur Smaky 6, mais dans l'air du temps).</li>
+  <li><strong>Pixel Y/X</strong> — ratio de hauteur/largeur du pixel élémentaire.
+      Sur le Smaky 6 les pixels n'étaient pas carrés ; les écrans cathodiques
+      avaient des réglages de hauteur et de largeur. Valeur par défaut <code>1.6</code>
+      (= aspect 4:3 final). Range 0,5 à 3,0.</li>
+  <li><strong>Bordure</strong> — bande non-utilisée autour de la zone d'image,
+      caractéristique des CRT (les écrans plats vont jusqu'au bord).
+      En % de la largeur affichée. Par défaut <code>5%</code>. La bordure prend
+      la teinte douce du phosphore au repos.</li>
+  <li><strong>Boîtier 3D</strong> — bascule vers une vue 3D du Smaky 6 dans
+      son boîtier rectangulaire ; l'écran cathodique reste vivant en texture
+      sur la face avant (décalée à droite, comme sur le Smaky 6 dont les deux
+      lecteurs Micropolis s'empilaient à gauche).
+      <strong>Souris</strong> = orbiter, <strong>molette</strong> = zoom,
+      <strong>clic-droit</strong> = panoramique.</li>
 </ul>
 <hr>
 <h2>Mode interactif — commandes</h2>
@@ -384,44 +506,106 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
       <canvas id="gfx-canvas"></canvas>
       <canvas id="text-canvas" tabindex="0"></canvas>
   </div>
-  <div style="display:flex;flex-direction:column;gap:6px">
-    <div id="disk-panel"><!-- généré par buildDiskPanel() --></div>
-    <div id="serial-panel">
-      <div class="sp-section">
-        <div class="sp-title">$PR — Lecteur de ruban</div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <button class="sp-btn" onclick="prChoose()">📂 Fichier…</button>
-          <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pr-binary"> binaire</label>
-        </div>
-        <div class="sp-status" id="pr-status">—</div>
-        <div style="color:#3a5a3a;font-size:9px;margin-top:2px">Kill termine le transfert</div>
+  <div id="three-container" style="display:none"></div>
+</div>
+
+<!-- ─── Panneaux flottants ───────────────────────────────────── -->
+<div id="disk-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Disque dur</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div id="disk-body" class="float-body fp-body-list"><!-- généré par buildDiskPanel() --></div>
+</div>
+
+<div id="floppy-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Floppy</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div id="floppy-body" class="float-body fp-body-list"><!-- généré par buildFloppyPanel() --></div>
+</div>
+
+<div id="pr-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>$PR / $PP — Ruban</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div class="float-body sp-body">
+    <div class="sp-section">
+      <div class="sp-title">$PR — Lecteur de ruban</div>
+      <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+        <button class="sp-btn" onclick="prChoose()">📂 Fichier…</button>
+        <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pr-binary"> binaire</label>
+        <label class="fn-cb" style="font-size:9px"
+               title="Émet automatiquement la touche Kill quand tout le fichier a été lu"><input type="checkbox" id="pr-eof" checked> EOF auto</label>
       </div>
-      <div class="sp-section">
-        <div class="sp-title">$PP — Perforateur de ruban</div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <button class="sp-btn sp-btn-stop" onclick="ppSave()">💾 Enregistrer</button>
-          <button class="sp-btn sp-btn-stop" onclick="ppClear()">■ Effacer</button>
-          <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pp-binary"> binaire</label>
-        </div>
-        <div class="sp-status" id="pp-status">—</div>
+      <div class="sp-status" id="pr-status">—</div>
+      <div style="color:#3a5a3a;font-size:9px;margin-top:2px">Kill termine le transfert</div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-title">$PP — Perforateur de ruban</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <button class="sp-btn sp-btn-stop" onclick="ppSave()">💾 Enregistrer</button>
+        <button class="sp-btn sp-btn-stop" onclick="ppClear()">■ Effacer</button>
+        <label class="fn-cb" style="font-size:9px"><input type="checkbox" id="pp-binary"> binaire</label>
+      </div>
+      <div class="sp-status" id="pp-status">—</div>
+    </div>
+  </div>
+</div>
+
+<div id="display-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Vitesse · Affichage</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div class="float-body sp-body">
+    <div class="sp-section">
+      <div class="sp-title">Vitesse</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <input type="number" id="speed-input" value="100" min="1" max="9999"
+               title="Vitesse en % (100 = Z80 réel 2.5 MHz)"
+               oninput="onSpeedChange(this.value)">
+        <span style="color:#666;font-size:10px">%</span>
+        <button class="sp-btn" onclick="onSpeedChange(100)" title="Revenir à 100%">100%</button>
+        <button class="sp-btn" onclick="onSpeedChange(1000)" title="Mode rapide (assemblage de gros fichiers)">1000%</button>
       </div>
     </div>
-    <div id="serial-panel">
-      <div class="sp-section" style="margin-bottom:0">
-        <div class="sp-title">Vitesse</div>
-        <div style="display:flex;align-items:center;gap:4px">
-          <input type="number" id="speed-input" value="100" min="1" max="9999"
-                 title="Vitesse en % (100 = Z80 réel 2.5 MHz)"
-                 oninput="onSpeedChange(this.value)">
-          <span style="color:#666;font-size:10px">%</span>
-          <button class="sp-btn" onclick="onSpeedChange(100)" title="Revenir à 100%">100%</button>
-        </div>
+    <div class="sp-section">
+      <div class="sp-title">Phosphore</div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <select id="palette-select" onchange="onPaletteChange(this.value)"
+                style="background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px">
+          <option value="green">Vert P31</option>
+          <option value="gray">Gris (prototype)</option>
+          <option value="amber">Ambre</option>
+        </select>
+      </div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-title">Géométrie CRT</div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888">
+        <label title="Ratio Y/X du pixel élémentaire (1=carré, 1.6=CRT 4:3)">
+          Pixel Y/X
+          <input type="number" id="aspect-input" value="1.6" min="0.5" max="3.0" step="0.05"
+                 oninput="onAspectChange(this.value)"
+                 style="width:48px;background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px;text-align:right">
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#888;margin-top:3px">
+        <label title="Bordure non-utilisée autour de l'écran (% de la largeur)">
+          Bordure
+          <input type="number" id="border-input" value="5" min="0" max="20" step="1"
+                 oninput="onBorderChange(this.value)"
+                 style="width:42px;background:#111;color:#aaa;border:1px solid #444;font:inherit;font-size:10px;padding:1px 3px;text-align:right">
+          <span style="color:#666">%</span>
+        </label>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ─── Touches fonction ─────────────────────────────────────── -->
+<div id="geom-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Géométrie boîtier (mm)</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div class="float-body geom-body"><div id="geom-fields"></div></div>
+</div>
+
+<div id="render-panel" class="float-panel" style="display:none">
+  <div class="float-titlebar"><span>Rendu 3D</span><span class="ft-close" title="Fermer ce panneau">✕</span></div>
+  <div class="float-body geom-body"><div id="render-fields"></div></div>
+</div>
+
+<!-- ─── Zone touches fonction (sous l'écran en 2D, bas-gauche en 3D) ── -->
+<div id="fnkeys-zone">
 <div id="fn-row">
     <label class="fn-cb"><input type="checkbox" data-mask="0x40"><span class="fn-label">CURSOR<span class="fn-key-hint">Ctrl</span></span></label>
     <label class="fn-cb"><input type="checkbox" data-mask="0x10"><span class="fn-label">KILL<span class="fn-key-hint">Alt</span></span></label>
@@ -455,7 +639,10 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
     <button class="fn-btn fn-btn-zoom" onclick="doZoom(+0.1)" title="Zoom avant (Ctrl++)">Zoom+</button>
     <button class="fn-btn fn-btn-zoom" onclick="doZoom(-0.1)" title="Zoom arrière (Ctrl-)">Zoom−</button>
     <button class="fn-btn fn-btn-zoom" onclick="doColler()" title="Coller le presse-papiers vers le Smaky">COLLER</button>
+    <span style="display:inline-block;width:10px"></span>
+    <label class="fn-cb" title="Affiche le boîtier en 3D — souris pour orbiter, molette pour zoomer"><input type="checkbox" id="view3d-cb" onchange="onToggle3D(this.checked)"> Boîtier 3D</label>
 </div>
+</div><!-- #fnkeys-zone -->
 
 <!-- ─── Zone debug ───────────────────────────────────────────── -->
 <div id="debug-wrap" style="display:none">
@@ -472,9 +659,14 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
 
 <!-- ─── Scripts ──────────────────────────────────────────────── -->
 <script src="rom18.js"></script>
+<script src="chargen_rom.js"></script>
 <script src="z80.js"></script>
 <script src="disasm.js"></script>
 <script src="smaky.js"></script>
+<script src="screenRenderer.js"></script>
+<script src="three.min.js"></script>
+<script src="OrbitControls.js"></script>
+<script src="three3d.js"></script>
 <script src="audio.js"></script>
 <script>
 // ═══════════════════════════════════════════════════════════════════
@@ -488,6 +680,9 @@ Placez-les dans un même dossier, puis sélectionnez ce dossier dans le simulate
 let sim         = null;
 let romBuffer   = null;
 let diskBuffer  = null;
+let hdEnabled        = true;            // disque dur actif (sinon : boot disquette)
+let selectedDiskName = 'SM6WIN0.DSK';   // image disque dur sélectionnée
+let diskVolatile     = false;           // disque dur embarqué (.JS) → RAM, non sauvé
 let breakpoints = new Set();
 let fnKeysMouse = 0;   // bits actifs via cases à cocher
 let fnKeysKbd   = 0;   // bits actifs via clavier
@@ -521,39 +716,78 @@ const gfxCanvas  = document.getElementById('gfx-canvas');
 let textCtx = null;
 let gfxCtx  = null;
 
-// Mesures de caractère (calculées à l'init)
-let charW = 9, charH = 16;
+// Framebuffer pixels élémentaires (rempli par renderScreen, dessiné dans textCanvas)
+let screenImgData = null;
 
-// Cache rendu texte (évite redraws inutiles)
-let prevCells = Array.from({length: HEIGHT}, () => new Uint8Array(WIDTH).fill(255));
-let prevNox   = null;
-// Cache GFX
+// Détection de changement (pour skip frames identiques).
+let prevTextMem = null;
 let prevGfxMem  = null;
-let prevGfxGros = null;
-let prevGfxGra  = false;
+let prevFlagsKey = '';
+let prevPaletteName = '';
+
+// Palette courante. Persisté dans localStorage.
+let currentPalette = PALETTES.green;
+try {
+    const saved = localStorage.getItem('palette');
+    if (saved && PALETTES[saved]) currentPalette = PALETTES[saved];
+} catch (_) {}
+
+// Géométrie écran : ratio Y/X (étirement vertical du pixel élémentaire,
+// 1.0 = pixel carré) et bordure CRT en % de la largeur affichée.
+const BASE_SCALE = 1.5;             // pixels CSS par pixel élémentaire (X)
+let pixelAspectYX = 1.6;            // pixel plus haut que large (CRT 4:3 par défaut)
+let crtBorderPercent = 5;
+try {
+    const a = parseFloat(localStorage.getItem('aspectYX'));
+    if (!isNaN(a) && a > 0) pixelAspectYX = a;
+    const b = parseFloat(localStorage.getItem('borderPct'));
+    if (!isNaN(b) && b >= 0) crtBorderPercent = b;
+} catch (_) {}
 
 // ─── Initialisation du canvas ────────────────────────────────────
+// Le canvas a la résolution native du Smaky 6 (512×240 pixels élémentaires).
+// CSS l'agrandit avec un scale isotropique BASE_SCALE puis étirement
+// vertical pixelAspectYX. Bordure noire autour pour évoquer le CRT.
 function initCanvas() {
     textCtx = textCanvas.getContext('2d');
-    gfxCtx  = gfxCanvas.getContext('2d');
-    const FONT_SIZE = 14;
-    const FONT      = `${FONT_SIZE}px 'Courier New', monospace`;
-    textCtx.font    = FONT;
-    const m = textCtx.measureText('M');
-    charW = Math.ceil(m.width);
-    charH = Math.round(FONT_SIZE * 1.5);  // line height ≈ 1.5 × font-size
+    textCanvas.width  = SCREEN_W;
+    textCanvas.height = SCREEN_H;
+    textCanvas.style.imageRendering = 'pixelated';
 
-    const W = charW * WIDTH  + 8;
-    const H = charH * HEIGHT + 8;
+    // Le canvas graphique d'origine n'est plus utilisé : tout est composé
+    // dans textCanvas. On le cache définitivement.
+    if (gfxCanvas) gfxCanvas.style.display = 'none';
 
-    textCanvas.width  = W;
-    textCanvas.height = H;
-    gfxCanvas.width   = W;
-    gfxCanvas.height  = H;
+    screenImgData = textCtx.createImageData(SCREEN_W, SCREEN_H);
 
-    // Fond noir initial
+    applyScreenGeometry();
+
+    // Fond initial = noir (vrai CRT éteint). Le rendu Smaky prendra le
+    // relais avec palette.off pour les pixels éteints dès la 1re frame.
     textCtx.fillStyle = '#000';
-    textCtx.fillRect(0, 0, W, H);
+    textCtx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+}
+
+// Applique la taille CSS du canvas et la bordure CRT au screen-wrap.
+// La bordure est noire tant que le simulateur n'a pas démarré (CRT
+// éteint) ; elle prend la teinte "off" du phosphore une fois le
+// simulateur en marche.
+function applyScreenGeometry() {
+    const cssW = SCREEN_W * BASE_SCALE;
+    const cssH = SCREEN_H * BASE_SCALE * pixelAspectYX;
+    textCanvas.style.width  = cssW + 'px';
+    textCanvas.style.height = cssH + 'px';
+    const wrap = document.getElementById('screen-wrap');
+    if (wrap) {
+        if (sim) {
+            const off = currentPalette.off;
+            wrap.style.background = `rgb(${off[0]},${off[1]},${off[2]})`;
+        } else {
+            wrap.style.background = '#000';
+        }
+        const pad = Math.round(cssW * crtBorderPercent / 100);
+        wrap.style.padding = pad + 'px';
+    }
 }
 
 // ─── Rendu texte ─────────────────────────────────────────────────
@@ -590,147 +824,547 @@ for (let i = 15; i < 128; i++) {
         UNICODE_TO_SMAKY.set(ch, String.fromCharCode(i));
 }
 
-function renderText(textMem, gfxMode) {
-    const FONT = `${Math.round(charH * 0.7)}px 'Courier New', monospace`;
-    textCtx.font = FONT;
-    const pad = 4;
-    const nox = gfxMode.nox;
-    const stateChanged = (nox !== prevNox);
-    prevNox = nox;
-
-    if (nox) {
-        // Masquer entièrement l'alpha : fond noir transparent
-        textCtx.clearRect(0, 0, textCanvas.width, textCanvas.height);
-        return;
-    }
-
-    for (let y = 0; y < HEIGHT; y++) {
-        for (let x = 0; x < WIDTH; x++) {
-            const b   = textMem[y * WIDTH + x] & 0xFF;
-            const old = prevCells[y][x];
-            if (b === old && !stateChanged) continue;
-            prevCells[y][x] = b;
-
-            const inv = !!(b & 0x80);
-            const ch  = SMAKY_CHARS_JS[b & 0x7F];
-            const px  = pad + x * charW;
-            const py  = pad + y * charH;
-
-            const fg = inv ? '#000'     : '#00cc00';
-            const bg = inv ? '#00cc00' : '#000';
-            textCtx.fillStyle = bg;
-            textCtx.fillRect(px, py, charW, charH);
-            textCtx.fillStyle = fg;
-            if (ch === '_') {
-                // Dessin manuel : barre en bas de la cellule, sans débordement
-                const lh = Math.max(1, Math.round(charH * 0.1));
-                textCtx.fillRect(px, py + charH - lh, charW, lh);
-            } else {
-                textCtx.save();
-                textCtx.beginPath();
-                textCtx.rect(px, py, charW, charH);
-                textCtx.clip();
-                textCtx.fillText(ch, px, py + charH - 3);
-                textCtx.restore();
-            }
-        }
-    }
-}
-
-// ─── Rendu GFX ───────────────────────────────────────────────────
-// Précalcul : nb de lignes/colonnes canvas par ligne/colonne GFX (Bresenham)
-function makeRowRepeats(canvasH) {
-    return Array.from({length: GFX_H}, (_, i) =>
-        Math.floor(canvasH * (i+1) / GFX_H) - Math.floor(canvasH * i / GFX_H));
-}
-function makeColRepeats(canvasW) {
-    return Array.from({length: GFX_W}, (_, i) =>
-        Math.floor(canvasW * (i+1) / GFX_W) - Math.floor(canvasW * i / GFX_W));
-}
-
-let gfxRowRepeats = null;
-let gfxColRepeats = null;
-let gfxImgData    = null;
-
-function renderGfx(gfxMem, gfxMode) {
-    if (!gfxMode.gra) {
-        if (prevGfxGra) {
-            gfxCanvas.style.display = 'none';
-            prevGfxGra = false;
-        }
-        return;
-    }
-    if (!prevGfxGra) {
-        gfxCanvas.style.display = 'block';
-        prevGfxGra = true;
-    }
-
-    const gros  = gfxMode.gros;
-    const canvasH = textCanvas.height;
-    const canvasW = textCanvas.width;
-
-    // Recompute si taille changée
-    if (!gfxRowRepeats || gfxCanvas.height !== canvasH || gfxCanvas.width !== canvasW) {
-        gfxRowRepeats = makeRowRepeats(canvasH);
-        gfxColRepeats = makeColRepeats(canvasW);
-        gfxImgData    = gfxCtx.createImageData(canvasW, canvasH);
-    }
-
-    // Skip si rien n'a changé
-    if (prevGfxMem && gros === prevGfxGros) {
-        let same = true;
-        for (let i = 0; i < gfxMem.length; i++) {
-            if (gfxMem[i] !== prevGfxMem[i]) { same = false; break; }
-        }
-        if (same) return;
-    }
-    if (!prevGfxMem) prevGfxMem = new Uint8Array(gfxMem.length);
-    prevGfxMem.set(gfxMem);
-    prevGfxGros = gros;
-
-    const data = gfxImgData.data;
-    let canvasRow = 0;
-
-    // Ligne transparente réutilisable (pixels éteints = transparents pour laisser passer le texte)
-    const blackRow = new Uint8Array(canvasW * 4);  // zéros = fully transparent
-
-    for (let gy = 0; gy < GFX_H; gy++) {
-        const base  = (gy >> 1) * GFX_BPR;
-        const isTop = (gy & 1) === 0;
-        const rep   = gfxRowRepeats[gy];
-
-        // Construire la ligne de pixels (canvasW pixels × RGBA) — scaling Bresenham
-        const rowBuf = new Uint8Array(canvasW * 4);
-        let cx = 0;
-        for (let gx = 0; gx < GFX_W; gx++) {
-            const b     = gfxMem[base + (gx >> 2)];
-            const pixel = isTop
-                ? (b >> (7 - (gx & 3))) & 1
-                : (b >> (3 - (gx & 3))) & 1;
-            const on = pixel === 1;
-            const rep = gfxColRepeats[gx];
-            for (let r = 0; r < rep; r++, cx++) {
-                const lit = on && (gros || r === 0);
-                rowBuf[cx*4+1] = lit ? 0xCC : 0;
-                rowBuf[cx*4+3] = lit ? 255 : 0;  // transparent si pixel éteint
-            }
-        }
-
-        for (let r = 0; r < rep; r++, canvasRow++) {
-            // En mode petit : lignes paires = pixels, lignes impaires = noires
-            const row = (gros || r === 0) ? rowBuf : blackRow;
-            data.set(row, canvasRow * canvasW * 4);
-        }
-    }
-
-    gfxCtx.putImageData(gfxImgData, 0, 0);
-}
-
 // ─── Callback onFrame ────────────────────────────────────────────
+// Compose un seul framebuffer 512×320 (pixels élémentaires) à partir des
+// VRAM texte/graphique, de la PROM TMS2716 et des flags vidéo. Le canvas
+// CSS-scaled donne le rendu final (image-rendering: pixelated → net).
 function onFrame(textMem, gfxMem, gfxMode) {
-    renderGfx(gfxMem, gfxMode);
-    renderText(textMem, gfxMode);
+    // Skip si rien n'a changé depuis la dernière frame.
+    const flagsKey = (gfxMode.gra?'1':'0') + (gfxMode.nox?'1':'0') + (gfxMode.gros?'1':'0');
+    if (prevTextMem && prevGfxMem && flagsKey === prevFlagsKey
+        && currentPalette.name === prevPaletteName) {
+        let same = true;
+        for (let i = 0; i < textMem.length; i++) {
+            if (textMem[i] !== prevTextMem[i]) { same = false; break; }
+        }
+        if (same && gfxMode.gra) {
+            for (let i = 0; i < gfxMem.length; i++) {
+                if (gfxMem[i] !== prevGfxMem[i]) { same = false; break; }
+            }
+        }
+        if (same) { syncFnCheckboxes(); return; }
+    }
+
+    renderScreen(screenImgData, textMem, gfxMem, CHARGEN_ROM, gfxMode, currentPalette);
+    textCtx.putImageData(screenImgData, 0, 0);
+    // Notifie la vue 3D que la texture (= textCanvas) doit être ré-uploadée.
+    if (typeof update3DFrame === 'function') update3DFrame();
+
+    if (!prevTextMem) prevTextMem = new Uint8Array(textMem.length);
+    if (!prevGfxMem)  prevGfxMem  = new Uint8Array(gfxMem.length);
+    prevTextMem.set(textMem);
+    prevGfxMem.set(gfxMem);
+    prevFlagsKey    = flagsKey;
+    prevPaletteName = currentPalette.name;
+
     syncFnCheckboxes();
+}
+
+// ─── Panneau de paramètres géométrie (overlay 3D) ────────────────
+// Liste des paramètres avec leurs bornes (en mm ou degrés)
+const GEOM_PARAMS = [
+    { key: 'A',        label: 'A (largeur)',   min: 200, max: 800, step: 5 },
+    { key: 'G',        label: 'G (profondeur)', min: 200, max: 900, step: 5 },
+    { key: 'C',        label: 'C (av./V)',      min: 50,  max: 500, step: 5 },
+    { key: 'E',        label: 'E (façade av.)', min: 0,   max: 200, step: 2 },
+    { key: 'F',        label: 'F (façade ar.)', min: 0,   max: 200, step: 2 },
+    { key: 'H',        label: 'H (sommet V)',   min: 0,   max: 300, step: 5 },
+    { key: 'ALPHA',    label: 'α (évasement°)', min: 0,   max: 45,  step: 1 },
+    { key: 'L_ED',     label: 'L_ed (écran)',   min: 50,  max: 400, step: 5 },
+    { key: 'BETA_ED',  label: 'β_ed (incl.°)',  min: 0,   max: 45,  step: 1 },
+    { key: 'L_ARR',    label: 'L_arr (arrière)', min: 50,  max: 400, step: 5 },
+    { key: 'BETA_ARR', label: 'β_arr (incl.°)', min: 0,   max: 45,  step: 1 },
+    { key: 'DISKS_H_PCT', label: 'h. découpe disques %', min: 30, max: 95, step: 1 },
+    { key: 'SHRINK',   label: 'rétréc. capot°', min: 0,   max: 30,  step: 1 },
+    { key: 'OVERLAP',     label: 'recouv. capot',   min: 0,   max: 50,  step: 1 },
+    { key: 'THICKNESS',   label: 't (épaisseur)',   min: 0.5, max: 5,   step: 0.1 },
+    { key: 'BEZEL_TOP',   label: 'cadre haut',      min: 0,   max: 50,  step: 1 },
+    { key: 'BEZEL_BOT',   label: 'cadre bas',       min: 0,   max: 50,  step: 1 },
+    { key: 'BEZEL_LEFT',  label: 'cadre gauche',    min: 0,   max: 50,  step: 1 },
+    { key: 'BEZEL_RIGHT', label: 'cadre droite',    min: 0,   max: 50,  step: 1 },
+    { key: 'BEZEL_DEPTH', label: 'cadre épaiss.',   min: 0,   max: 30,  step: 1 },
+];
+
+// ─── Panneau de paramètres de rendu ──────────────────────────────
+const RENDER_FIELDS = [
+    { key: 'AMBIENT',     label: 'Ambient',       min: 0, max: 2, step: 0.05, type: 'number' },
+    { key: 'KEY',         label: 'Key light',     min: 0, max: 2, step: 0.05, type: 'number' },
+    { key: 'FILL',        label: 'Fill light',    min: 0, max: 2, step: 0.05, type: 'number' },
+    { key: 'BG_COLOR',    label: 'Fond',          type: 'color' },
+    { key: 'BEIGE_ROUGH', label: 'Roughness beige', min: 0, max: 1, step: 0.05, type: 'number' },
+    { key: 'BRUN_ROUGH',  label: 'Roughness brun', min: 0, max: 1, step: 0.05, type: 'number' },
+    { key: 'FOV',         label: 'FOV caméra°',   min: 20, max: 60, step: 1, type: 'number' },
+];
+
+let _renderFieldsBuilt = false;
+
+function _buildRenderFields() {
+    if (_renderFieldsBuilt) return;
+    const container = document.getElementById('render-fields');
+    if (!container || typeof getRenderParam !== 'function') return;
+    container.innerHTML = '';
+    for (const f of RENDER_FIELDS) {
+        const v = getRenderParam(f.key);
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:4px;margin:2px 0';
+        if (f.type === 'color') {
+            row.innerHTML =
+                `<label style="flex:1;color:#ccc;font-size:10px">${f.label}</label>` +
+                `<input type="color" id="render-${f.key}" value="${v}" ` +
+                  `onchange="onRenderChange('${f.key}', this.value)" ` +
+                  `style="width:55px;height:18px;background:#111;border:1px solid #444;padding:0">`;
+        } else {
+            row.innerHTML =
+                `<label style="flex:1;color:#ccc;font-size:10px">${f.label}</label>` +
+                `<input type="number" id="render-${f.key}" value="${v}" ` +
+                  `min="${f.min}" max="${f.max}" step="${f.step}" ` +
+                  `style="width:55px;background:#111;color:#fc8;border:1px solid #444;` +
+                         `font:inherit;font-size:10px;padding:1px 3px;text-align:right" ` +
+                  `oninput="onRenderChange('${f.key}', this.value)">`;
+        }
+        container.appendChild(row);
+    }
+    // Bouton « Enregistrer sous »
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'margin-top:6px;border-top:1px solid #333;padding-top:5px';
+    btnRow.innerHTML =
+        `<button onclick="onRenderSave()" ` +
+        `style="width:100%;background:#3a2a00;color:#ffaa44;border:1px solid #7a5a00;` +
+               `font:inherit;font-size:10px;padding:3px;cursor:pointer;border-radius:2px">` +
+        `💾 Enregistrer sous…</button>` +
+        `<div id="render-save-status" style="color:#888;font-size:9px;margin-top:3px;min-height:11px"></div>`;
+    container.appendChild(btnRow);
+    _renderFieldsBuilt = true;
+}
+
+function onRenderChange(key, value) {
+    if (typeof setRenderParam === 'function') setRenderParam(key, value);
+}
+
+// Affichage du panneau Rendu : géré par le système de panneaux
+// flottants (togglePanel) ; _buildRenderFields est appelé via onShow.
+
+function onRenderSave() {
+    const params = {};
+    for (const f of RENDER_FIELDS) params[f.key] = getRenderParam(f.key);
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const payload = {
+        generated:   new Date().toISOString(),
+        description: 'Smaky 6 rendering parameters',
+        params:      params,
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const status = document.getElementById('render-save-status');
+    try {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;  a.download = `smaky6-render-${ts}.json`;  a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {}
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(json)
+            .then(() => { if (status) status.textContent = '✓ Fichier + presse-papier'; })
+            .catch(() => { if (status) status.textContent = '✓ Fichier téléchargé'; });
+    } else if (status) {
+        status.textContent = '✓ Fichier téléchargé';
+    }
+}
+
+let _geomFieldsBuilt = false;
+
+function _buildGeomFields() {
+    if (_geomFieldsBuilt) return;
+    const container = document.getElementById('geom-fields');
+    if (!container || typeof getHousingParam !== 'function') return;
+    container.innerHTML = '';
+    for (const p of GEOM_PARAMS) {
+        const v = getHousingParam(p.key);
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:4px;margin:2px 0';
+        row.innerHTML =
+            `<label style="flex:1;color:#ccc;font-size:10px">${p.label}</label>` +
+            `<input type="number" id="geom-${p.key}" value="${v}" ` +
+              `min="${p.min}" max="${p.max}" step="${p.step}" ` +
+              `style="width:55px;background:#111;color:#cfc;border:1px solid #444;` +
+                     `font:inherit;font-size:10px;padding:1px 3px;text-align:right" ` +
+              `oninput="onGeomChange('${p.key}', this.value)">`;
+        container.appendChild(row);
+    }
+    // Bouton « Enregistrer sous » en bas du panneau
+    const btnRow = document.createElement('div');
+    btnRow.style.cssText = 'margin-top:6px;border-top:1px solid #333;padding-top:5px';
+    btnRow.innerHTML =
+        `<button onclick="onGeomSave()" ` +
+        `style="width:100%;background:#003a1a;color:#22cc77;border:1px solid #007a3a;` +
+               `font:inherit;font-size:10px;padding:3px;cursor:pointer;border-radius:2px">` +
+        `💾 Enregistrer sous…</button>` +
+        `<div id="geom-save-status" style="color:#888;font-size:9px;margin-top:3px;min-height:11px"></div>`;
+    container.appendChild(btnRow);
+    _geomFieldsBuilt = true;
+}
+
+// Enregistre les paramètres courants dans un fichier .json téléchargé
+// (et copie aussi au presse-papier).
+function onGeomSave() {
+    const params = {};
+    for (const p of GEOM_PARAMS) {
+        params[p.key] = getHousingParam(p.key);
+    }
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const payload = {
+        generated:   new Date().toISOString(),
+        description: 'Smaky 6 housing geometric parameters',
+        params:      params,
+    };
+    const json = JSON.stringify(payload, null, 2);
+    const status = document.getElementById('geom-save-status');
+
+    // 1) Téléchargement du fichier
+    try {
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;  a.download = `smaky6-geom-${ts}.json`;  a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {}
+
+    // 2) Copie au presse-papier (avec fallback Electron si disponible)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(json)
+            .then(() => { if (status) status.textContent = '✓ Fichier téléchargé + copié dans le presse-papier'; })
+            .catch(() => { if (status) status.textContent = '✓ Fichier téléchargé (copie presse-papier refusée)'; });
+    } else if (status) {
+        status.textContent = '✓ Fichier téléchargé';
+    }
+}
+
+function onGeomChange(key, value) {
+    if (typeof setHousingParam === 'function') setHousingParam(key, value);
+    if (typeof rebuildHousing  === 'function') rebuildHousing();
+}
+
+// Affichage du panneau Géométrie : géré par le système de panneaux
+// flottants (togglePanel) ; _buildGeomFields est appelé via onShow.
+
+// ─── Bascule vue 2D / 3D ─────────────────────────────────────────
+let _3DInitialized = false;
+let is3D = false;
+function onToggle3D(on) {
+    const wrap = document.getElementById('screen-wrap');
+    const cont = document.getElementById('three-container');
+    if (!wrap || !cont) return;
+    if (on) {
+        // IMPORTANT : afficher le container AVANT init3D, sinon
+        // clientWidth/Height = 0 et le renderer Three a un canvas vide.
+        wrap.style.display = 'none';
+        cont.style.display = '';
+        if (!_3DInitialized) {
+            init3D(cont, textCanvas);
+            _3DInitialized = true;
+            // Bind aussi le clavier sur le canvas WebGL : sans ça,
+            // textCanvas étant caché, plus aucune frappe n'arrive au Smaky.
+            const c3d = (typeof get3DCanvas === 'function') ? get3DCanvas() : null;
+            if (c3d) {
+                c3d.tabIndex = 0;
+                c3d.style.outline = 'none';   // pas de halo de focus
+                c3d.addEventListener('keydown', smakyKeyDown);
+                c3d.addEventListener('keyup',   smakyKeyUp);
+            }
+        }
+        // Synchronise la bordure et le fond phosphore avec les réglages 2D.
+        if (typeof setScreenBorder === 'function') setScreenBorder(crtBorderPercent);
+        // Bordure noire tant que le simulateur n'a pas démarré.
+        if (typeof setScreenBgColor === 'function') {
+            setScreenBgColor(sim ? currentPalette.off : [0, 0, 0]);
+        }
+        start3D();
+        // Donner le focus au canvas WebGL pour que les frappes y arrivent.
+        const c3d = (typeof get3DCanvas === 'function') ? get3DCanvas() : null;
+        if (c3d) c3d.focus();
+    } else {
+        stop3D();
+        cont.style.display = 'none';
+        wrap.style.display = '';
+        textCanvas.focus();
+    }
+    is3D = on;
+    // La zone des touches fonction et les panneaux 3D suivent le mode.
+    if (typeof _updateFnZonePosition === 'function') _updateFnZonePosition();
+    if (typeof _updatePanel3DState  === 'function') _updatePanel3DState();
+}
+
+// ═══ Panneaux flottants ══════════════════════════════════════════
+// Chaque zone hors-Smaky (disques, floppy, $PR/$PP, affichage,
+// géométrie 3D, rendu 3D) est une fenêtre flottante : déplaçable par
+// sa barre de titre, affichable/masquable par une case de la barre du
+// haut. Position et visibilité sont mémorisées dans localStorage.
+// Un panneau « ancré » (jamais déplacé) suit son coin de référence
+// quand la fenêtre est redimensionnée ; dès qu'on le déplace, il
+// conserve sa position absolue.
+const PANELS = [
+    { id: 'disk-panel',    label: 'Disque dur', anchor: 'tr', defVisible: true,  only3D: false },
+    { id: 'floppy-panel',  label: 'Floppy',     anchor: 'tr', defVisible: true,  only3D: false },
+    { id: 'pr-panel',      label: '$PR/$PP',    anchor: 'tr', defVisible: true,  only3D: false },
+    { id: 'display-panel', label: 'Affichage',  anchor: 'tr', defVisible: true,  only3D: false },
+    { id: 'geom-panel',    label: 'Géom. 3D',   anchor: 'br', defVisible: false, only3D: true,  onShow: _buildGeomFields },
+    { id: 'render-panel',  label: 'Rendu 3D',   anchor: 'bl', defVisible: false, only3D: true,  onShow: _buildRenderFields },
+];
+const PANEL_LS_KEY = 'panelLayout-v2';   // -v2 : positions stockées en nombres
+const _panelWanted = {};   // intention d'affichage de l'utilisateur (par id)
+let   _panelZ      = 50;
+
+function _loadPanelLayout() {
+    try { return JSON.parse(localStorage.getItem(PANEL_LS_KEY)) || {}; }
+    catch (_) { return {}; }
+}
+
+function _savePanelLayout() {
+    const data = {};
+    for (const p of PANELS) {
+        // On mémorise la position VOULUE (p._left / p._top), jamais la
+        // position affichée : celle-ci peut être bornée à une fenêtre
+        // plus petite et corromprait la valeur enregistrée.
+        data[p.id] = {
+            left:    p._left,
+            top:     p._top,
+            visible: !!_panelWanted[p.id],
+            moved:   !!p._userMoved,
+        };
+    }
+    try { localStorage.setItem(PANEL_LS_KEY, JSON.stringify(data)); } catch (_) {}
+}
+
+function _bringPanelToFront(el) { el.style.zIndex = ++_panelZ; }
+
+// Affiche un panneau à sa position voulue (p._left / p._top), bornée à
+// la fenêtre courante. Le bornage n'affecte que l'affichage : la
+// position voulue elle-même n'est jamais modifiée.
+function _renderPanelPos(p) {
+    const el = document.getElementById(p.id);
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const left = Math.max(0, Math.min(p._left, window.innerWidth  - r.width));
+    const top  = Math.max(0, Math.min(p._top,  window.innerHeight - r.height));
+    el.style.left = left + 'px';
+    el.style.top  = top  + 'px';
+}
+
+// Position par défaut d'un panneau, calculée depuis son coin d'ancrage.
+function _panelDefaultPos(p, el) {
+    const M = 8, GAP = 6;
+    const W = window.innerWidth, H = window.innerHeight;
+    const r = el.getBoundingClientRect();
+    if (p.anchor === 'tr') {
+        // Sous la barre du haut, empilés verticalement.
+        const lb = document.getElementById('load-bar');
+        let top = lb ? lb.getBoundingClientRect().bottom + GAP : M;
+        for (const q of PANELS) {
+            if (q === p) break;
+            if (q.anchor !== 'tr') continue;
+            const qe = document.getElementById(q.id);
+            if (qe && qe.style.display !== 'none') {
+                top += qe.getBoundingClientRect().height + GAP;
+            }
+        }
+        return { left: W - r.width - M, top: top };
+    }
+    if (p.anchor === 'br') return { left: W - r.width - M, top: H - r.height - M };
+    if (p.anchor === 'bl') {
+        // Au-dessus de la zone des touches fonction si celle-ci est
+        // collée en bas (mode 3D), sinon dans le coin bas-gauche.
+        let bottom = H - M;
+        const fz = document.getElementById('fnkeys-zone');
+        if (fz && fz.classList.contains('fnz-3d')) {
+            bottom = fz.getBoundingClientRect().top - GAP;
+        }
+        return { left: M, top: bottom - r.height };
+    }
+    return { left: M, top: M };
+}
+
+// (Re)calcule la position voulue d'un panneau puis l'affiche. Panneau
+// ancré : position recalculée depuis son coin de référence. Panneau
+// déplacé : p._left / p._top sont conservés tels quels.
+function _resolvePanelPos(p) {
+    const el = document.getElementById(p.id);
+    if (!el) return;
+    if (!p._userMoved) {
+        const d = _panelDefaultPos(p, el);
+        p._left = d.left;
+        p._top  = d.top;
+    }
+    _renderPanelPos(p);
+}
+
+// Affichage effectif = intention utilisateur ET (panneau non-3D OU mode 3D).
+function _applyPanelVisibility(p) {
+    const el = document.getElementById(p.id);
+    if (!el) return;
+    const show = _panelWanted[p.id] && (!p.only3D || is3D);
+    if (show) {
+        if (p.onShow) p.onShow();
+        el.style.display = '';
+        _resolvePanelPos(p);
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+function togglePanel(id, visible) {
+    _panelWanted[id] = visible;
+    const p = PANELS.find(x => x.id === id);
+    if (p) _applyPanelVisibility(p);
+    const cb = document.getElementById('pt-' + id);
+    if (cb) cb.checked = visible;
+    _savePanelLayout();
+}
+
+function _makeDraggable(p, el) {
+    const bar = el.querySelector('.float-titlebar');
+    if (!bar) return;
+    let ox = 0, oy = 0, dragging = false;
+    bar.addEventListener('mousedown', e => {
+        if (e.target.classList.contains('ft-close')) return;
+        dragging = true;
+        const r = el.getBoundingClientRect();
+        ox = e.clientX - r.left;
+        oy = e.clientY - r.top;
+        _bringPanelToFront(el);
+        e.preventDefault();   // ne pas voler le focus au canvas Smaky
+    });
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        const r = el.getBoundingClientRect();
+        let left = e.clientX - ox, top = e.clientY - oy;
+        left = Math.max(0, Math.min(left, window.innerWidth  - r.width));
+        top  = Math.max(0, Math.min(top,  window.innerHeight - r.height));
+        p._left = left;       // mémorise la position voulue
+        p._top  = top;
+        el.style.left = left + 'px';
+        el.style.top  = top  + 'px';
+    });
+    document.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        p._userMoved = true;
+        _savePanelLayout();
+    });
+    // Cliquer n'importe où sur le panneau le ramène au premier plan.
+    el.addEventListener('mousedown', () => _bringPanelToFront(el));
+}
+
+// Active/désactive les cases des panneaux 3D selon le mode courant.
+function _updatePanel3DState() {
+    for (const p of PANELS) {
+        if (!p.only3D) continue;
+        const cb = document.getElementById('pt-' + p.id);
+        if (cb) cb.disabled = !is3D;
+        _applyPanelVisibility(p);
+    }
+}
+
+// Place la zone des touches fonction : dans le flux sous l'écran en
+// 2D, collée en bas-gauche en 3D.
+function _updateFnZonePosition() {
+    const z = document.getElementById('fnkeys-zone');
+    if (z) z.classList.toggle('fnz-3d', is3D);
+}
+
+// Bouton « ⟲ positions » : tout remettre aux valeurs par défaut.
+function resetPanelLayout() {
+    try { localStorage.removeItem(PANEL_LS_KEY); } catch (_) {}
+    for (const p of PANELS) {
+        p._userMoved = false;
+        _panelWanted[p.id] = p.defVisible;
+        const cb = document.getElementById('pt-' + p.id);
+        if (cb) cb.checked = p.defVisible;
+    }
+    for (const p of PANELS) _applyPanelVisibility(p);
+    _savePanelLayout();
+}
+
+function initPanels() {
+    const saved   = _loadPanelLayout();
+    const toggles = document.getElementById('panel-toggles');
+    for (const p of PANELS) {
+        const el = document.getElementById(p.id);
+        if (!el) continue;
+        _makeDraggable(p, el);
+        const close = el.querySelector('.ft-close');
+        if (close) close.addEventListener('click', () => togglePanel(p.id, false));
+        if (toggles) {
+            const lbl = document.createElement('label');
+            lbl.className = 'lb-cb';
+            lbl.innerHTML = '<input type="checkbox" id="pt-' + p.id + '"><span>' +
+                            p.label + '</span>';
+            toggles.appendChild(lbl);
+            lbl.querySelector('input').addEventListener('change', function () {
+                togglePanel(p.id, this.checked);
+            });
+        }
+        const s = saved[p.id];
+        p._userMoved       = !!(s && s.moved);
+        p._left            = s ? (parseFloat(s.left) || 0) : 0;
+        p._top             = s ? (parseFloat(s.top)  || 0) : 0;
+        _panelWanted[p.id] = s ? !!s.visible : p.defVisible;
+        const cb = document.getElementById('pt-' + p.id);
+        if (cb) cb.checked = _panelWanted[p.id];
+    }
+    // Afficher/placer dans l'ordre du registre (empilage haut-droite).
+    for (const p of PANELS) _applyPanelVisibility(p);
+    _updateFnZonePosition();
+    _updatePanel3DState();
+    // Suivi du redimensionnement de la fenêtre (ex. maximisation au
+    // démarrage) : chaque panneau visible recalcule son affichage — les
+    // ancrés suivent leur coin, les déplacés gardent leur position
+    // voulue, ré-appliquée puis bornée à la nouvelle taille.
+    window.addEventListener('resize', () => {
+        for (const p of PANELS) {
+            const el = document.getElementById(p.id);
+            if (!el || el.style.display === 'none') continue;
+            _resolvePanelPos(p);
+        }
+    });
+}
+
+// ─── Géométrie écran (ratio + bordure) ───────────────────────────
+function onAspectChange(val) {
+    const v = parseFloat(val);
+    if (isNaN(v) || v <= 0) return;
+    pixelAspectYX = Math.max(0.5, Math.min(3.0, v));
+    document.getElementById('aspect-input').value = pixelAspectYX;
+    try { localStorage.setItem('aspectYX', String(pixelAspectYX)); } catch (_) {}
+    applyScreenGeometry();
+}
+
+function onBorderChange(val) {
+    const v = parseFloat(val);
+    if (isNaN(v) || v < 0) return;
+    crtBorderPercent = Math.max(0, Math.min(20, v));
+    document.getElementById('border-input').value = crtBorderPercent;
+    try { localStorage.setItem('borderPct', String(crtBorderPercent)); } catch (_) {}
+    applyScreenGeometry();
+    if (typeof setScreenBorder === 'function') setScreenBorder(crtBorderPercent);
+}
+
+// ─── Choix de la palette de phosphore ────────────────────────────
+function onPaletteChange(name) {
+    if (!PALETTES[name]) return;
+    currentPalette = PALETTES[name];
+    try { localStorage.setItem('palette', name); } catch (_) {}
+    // Force un re-render au prochain onFrame (invalide le cache)
+    prevPaletteName = '';
+    // Mettre à jour la bordure CRT pour qu'elle suive la palette.
+    applyScreenGeometry();
+    if (typeof setScreenBgColor === 'function') setScreenBgColor(currentPalette.off);
+    // Si le simulateur n'est pas en train de tourner, garder l'écran noir
+    // (vrai CRT éteint). La bordure CRT change automatiquement de teinte
+    // via setScreenBgColor.
+    if (!sim || sim.mode !== 'running') {
+        textCtx.fillStyle = '#000';
+        textCtx.fillRect(0, 0, SCREEN_W, SCREEN_H);
+    }
 }
 
 // ─── Mode label ──────────────────────────────────────────────────
@@ -853,8 +1487,6 @@ function enterInteractive() {
 
 function doReset() {
     if (sim) sim.stop();
-    gfxCanvas.style.display = 'none';
-    prevGfxGra = false;
     startSimulation();
     textCanvas.focus();
 }
@@ -894,6 +1526,8 @@ async function prChoose() {
         for (const ch of normalized) {
             if (ch === '\r') {
                 fifo.push(13);
+            } else if (ch === '\t') {
+                fifo.push(9);
             } else {
                 const smaky = UNICODE_TO_SMAKY.get(ch);
                 if (smaky !== undefined) fifo.push(smaky.charCodeAt(0));
@@ -901,7 +1535,14 @@ async function prChoose() {
         }
     }
     sim._prFifo = fifo;
-    sim.onPrEmpty = () => { updatePrStatus(); };
+    sim.onPrEmpty = () => {
+        updatePrStatus();
+        // EOF automatique : émettre la touche fonction Kill pour
+        // terminer le transfert une fois tout le fichier envoyé.
+        if (document.getElementById('pr-eof').checked) {
+            sim.pressFnKey(0x10);   // 0x10 = touche fonction KILL
+        }
+    };
     document.getElementById('pr-status').textContent = result.name;
     document.getElementById('pr-status').className = 'sp-status active';
     updatePrStatus();
@@ -925,6 +1566,7 @@ async function ppSave() {
         let text = '';
         for (const b of sim._ppBuffer) {
             if (b === 13) { text += '\r\n'; }
+            else if (b === 9) { text += '\t'; }
             else { text += SMAKY_CHARS_JS[b & 0x7F] || ''; }
         }
         data = Array.from(new TextEncoder().encode(text));
@@ -972,6 +1614,8 @@ async function doColler() {
     for (const ch of normalized) {
         if (ch === '\r') {
             chars.push('\r');
+        } else if (ch === '\t') {
+            chars.push('\t');
         } else {
             const smaky = UNICODE_TO_SMAKY.get(ch);
             if (smaky !== undefined) chars.push(smaky);
@@ -1128,7 +1772,7 @@ const DISK_IMAGES = {
     'F7':'SM6WIN7.DSK','F8':'SM6WIN0.DSK',
 };
 
-textCanvas.addEventListener('keydown', e => {
+const smakyKeyDown = e => {
     if (!sim) return;
 
     // Touches modificatrices / fn_keys (détection par e.code)
@@ -1222,9 +1866,10 @@ textCanvas.addEventListener('keydown', e => {
         e.stopPropagation();
         return;
     }
-});
+};
+textCanvas.addEventListener('keydown', smakyKeyDown);
 
-textCanvas.addEventListener('keyup', e => {
+const smakyKeyUp = e => {
     if (!sim) return;
     if (e.code in CODE_FNKEYS) {
         if (e.code === 'AltRight') altgrPending = false;
@@ -1235,7 +1880,8 @@ textCanvas.addEventListener('keyup', e => {
         syncFnCheckboxes();
         e.preventDefault();
     }
-});
+};
+textCanvas.addEventListener('keyup', smakyKeyUp);
 
 // ─── Commandes ───────────────────────────────────────────────────
 const CMD_LETTERS = new Set(['S','X','V','W','P','R','Q']);
@@ -1357,26 +2003,55 @@ function requestDiskChange(path) {
     inp.click();
 }
 
-// ─── ROM embarquée ───────────────────────────────────────────────
-// Décoder ROM18_B64 (défini dans rom18.js) en ArrayBuffer
-function _decodeROM() {
-    var bin = atob(ROM18_B64);
-    var buf = new ArrayBuffer(bin.length);
-    var u8  = new Uint8Array(buf);
-    for (var i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+// ─── ROM / images embarquées ─────────────────────────────────────
+// Décode une chaîne base64 en ArrayBuffer.
+function _b64ToArrayBuffer(b64) {
+    const bin = atob(b64);
+    const buf = new ArrayBuffer(bin.length);
+    const u8  = new Uint8Array(buf);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
     return buf;
+}
+
+// Encode un ArrayBuffer en base64. Par blocs : String.fromCharCode
+// déborde la pile d'appels au-delà de ~100 k arguments.
+function _arrayBufferToB64(buf) {
+    const bytes = new Uint8Array(buf);
+    let bin = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(bin);
+}
+
+// Décode une image embarquée tronquée (zéros de fin retirés) en
+// ArrayBuffer pleine taille : la zone est créée à `fullSize`, remplie
+// de zéros, puis les octets utiles sont copiés au début.
+function _b64ToImage(b64, fullSize) {
+    const data = new Uint8Array(_b64ToArrayBuffer(b64));
+    const buf  = new ArrayBuffer(Math.max(fullSize | 0, data.length));
+    new Uint8Array(buf).set(data, 0);
+    return buf;
+}
+
+// ROM embarquée : décode ROM18_B64 (défini dans rom18.js).
+function _decodeROM() {
+    return _b64ToArrayBuffer(ROM18_B64);
 }
 
 // ─── Disques : Map nom→ArrayBuffer chargée depuis le dossier ─────
 var diskFiles      = {};   // { 'SM6WIN0.DSK': ArrayBuffer, ... }
 var availableDisks = new Set(); // noms présents (ex: 'SM6WIN0.DSK')
+var floppyBuffer   = null;   // image DX1: (SM6FLO0.dsk), même format brut que disque dur
+var floppyBuffer2  = null;   // image DX2: (SM6FLO1.dsk)
 
 // Correspondance numéro → touche F
 const DISK_FKEY = ['F8','F1','F2','F3','F4','F5','F6','F7'];
 
 // ─── Panneau disques ──────────────────────────────────────────────
 function buildDiskPanel() {
-    const panel = document.getElementById('disk-panel');
+    const panel = document.getElementById('disk-body');
     panel.innerHTML = '';
     for (let i = 0; i <= 7; i++) {
         const name = `SM6WIN${i}.DSK`;
@@ -1391,25 +2066,201 @@ function buildDiskPanel() {
             `<button class="dp-btn" onclick="requestDiskChange('${name}')" title="${fkey}">SÉLECT.</button>` +
             `<button class="dp-btn dp-btn-take" onclick="diskTake('${name}')" title="Charger un fichier .DSK dans cet emplacement">Prend</button>` +
             `<button class="dp-btn" id="dp-dl-${i}" onclick="diskDownload('${name}')" title="Télécharger l'image actuelle" disabled>⬇</button>` +
+            `<button class="dp-btn" id="dp-js-${i}" onclick="diskExportJS(${i})" title="Exporter l'image en fichier HD${i}.JS (disque embarquable)" disabled>.JS</button>` +
             `<span class="dp-fkey">${fkey}</span>`;
         panel.appendChild(row);
     }
 }
 
 function updateDiskPanel() {
-    const activeName = (sim && sim.diskName) ? sim.diskName.toUpperCase() : null;
     for (let i = 0; i <= 7; i++) {
         const name  = `SM6WIN${i}.DSK`;
         const badge = document.getElementById(`dp-badge-${i}`);
         if (!badge) continue;
-        const present  = availableDisks.has(name);
-        const selected = activeName === name;
-        badge.className = 'dp-badge ' +
-            (selected ? 'dp-selected' : present ? 'dp-present' : 'dp-absent');
-        badge.textContent = selected ? 'sélect.' : present ? 'présent' : 'absent';
+        const present = availableDisks.has(name);
+        const isSel   = (name === selectedDiskName);
+        let cls, txt;
+        if (!present)                 { cls = 'dp-absent';   txt = 'absent';  }
+        else if (isSel && !hdEnabled) { cls = 'dp-ejected';  txt = 'désact.'; }
+        else if (isSel)               { cls = 'dp-selected'; txt = 'sélect.'; }
+        else                          { cls = 'dp-present';  txt = 'présent'; }
+        badge.className   = 'dp-badge ' + cls;
+        badge.textContent = txt;
         const dlBtn = document.getElementById(`dp-dl-${i}`);
-        if (dlBtn) dlBtn.disabled = !present && !selected;
+        if (dlBtn) dlBtn.disabled = !present && !isSel;
+        const jsBtn = document.getElementById(`dp-js-${i}`);
+        if (jsBtn) jsBtn.disabled = !present && !isSel;
     }
+}
+
+// ─── Panneau floppies ─────────────────────────────────────────────
+function buildFloppyPanel() {
+    const panel = document.getElementById('floppy-body');
+    panel.innerHTML = '';
+    for (let i = 0; i <= 1; i++) {
+        const name = `SM6FLO${i}.DSK`;
+        const base = `SM6FLO${i}`;
+        const row  = document.createElement('div');
+        row.className   = 'dp-row';
+        row.dataset.disk = name;
+        row.innerHTML =
+            `<span class="dp-name">${base}</span>` +
+            `<span class="dp-badge dp-absent" id="fp-badge-${i}">absent</span>` +
+            `<button class="dp-btn dp-btn-take" onclick="floppyTake(${i})" title="Charger un fichier .DSK dans Flo${i}">Prend</button>` +
+            `<button class="dp-btn" id="fp-dl-${i}" onclick="floppyDownload(${i})" title="Télécharger l'image actuelle" disabled>⬇</button>` +
+            `<button class="dp-btn" id="fp-js-${i}" onclick="floppyExportJS(${i})" title="Exporter l'image en fichier FLO${i}.JS (disquette embarquable)" disabled>.JS</button>` +
+            `<label class="fp-cb" title="Floppy inséré dans le lecteur"><input type="checkbox" id="fp-ins-${i}" checked onchange="floppyToggleInserted(${i}, this)"><span>Ins.</span></label>` +
+            `<label class="fp-cb" title="Tab Write-Protect"><input type="checkbox" id="fp-wp-${i}" onchange="floppyToggleWP(${i}, this)"><span>WP</span></label>`;
+        panel.appendChild(row);
+    }
+}
+
+function updateFloppyPanel() {
+    for (let i = 0; i <= 1; i++) {
+        const buf      = (i === 0 ? floppyBuffer : floppyBuffer2);
+        const present  = !!buf;
+        const inserted = document.getElementById(`fp-ins-${i}`);
+        const wp       = document.getElementById(`fp-wp-${i}`);
+        const isIns    = inserted ? inserted.checked : true;
+        const badge    = document.getElementById(`fp-badge-${i}`);
+        if (badge) {
+            if (!present) {
+                badge.className = 'dp-badge dp-absent';
+                badge.textContent = 'absent';
+            } else if (!isIns) {
+                badge.className = 'dp-badge dp-ejected';
+                badge.textContent = 'éjecté';
+            } else {
+                badge.className = 'dp-badge dp-present';
+                badge.textContent = 'inséré';
+            }
+        }
+        const dlBtn = document.getElementById(`fp-dl-${i}`);
+        if (dlBtn) dlBtn.disabled = !present;
+        const jsBtn = document.getElementById(`fp-js-${i}`);
+        if (jsBtn) jsBtn.disabled = !present;
+        // Inséré désactivé si pas d'image. WP désactivé si pas d'image (mais
+        // pas si éjecté : on peut préparer la TAB avant ré-insertion).
+        if (inserted) inserted.disabled = !present;
+        if (wp) wp.disabled = !present;
+    }
+}
+
+function floppyToggleInserted(idx, cb) {
+    if (sim) sim.setFloppyInserted(idx, cb.checked);
+    updateFloppyPanel();
+}
+
+function floppyToggleWP(idx, cb) {
+    if (sim) sim.setFloppyWriteProtect(idx, cb.checked);
+    updateFloppyPanel();
+}
+
+function floppyTake(idx) {
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.DSK,.dsk';
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inp.onchange = () => {
+        document.body.removeChild(inp);
+        if (!inp.files.length) return;
+        const fname = inp.files[0].name.toUpperCase();
+        readFile(inp.files[0]).then(buf => {
+            const slotName = `SM6FLO${idx}.dsk`;
+            if (idx === 0) floppyBuffer  = buf;
+            else           floppyBuffer2 = buf;
+            diskFiles[`SM6FLO${idx}.DSK`] = buf;
+            if (sim) sim.loadFloppy(idx, buf, fname || slotName);
+            // Réinitialise les flags utilisateur sur insertion d'une nouvelle image
+            const insCb = document.getElementById(`fp-ins-${idx}`);
+            if (insCb) { insCb.checked = true; if (sim) sim.setFloppyInserted(idx, true); }
+            updateFloppyPanel();
+            textCanvas.focus();
+        });
+    };
+    inp.click();
+}
+
+function floppyDownload(idx) {
+    const buf = (idx === 0 ? floppyBuffer : floppyBuffer2);
+    if (!buf) return;
+    const fname = `SM6FLO${idx}.DSK`;
+    const blob  = new Blob([buf], { type: 'application/octet-stream' });
+    const url   = URL.createObjectURL(blob);
+    const a     = document.createElement('a');
+    a.href = url;  a.download = fname;  a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    textCanvas.focus();
+}
+
+// ─── Disquettes embarquées (FLO0.JS / FLO1.JS) ───────────────────
+// Exporte la disquette courante en fichier FLOx.JS embarquable, à
+// déposer à côté de index.html.
+function floppyExportJS(idx) {
+    const buf = (idx === 0 ? floppyBuffer : floppyBuffer2);
+    if (!buf) return;
+    const content =
+        '// Image disquette Smaky 6 — fichier embarquable, généré par le simulateur.\n' +
+        'window.FLO' + idx + '_B64 = "' + _arrayBufferToB64(buf) + '";\n';
+    const blob = new Blob([content], { type: 'text/javascript' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;  a.download = 'FLO' + idx + '.JS';  a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    textCanvas.focus();
+}
+
+// Charge dynamiquement HD0.JS / FLO0.JS / FLO1.JS s'ils sont présents
+// à côté de index.html, puis appelle done(). Un fichier absent est
+// simplement ignoré (onerror) — aucune erreur bloquante.
+function loadEmbeddedImages(done) {
+    const files = ['HD0.JS', 'FLO0.JS', 'FLO1.JS'];
+    let pending = files.length;
+    const finish = () => { if (--pending === 0) done(); };
+    for (const f of files) {
+        const s = document.createElement('script');
+        s.src = f;
+        s.onload = s.onerror = finish;
+        document.head.appendChild(s);
+    }
+}
+
+// Démo « sans dossier » : tente de charger les images embarquées
+// (disque dur HD0.JS et/ou disquettes FLOx.JS). Les images embarquées
+// sont volatiles (modifiables en RAM, jamais sauvegardées). Si aucune
+// n'est présente, exécute onAbsent() (comportement habituel).
+function tryEmbeddedImages(onAbsent) {
+    loadEmbeddedImages(function () {
+        let any = false;
+        // Disque dur embarqué : zone RAM pleine taille, zéros restitués.
+        if (window.HD0 && typeof window.HD0.data === 'string') {
+            diskBuffer = _b64ToImage(window.HD0.data, window.HD0.size);
+            diskFiles['SM6WIN0.DSK'] = diskBuffer;
+            availableDisks.add('SM6WIN0.DSK');
+            selectedDiskName = 'SM6WIN0.DSK';
+            hdEnabled    = true;
+            diskVolatile = true;   // image embarquée : modifiable en RAM, non sauvée
+            any = true;
+        }
+        // Disquettes embarquées.
+        if (typeof window.FLO0_B64 === 'string') {
+            floppyBuffer  = _b64ToArrayBuffer(window.FLO0_B64);   any = true;
+        }
+        if (typeof window.FLO1_B64 === 'string') {
+            floppyBuffer2 = _b64ToArrayBuffer(window.FLO1_B64);   any = true;
+        }
+        if (any) {
+            if (!diskBuffer) hdEnabled = false;   // que des disquettes
+            updateFloppyPanel();
+            updateDiskPanel();
+            document.getElementById('load-status').textContent = diskBuffer
+                ? 'Disque de référence embarqué — cliquez ▶ Démarrer.'
+                : 'Disquettes de démonstration embarquées (sans disque dur) — cliquez ▶ Démarrer.';
+        } else if (onAbsent) {
+            onAbsent();
+        }
+    });
 }
 
 // Lecture d'un File en ArrayBuffer
@@ -1457,7 +2308,7 @@ async function loadFromDirHandle(dirHandle) {
     for await (var entry of dirHandle.values()) {
         if (entry.kind !== 'file') continue;
         var upper = entry.name.toUpperCase();
-        if (/^SM6WIN[0-9]\.DSK$/.test(upper)) {
+        if (/^SM6(WIN|FLO)[0-9]\.DSK$/.test(upper)) {
             var file = await entry.getFile();
             diskFiles[upper] = await readFile(file);
         }
@@ -1466,9 +2317,16 @@ async function loadFromDirHandle(dirHandle) {
     var loaded = Object.keys(diskFiles).sort();
     document.getElementById('disk-dir-name').textContent = dirHandle.name;
     if (loaded.length) {
-        status.textContent = 'OK — ' + loaded.length + ' image(s) : ' + loaded.join(', ');
-        diskBuffer = diskFiles['SM6WIN0.DSK'] || null;
-        if (sim) sim.loadDisk(diskBuffer);
+        status.textContent = 'OK — ' + loaded.length + ' image(s)';
+        diskBuffer    = diskFiles['SM6WIN0.DSK'] || null;
+        floppyBuffer  = diskFiles['SM6FLO0.DSK'] || null;
+        floppyBuffer2 = diskFiles['SM6FLO1.DSK'] || null;
+        if (sim) {
+            sim.loadDisk(diskBuffer);
+            sim.loadFloppy(0, floppyBuffer,  'SM6FLO0.dsk');
+            sim.loadFloppy(1, floppyBuffer2, 'SM6FLO1.dsk');
+        }
+        updateFloppyPanel();
         return true;
     } else {
         status.textContent = 'Aucun fichier SM6WIN*.DSK trouvé dans ce dossier.';
@@ -1529,18 +2387,25 @@ function onDiskDirSelected(input) {
     var dirName = (files[0].webkitRelativePath || files[0].name).split('/')[0] || 'images';
     files.forEach(function(f) {
         var name = f.name.toUpperCase();
-        if (/^SM6WIN[0-9]\.DSK$/.test(name)) {
+        if (/^SM6(WIN|FLO)[0-9]\.DSK$/.test(name)) {
             pending++;
             readFile(f).then(function(buf) {
                 diskFiles[name] = buf;
                 if (--pending === 0) {
-                    var loaded = Object.keys(diskFiles).sort().join(', ');
                     document.getElementById('disk-dir-name').textContent = dirName;
-                    status.textContent = 'OK — ' + Object.keys(diskFiles).length + ' image(s) : ' + loaded;
-                    diskBuffer = diskFiles['SM6WIN0.DSK'] || null;
-                    if (sim) { sim.diskName = 'SM6WIN0.DSK'; sim.loadDisk(diskBuffer); }
+                    status.textContent = 'OK — ' + Object.keys(diskFiles).length + ' image(s)';
+                    diskBuffer    = diskFiles['SM6WIN0.DSK'] || null;
+                    floppyBuffer  = diskFiles['SM6FLO0.DSK'] || null;
+                    floppyBuffer2 = diskFiles['SM6FLO1.DSK'] || null;
+                    if (sim) {
+                        sim.diskName = 'SM6WIN0.DSK';
+                        sim.loadDisk(diskBuffer);
+                        sim.loadFloppy(0, floppyBuffer,  'SM6FLO0.dsk');
+                        sim.loadFloppy(1, floppyBuffer2, 'SM6FLO1.dsk');
+                    }
                     availableDisks = new Set(Object.keys(diskFiles));
                     updateDiskPanel();
+                    updateFloppyPanel();
                 }
             }).catch(function(e) { status.textContent = 'Erreur : ' + e.message; });
         }
@@ -1556,14 +2421,17 @@ async function pickDiskDirElectron() {
     if (!result) return;
     localStorage.setItem('diskDir', result.dir);
     document.getElementById('disk-dir-name').textContent = result.dir.replace(/.*[\\/]/, '');
-    status.textContent = 'OK — ' + result.disks.length + ' image(s) : ' + result.disks.join(', ');
+    status.textContent = 'OK — ' + result.disks.length + ' image(s)';
     availableDisks = new Set(result.disks.map(d => d.toUpperCase()));
     updateDiskPanel();
     await loadDiskElectron('SM6WIN0.DSK');
+    if (availableDisks.has('SM6FLO0.DSK')) await loadFloppyElectron(0, 'SM6FLO0.dsk');
+    if (availableDisks.has('SM6FLO1.DSK')) await loadFloppyElectron(1, 'SM6FLO1.dsk');
 }
 
 async function loadDiskElectron(name) {
     var upper = name.toUpperCase();
+    diskVolatile = false;   // disque issu d'un dossier → persistant
     var data  = await window.electronAPI.readDisk(upper);
     if (data) {
         // data est un Uint8Array (IPC sérialise Buffer → Uint8Array)
@@ -1578,15 +2446,51 @@ async function loadDiskElectron(name) {
     return diskBuffer;
 }
 
-// ─── Changement de disque (F1-F8) ────────────────────────────────
+async function loadFloppyElectron(index, name) {
+    var upper = name.toUpperCase();
+    var data  = await window.electronAPI.readDisk(upper);
+    var buf;
+    if (data) {
+        buf = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+    } else {
+        buf = null;
+    }
+    if (index === 0) floppyBuffer  = buf;
+    else             floppyBuffer2 = buf;
+    if (sim) sim.loadFloppy(index, buf, name);
+    updateFloppyPanel();
+    return buf;
+}
+
+// ─── Sélection de disque dur / désactivation (SÉLECT., F1-F8) ─────
+// Cliquer SÉLECT. sur l'image déjà sélectionnée désactive le disque
+// dur (ports WD1002 → 0x00) : le Smaky démarre alors sur disquette.
+// Un nouveau clic — ou le choix d'une autre image — le réactive.
 async function requestDiskChange(name) {
-    var upper  = name.toUpperCase();
-    var status = document.getElementById('load-status');
+    const upper  = name.toUpperCase();
+    const status = document.getElementById('load-status');
+
+    if (hdEnabled && upper === selectedDiskName) {
+        // Deuxième clic sur le disque sélectionné → désactiver.
+        hdEnabled = false;
+        if (sim) sim.hdEnabled = false;
+        status.textContent =
+            'Disque dur désactivé — démarrage sur disquette ' +
+            '(FLO0, ou FLO1 si Kill est activé au démarrage).';
+        updateDiskPanel();
+        textCanvas.focus();
+        return;
+    }
+
+    // Sinon : (ré)activer le disque dur et sélectionner cette image.
+    hdEnabled        = true;
+    selectedDiskName = upper;
+    if (sim) sim.hdEnabled = true;
     if (window.electronAPI) {
         await loadDiskElectron(upper);
         status.textContent = 'Disque : ' + upper + (diskBuffer ? '' : ' (absent)');
     } else {
-        var buf = diskFiles[upper] || null;
+        const buf = diskFiles[upper] || null;
         diskBuffer = buf;
         if (sim) { sim.diskName = upper; sim.loadDisk(buf); }
         status.textContent = 'Disque : ' + upper + (buf ? '' : ' (absent)');
@@ -1632,6 +2536,33 @@ function diskDownload(name) {
     textCanvas.focus();
 }
 
+// Exporte l'image disque dur en fichier HDx.JS embarquable. Les zéros
+// de fin ne sont pas stockés ; la taille réelle est conservée pour
+// reconstituer la zone pleine taille au chargement.
+function diskExportJS(idx) {
+    const upper = `SM6WIN${idx}.DSK`;
+    let buf = null;
+    if (sim && sim.diskName && sim.diskName.toUpperCase() === upper)
+        buf = sim._wdImage;
+    if (!buf) buf = diskFiles[upper] || null;
+    if (!buf) return;
+    const bytes = new Uint8Array(buf);
+    let end = bytes.length;
+    while (end > 0 && bytes[end - 1] === 0) end--;   // retirer les zéros de fin
+    const size = Math.max(bytes.length, 16 * 1024 * 1024);
+    const content =
+        '// Image disque dur Smaky 6 — fichier embarquable, généré par le simulateur.\n' +
+        '// Capacité ' + size + ' octets ; ' + end + ' octets utiles (zéros de fin omis).\n' +
+        'window.HD' + idx + ' = { size: ' + size + ', data: "' +
+        _arrayBufferToB64(bytes.subarray(0, end)) + '" };\n';
+    const blob = new Blob([content], { type: 'text/javascript' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;  a.download = 'HD' + idx + '.JS';  a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    textCanvas.focus();
+}
+
 // ─── Vitesse ─────────────────────────────────────────────────────
 function onSpeedChange(val) {
     const pct = Math.min(9999, Math.max(1, Math.round(parseFloat(val))));
@@ -1660,24 +2591,44 @@ function onStart() {
 function startSimulation() {
 
     const pct = parseFloat(document.getElementById('speed-input').value);
+    // Touches fonction actives au démarrage (ex. Kill → boot sur FLO1) :
+    // capturées avant leur remise à zéro plus bas.
+    const bootFn = (fnKeysKbd | fnKeysMouse) & 0x7F;
 
     // Créer le simulateur
     sim = new Smaky();
     sim.speed = (isNaN(pct) ? 100 : pct) / 100 * 2.5;
     sim.loadROM(romBuffer);
+    sim.hdEnabled = hdEnabled;
+    if (bootFn) sim.pressFnKey(bootFn);   // touches fn maintenues le temps du boot
     if (diskBuffer) sim.loadDisk(diskBuffer);
+    if (floppyBuffer)  sim.loadFloppy(0, floppyBuffer,  'SM6FLO0.dsk');
+    if (floppyBuffer2) sim.loadFloppy(1, floppyBuffer2, 'SM6FLO1.dsk');
+    // Réapplique les flags Inséré / Write-Protect saisis dans l'UI.
+    for (let i = 0; i <= 1; i++) {
+        const insCb = document.getElementById(`fp-ins-${i}`);
+        const wpCb  = document.getElementById(`fp-wp-${i}`);
+        if (insCb) sim.setFloppyInserted(i, insCb.checked);
+        if (wpCb)  sim.setFloppyWriteProtect(i, wpCb.checked);
+    }
 
-    sim.diskName  = 'SM6WIN0.DSK';
+    sim.diskName  = selectedDiskName;
     sim.onPpByte  = () => updatePpStatus();
     updateDiskPanel();
+    updateFloppyPanel();
+    // Le CRT s'allume : bordure passe de noir à la teinte du phosphore.
+    applyScreenGeometry();
+    if (typeof setScreenBgColor === 'function') setScreenBgColor(currentPalette.off);
     sim.onFrame   = onFrame;
     // Haut-parleur : ce démarrage est dans un handler de clic, donc
     // on peut débloquer l'AudioContext sans risque (politique autoplay).
     speaker.resume();
     sim.onSpeakerChunk = (events, ticks, levelStart, tStateSec) =>
         speaker.feed(events, ticks, levelStart, tStateSec);
-    // Electron : persister les écritures disque sur le système de fichiers
-    if (window.electronAPI) {
+    // Electron : persister les écritures disque sur le système de fichiers,
+    // sauf si le disque est une image embarquée (.JS) volatile, ou si
+    // aucun dossier disque n'est configuré.
+    if (window.electronAPI && !diskVolatile && localStorage.getItem('diskDir')) {
         sim.onDiskWrite = (name, buf) => window.electronAPI.writeDisk(name, buf);
     }
     sim.onStopped = (reason) => {
@@ -1688,14 +2639,10 @@ function startSimulation() {
     };
 
     // Réinitialiser le cache rendu
-    prevCells = Array.from({length: HEIGHT}, () => new Uint8Array(WIDTH).fill(255));
-    prevNox   = null;
-    prevGfxMem  = null;
-    prevGfxGros = null;
-    prevGfxGra  = false;
-    gfxRowRepeats = null;
-    gfxColRepeats = null;
-    gfxImgData    = null;
+    prevTextMem     = null;
+    prevGfxMem      = null;
+    prevFlagsKey    = '';
+    prevPaletteName = '';
     fnKeysKbd   = 0;
     fnKeysMouse = 0;
     altgrPending = false;
@@ -1718,6 +2665,41 @@ function startSimulation() {
 romBuffer = _decodeROM();   // ROM embarquée, toujours disponible
 initCanvas();
 buildDiskPanel();
+buildFloppyPanel();
+updateFloppyPanel();
+initPanels();
+
+// Sélecteur de palette : restaure le choix sauvegardé.
+{
+    const sel = document.getElementById('palette-select');
+    if (sel) {
+        const name = (currentPalette === PALETTES.gray) ? 'gray'
+                   : (currentPalette === PALETTES.amber) ? 'amber'
+                   : 'green';
+        sel.value = name;
+    }
+    const a = document.getElementById('aspect-input');
+    if (a) a.value = pixelAspectYX;
+    const b = document.getElementById('border-input');
+    if (b) b.value = crtBorderPercent;
+}
+
+// Démarrage en mode 3D avec une petite animation d'entrée :
+// le Smaky apparaît en haut-gauche, vu d'en haut, et la caméra s'approche
+// du centre en se redressant légèrement.
+{
+    const cb = document.getElementById('view3d-cb');
+    if (cb) {
+        cb.checked = true;
+        // Délai très court pour laisser le DOM se stabiliser
+        setTimeout(() => {
+            onToggle3D(true);
+            if (typeof playIntroAnimation === 'function') {
+                playIntroAnimation(3500);
+            }
+        }, 100);
+    }
+}
 
 // Adapter l'interface selon le contexte (Electron / navigateur)
 if (window.electronAPI) {
@@ -1731,20 +2713,27 @@ if (window.electronAPI) {
             if (result) {
                 document.getElementById('disk-dir-name').textContent = result.dir.replace(/.*[\\/]/, '');
                 document.getElementById('load-status').textContent =
-                    'OK — ' + result.disks.length + ' image(s) : ' + result.disks.join(', ');
+                    'OK — ' + result.disks.length + ' image(s)';
                 availableDisks = new Set(result.disks.map(d => d.toUpperCase()));
                 updateDiskPanel();
                 await loadDiskElectron('SM6WIN0.DSK');
-                return;
+                if (availableDisks.has('SM6FLO0.DSK')) await loadFloppyElectron(0, 'SM6FLO0.dsk');
+                if (availableDisks.has('SM6FLO1.DSK')) await loadFloppyElectron(1, 'SM6FLO1.dsk');
             }
         }
-        document.getElementById('load-status').textContent =
-            'Choisissez le dossier disques, puis Démarrer.';
-        openHelp();
+        // Aucune image utilisable depuis le dossier (dossier absent OU
+        // vide) → repli sur les images embarquées HD0.JS / FLOx.JS.
+        if (!diskBuffer && !floppyBuffer && !floppyBuffer2) {
+            tryEmbeddedImages(function () {
+                document.getElementById('load-status').textContent =
+                    'Choisissez le dossier disques, puis Démarrer.';
+                openHelp();
+            });
+        }
     })();
 } else {
     tryRestoreDiskDir().then(function() {
-        if (!diskBuffer) openHelp();
+        if (!diskBuffer) tryEmbeddedImages(function () { openHelp(); });
     });
 }
 setDebug('Chargez ROM18.bin pour démarrer.\n\nCommandes (mode arrêt) :\n' +

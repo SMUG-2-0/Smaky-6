@@ -1,0 +1,466 @@
+PETIT PYTHON sur SMAKY 6
+========================
+
+  Version 0.11 -- juin 2026
+
+
+PRESENTATION
+------------
+
+Petit Python est un langage inspiré de Python, écrit
+en CALM Z80 pour le Smaky 6. Le programme PYTHON.SM
+charge un fichier .PY, le compile en bytecode, puis
+l'exécute dans une machine virtuelle à pile.
+
+
+LANCER UN PROGRAMME
+-------------------
+
+  PYTHON FIBO       charge et exécute FIBO.PY
+  PYTHON FIBO.PY    idem (l'extension est facultative)
+  PYTHON            sans argument : mode interactif
+
+Options (cumulables, dans le style Smaky) :
+
+  /L                affiche le bytecode avant le run
+  /C                pause clavier à chaque print
+  /LC               cumule les deux
+
+Exemple : PYTHON/LC FIBO
+
+
+MODE INTERACTIF
+---------------
+
+PYTHON lancé sans argument ouvre un interpréteur
+interactif : on tape une instruction, elle s'exécute
+aussitôt.
+
+Quand on tape une expression seule, sa valeur s'affiche
+automatiquement (le « P » de REPL), comme en Python :
+
+  >>> 2 + 3
+  5
+  >>> n = 10
+  >>> n * n
+  100
+  >>> "Bonjour"
+  Bonjour
+
+Une affectation (n = 10) n'affiche rien. Un appel qui
+ne retourne pas de valeur (cls(), beep()...) n'affiche
+rien non plus. print() reste disponible et n'a pas
+changé.
+
+Les variables sont conservées d'une ligne à l'autre.
+La touche END termine la session.
+
+Les blocs (if / while / for / def) sont acceptés. Dès
+qu'une ligne se termine par ':', le prompt devient
+"... " et l'on saisit le corps du bloc, indenté comme
+d'habitude. Une ligne vide termine et exécute le bloc :
+
+  >>> for i in range(3):
+  ...     print(i, i * i)
+  ...
+  0 0
+  1 1
+  2 4
+  >>>
+
+Comme dans Python, on ne peut pas laisser de ligne
+vide à l'intérieur du bloc : la première ligne vide
+clôt la saisie. L'affichage automatique ne concerne
+que les expressions tapées au premier niveau : à
+l'intérieur d'un bloc, on utilise print().
+
+
+INSTRUCTIONS DU LANGAGE
+-----------------------
+
+  Assignation       n = 42
+                    s = "Bonjour"
+
+  Affichage         print(x)
+                    print("n =", n)
+
+  Saisie            n = input()    (entier décimal)
+
+  Conditionnelle    if x > 0:
+                        ...
+                    elif x == 0:
+                        ...
+                    else:
+                        ...
+
+  Boucle while      while n < 10:
+                        ...
+
+  Boucle for        for k in range(10):
+                        ...
+
+  Contrôle          break, continue, pass
+
+  Fonctions         def add(a, b):
+                        return a + b
+                    r = add(3, 4)
+
+
+OPERATEURS
+----------
+
+  Arithmétique    +  -  *  /  //  %
+  Comparaisons    ==  !=  <  <=  >  >=
+  Logique         and  or  not
+
+
+TYPES SUPPORTES
+---------------
+
+  Entier 16 bits signé   de -32768 à 32767
+  Chaîne littérale       "Bonjour", "Smaky 6"
+  Nombre flottant        13 chiffres signif., 10^-127 à 10^126
+
+Un littéral flottant contient un point ou un exposant
+(3.14, 0.5, 12.96E-3). Arithmétique, comparaisons et
+variables globales sont gérées ; entier et flottant se
+mélangent (2 + 1.5 donne 3.5). Les flottants reposent
+sur la bibliothèque MATPAC.SY, chargée au démarrage et
+qui doit donc être présente sur le disque. Pas encore
+de flottant en variable locale ou paramètre de fonction
+(utiliser des variables globales).
+
+Une chaîne est limitée à 255 caractères. La concaté-
+nation et la fonction len() arriveront plus tard.
+
+
+COMMENTAIRES ET INDENTATION
+---------------------------
+
+  # ce qui suit, jusqu'au saut de ligne
+
+Les blocs sont délimités par l'indentation, comme
+en Python. Utiliser des espaces (les tabulations
+sont refusées).
+
+
+FONCTIONS SYSTEME
+-----------------
+
+Ces fonctions intégrées donnent accès au système
+Samos du Smaky 6 :
+
+  cls()              efface l'écran
+
+  gotoxy(lig, col)   place le curseur
+                     lig de 0 à 19, col de 0 à 63
+
+  beep()             émet un bip sonore
+
+  getkey()           attend une touche et retourne
+                     son code
+
+  delay(n)           pause d'environ n millisecondes
+
+  inkey()            lit une touche sans attendre ;
+                     retourne 0 si aucune touche
+
+  putc(code)         affiche un caractère (code ASCII)
+                     sans saut de ligne
+
+Un appel utilisé seul est une instruction ; getkey()
+et inkey() retournent une valeur que l'on peut affecter.
+
+
+FONCTIONS MATHEMATIQUES
+-----------------------
+
+Ces fonctions opèrent sur des nombres flottants (un
+argument entier est converti automatiquement).
+
+  sin(x)             sinus (x en radians)
+  cos(x)             cosinus
+  sqrt(x)            racine carrée
+  frac(x)            partie fractionnaire
+  pi()               la constante pi (3.14159...)
+
+  int(x)             partie entière, retournée comme
+                     entier (int(3.7) vaut 3)
+
+  inputf()           lit un nombre flottant au clavier
+
+Exemple : sin(pi() / 2.0) vaut 1.
+
+
+GRAPHISME
+---------
+
+L'écran graphique fait 256 × 120 pixels, superposé en
+OU à l'écran texte.
+
+  graph()            active l'écran graphique
+
+  text()             revient à l'affichage texte seul
+
+  gcls()             efface l'écran graphique
+
+  plot(x, y)         allume un pixel
+                     x de 0 à 255, y de 0 à 119
+
+  clrp(x, y)         éteint un pixel
+
+  line(x1, y1, x2, y2, m)
+                     trace un segment ; m vaut
+                     0 (efface), 1 (fin) ou 2 (gras)
+
+
+EXEMPLES
+========
+
+
+1) Fibonacci itératif  (FIBO.PY)
+   -----------------------------
+
+   a = 0
+   b = 1
+   n = 0
+   while n < 20:
+       print(a)
+       c = a + b
+       a = b
+       b = c
+       n = n + 1
+
+
+2) Carré d'un nombre  (INPUT1.PY)
+   ------------------------------
+
+   print("Tape un nombre :")
+   n = input()
+   print("Son carré vaut", n * n)
+
+
+3) Boucle for  (FOR1.PY)
+   ---------------------
+
+   for n in range(10):
+       print(n)
+
+
+4) Fibonacci récursif  (FIBOR.PY)
+   ------------------------------
+
+   def fib(n):
+       if n < 2:
+           return n
+       return fib(n - 1) + fib(n - 2)
+
+   print(fib(10))
+
+
+5) Nombres premiers de 2 à 99  (FORPRI.PY)
+   ---------------------------------------
+
+   for k in range(98):
+       n = k + 2
+       p = 1
+       for j in range(n - 2):
+           d = j + 2
+           if n % d == 0:
+               p = 0
+       if p == 1:
+           print(n)
+
+
+6) Chaînes et saisie  (STR2.PY)
+   ----------------------------
+
+   s = "Salut"
+   t = "Smaky 6"
+   print(s, t)
+   print("Tape un nombre :")
+   n = input()
+   print("Tu as tapé", n)
+
+
+7) Table de multiplication  (nouveau)
+   ----------------------------------
+
+   print("Table de 7 :")
+   for k in range(10):
+       n = k + 1
+       print(n, "x 7 =", n * 7)
+
+
+8) Compteur à rebours  (nouveau)
+   -----------------------------
+
+   print("Décompte :")
+   n = input()
+   while n > 0:
+       print(n)
+       n = n - 1
+   print("Zéro !")
+
+
+9) Plus grand commun diviseur  (nouveau)
+   -------------------------------------
+
+   def pgcd(a, b):
+       while b != 0:
+           c = a % b
+           a = b
+           b = c
+       return a
+
+   print("Tape deux entiers :")
+   x = input()
+   y = input()
+   print("PGCD =", pgcd(x, y))
+
+
+10) Appels système  (SYS1.PY)
+   --------------------------
+
+   cls()
+   gotoxy(2, 8)
+   print("PETIT PYTHON")
+   gotoxy(4, 8)
+   print("Appels systeme Samos")
+   gotoxy(7, 4)
+   print("Presse une touche...")
+   k = getkey()
+   beep()
+   gotoxy(9, 4)
+   print("Code de la touche :", k)
+   gotoxy(11, 4)
+   print("Pause de 2 secondes...")
+   delay(2000)
+   gotoxy(13, 4)
+   print("Termine !")
+
+
+11) Graphisme  (GR1.PY)
+   --------------------
+
+   cls()
+   graph()
+   gcls()
+   line(20, 10, 230, 10, 2)
+   line(20, 110, 230, 110, 2)
+   line(20, 10, 20, 110, 2)
+   line(230, 10, 230, 110, 2)
+   plot(120, 55)
+   plot(125, 55)
+   plot(130, 55)
+   getkey()
+   text()
+
+
+12) Biorythme graphique  (BIORYG.PY)
+   ---------------------------------
+
+   cls()
+   print("B I O R Y T H M E")
+   print()
+   print("Date de naissance")
+   print("Jour:")
+   jn = input()
+   print("Mois:")
+   mn = input()
+   print("Annee:")
+   an = input()
+   if an < 100:
+       an = an + 1900
+   print()
+   print("Date du calcul")
+   print("Jour:")
+   jc = input()
+   print("Mois:")
+   mc = input()
+   print("Annee:")
+   ac = input()
+   if ac < 100:
+       ac = ac + 1900
+
+   # Numero de jour (en flottant : depasse 32767)
+   if mn < 3:
+       xb = 365.0*an + jn + 31.0*(mn-1) + int((an-1)/4.0) - int(0.75 * (int((an-1)/100.0) + 1.0))
+   else:
+       xb = 365.0*an + jn + 31.0*(mn-1) - int(0.4*mn + 2.3) + int(an/4.0) - int(0.75 * (int(an/100.0) + 1.0))
+   if mc < 3:
+       xc = 365.0*ac + jc + 31.0*(mc-1) + int((ac-1)/4.0) - int(0.75 * (int((ac-1)/100.0) + 1.0))
+   else:
+       xc = 365.0*ac + jc + 31.0*(mc-1) - int(0.4*mc + 2.3) + int(ac/4.0) - int(0.75 * (int(ac/100.0) + 1.0))
+   z = xc - xb
+
+   # Les trois cycles se superposent (23, 28, 33 jours)
+   graph()
+   cls()
+   gcls()
+   line(0, 63, 248, 63, 1)        # axe horizontal (cycle = 0)
+   line(128, 15, 128, 111, 1)     # marqueur de la date du calcul
+   for c in range(3):
+       per = 23 + 5 * c
+       if c == 0:
+           print("Physique  (23 jours)")
+       elif c == 1:
+           print("Emotif    (28 jours)")
+       else:
+           print("Intellect (33 jours)")
+       for i in range(32):
+           x = i * 8
+           d = z - 16.0 + i
+           y = 63 - int(sin(frac(d / per) * 2.0 * pi()) * 43.0)
+           if i > 0:
+               line(ox, oy, x, y, 1)
+           ox = x
+           oy = y
+       getkey()
+   text()
+
+
+Deux jeux complets accompagnent ce manuel : PONGA.PY
+(ping-pong en mode texte) et PONGG.PY (ping-pong
+graphique).
+
+
+LIMITES TECHNIQUES
+==================
+
+  Identificateurs       max 8 caractères
+  Variables globales    64 par programme
+  Variables locales     32 par fonction
+  Fonctions             16 par programme
+  Chaînes               255 caractères max
+  Pile VM, pile locaux  1 ko chacune
+  Pool de chaînes       1 ko
+
+
+HISTORIQUE
+==========
+
+  v0.1   if/while/print + arithmétique
+  v0.2   def/return + appels de fonction
+  v0.3   for/range + break/continue + input()
+  v0.4   chaînes littérales et variables string
+  v0.5   fonctions système : écran, son, clavier
+  v0.6   inkey/putc + mode interactif (REPL)
+  v0.7   mode graphique : pixels, lignes, jeu PONGG
+  v0.8   REPL multi-lignes : blocs if/while/for/def
+  v0.9   REPL : affichage automatique des expressions
+  v0.10  virgule flottante (MATPAC) : littéraux, arithmétique,
+         comparaisons, variables globales
+  v0.11  fonctions mathématiques (sin, cos, sqrt, int, frac,
+         pi) et saisie flottante (inputf)
+
+
+CREDITS
+=======
+
+  Petit Python pour Smaky 6
+
+  Pierre-Yves Rochat  pyr@pyr.ch
+  Epsitec SA
+
+  Présenté au Festival OCCC, Martigny - 6 juin 2026

@@ -1,7 +1,9 @@
 {
   "name": "smaky6-simulator",
-  "version": "0.5.0",
+  "version": "0.7.0",
   "description": "Simulateur Smaky 6 — Epsitec SA",
+  "homepage": "https://www.epsitec.ch/",
+  "author": { "name": "Pierre-Yves Rochat", "email": "pyr@pyr.ch" },
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -13,12 +15,16 @@
   "build": {
     "appId": "ch.epsitec.smaky6sim",
     "productName": "Smaky 6 Simulator",
+    "copyright": "© 2026 Epsitec SA, Pierre-Yves Rochat",
+    "directories": { "output": "dist" },
     "files": [
       "index.html", "main.js", "preload.js",
-      "rom18.js", "z80.js", "disasm.js", "smaky.js", "audio.js"
+      "rom18.js", "chargen_rom.js", "z80.js", "disasm.js", "smaky.js",
+      "screenRenderer.js", "three.min.js", "OrbitControls.js", "three3d.js",
+      "audio.js", "FLO?.JS", "HD?.JS"
     ],
     "win": {
-      "target": "nsis",
+      "target": ["nsis", "portable"],
       "icon": "icon.ico"
     },
     "nsis": {
@@ -27,12 +33,13 @@
       "createDesktopShortcut": "always"
     },
     "linux": {
-      "target": ["tar.gz"],
+      "target": ["AppImage", "deb", "tar.gz"],
       "category": "Development",
-      "icon": "icon.png"
+      "icon": "icon.png",
+      "maintainer": "Pierre-Yves Rochat <pyr@pyr.ch>"
     },
     "mac": {
-      "target": ["zip"],
+      "target": ["dmg"],
       "icon": "icon.png",
       "category": "public.app-category.developer-tools",
       "identity": null
