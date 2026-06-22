@@ -204,7 +204,13 @@ architecture rtl of sm6disk is
     signal vhrel    : unsigned(9 downto 0);                     -- position horizontale relative
     signal chr_y    : integer range 0 to 11 := 0;              -- ligne dans la cellule (12 hautes)
     signal txt_row  : integer range 0 to 31 := 0;              -- rangée de texte (0..19 utilisées)
-    signal vdbl     : std_logic := '0';                        -- doublement vertical (1 ligne Smaky = 2 VGA)
+    -- Hauteur d'affichage : les 240 lignes Smaky sont étirées sur IMG_H lignes VGA, centrées
+    -- dans les 480 actives (le reste = bord noir haut/bas). Le timing VGA (800×525, sync)
+    -- reste INCHANGÉ. IMG_H : 480 = plein écran (×2), 384 = 4:3, 320 = 16:10, 240 = ×1 net.
+    constant SCREEN_H : integer := 240;                        -- lignes élémentaires Smaky
+    constant IMG_H    : integer := 320;                        -- hauteur affichée 16:10 (240→320) — 384=4:3, 480=plein, 240=×1 net
+    constant V_TOP    : integer := (480 - IMG_H) / 2;          -- marge haute = marge basse
+    signal vacc     : integer range 0 to 1023 := 0;            -- accumulateur d'échelle verticale (Bresenham)
     signal v_intxt : std_logic;
     signal cx1, cx2 : unsigned(2 downto 0) := (others => '0');   -- char_x pipeliné
     signal it1, it2 : std_logic := '0';                          -- in_text pipeliné
@@ -874,9 +880,12 @@ begin
     -- ============================ Contrôleur VGA ===========================
     vhrel <= vhc - 64;
     -- Écran Smaky : 512 × 240 pixels élémentaires, cellule 8 × 12 (PROM rows 0..11 ; rows
-    -- 12..15 stockées mais NON câblées). VGA : 1× horizontal (512, centré), 2× vertical
-    -- (240 -> 480, plein écran). Compteurs chr_y/txt_row car la hauteur 12 n'est pas une 2^n.
-    v_intxt <= '1' when (vhc >= 64 and vhc < 576 and vvc < 480) else '0';
+    -- 12..15 stockées mais NON câblées). VGA : 1× horizontal (512, centré, bords 64 px G/D),
+    -- vertical = 240 lignes Smaky étirées sur IMG_H lignes VGA (échelle fractionnaire par
+    -- accumulateur vacc), centrées dans les 480 actives -> bords noirs haut/bas.
+    -- Compteurs chr_y/txt_row car la hauteur 12 n'est pas une 2^n.
+    v_intxt <= '1' when (vhc >= 64 and vhc < 576
+                         and vvc >= V_TOP and vvc < V_TOP + IMG_H) else '0';
     -- VRAM texte = rangée(0..19) & colonne(0..63) ; adresse fonte = code(6:0) & chr_y(0..11)
     vb_addr   <= std_logic_vector(to_unsigned(txt_row, 5)) & std_logic_vector(vhrel(8 downto 3));
     crom_addr <= vb_data(6 downto 0) & std_logic_vector(to_unsigned(chr_y, 4));
@@ -890,17 +899,21 @@ begin
                     vhc <= (others => '0');
                     if vvc = 524 then                  -- haut de trame : remet les compteurs
                         vvc <= (others => '0');
-                        chr_y <= 0; txt_row <= 0; vdbl <= '0'; eline <= (others => '0');
+                        chr_y <= 0; txt_row <= 0; eline <= (others => '0'); vacc <= 0;
                     else
                         vvc <= vvc + 1;
-                        if vvc < 479 then              -- zone active : avance les compteurs caractère
-                            if vdbl = '0' then         -- 1re des 2 lignes VGA d'une ligne Smaky
-                                vdbl <= '1';
-                            else                       -- 2e ligne -> ligne Smaky suivante
-                                vdbl <= '0';
+                        -- Mise à l'échelle verticale 240 -> IMG_H par accumulateur : chaque ligne
+                        -- VGA ajoute SCREEN_H ; quand l'accumulateur atteint IMG_H on passe à la
+                        -- ligne Smaky suivante (1 ligne Smaky occupe ainsi 1 ou 2 lignes VGA).
+                        -- La 1re ligne active (vvc+1 = V_TOP) montre la ligne Smaky 0 sans avancer.
+                        if (vvc + 1) > V_TOP and (vvc + 1) < V_TOP + IMG_H then
+                            if vacc + SCREEN_H >= IMG_H then
+                                vacc  <= vacc + SCREEN_H - IMG_H;
                                 eline <= eline + 1;    -- ligne élémentaire 0..239 (graphique)
                                 if chr_y = 11 then chr_y <= 0; txt_row <= txt_row + 1;
                                 else chr_y <= chr_y + 1; end if;
+                            else
+                                vacc <= vacc + SCREEN_H;
                             end if;
                         end if;
                     end if;

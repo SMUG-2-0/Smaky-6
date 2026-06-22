@@ -550,6 +550,35 @@ Au passage : README « état actuel » mis à jour (disque = micro-SD réelle, l
 écriture) ; `SM6Disk.qsf` complété avec `gvram.vhd` ; `HD0-sd.img` (image SD de référence) et le
 manuel de la carte Nios versionnés ; nettoyage d'un projet Quartus parasite et de copies inutiles.
 
+## 🖥️ Bords haut/bas + proportion d'écran réglable (2026-06-22)
+Avant : les 240 lignes Smaky étaient doublées ×2 → 480 = **plein écran**, donc image **étirée
+en hauteur** (aspect 512:480 ≈ 1,07) et sans bord haut/bas, contrairement au Smaky d'origine.
+But : ajouter des bords noirs en haut et en bas pour « dé-étirer ».
+
+**Contrainte VGA** (à retenir) : le timing 640×480 @ 60 Hz est figé (800×525, Hsync 656-751,
+Vsync 490-491) — le moniteur s'y verrouille, **interdit de bouger les totaux/sync**. Un bord ne
+se crée donc PAS en « ajoutant des lignes » : c'est du **noir dans les 480 lignes actives**, en
+ne dessinant l'image que dans une fenêtre centrée (exactement comme les 64 px noirs G/D déjà là).
+
+**Implémentation** (`sm6disk.vhd`, contrôleur VGA) : 3 constantes `SCREEN_H=240`, `IMG_H`,
+`V_TOP=(480-IMG_H)/2`. Les 240 lignes Smaky sont étirées sur `IMG_H` lignes VGA par un
+**accumulateur de Bresenham** (`vacc`, remplace l'ancien `vdbl`) : chaque ligne VGA ajoute 240,
+au passage de `IMG_H` on avance d'une ligne Smaky (1 ligne Smaky = 1 ou 2 lignes VGA). `v_intxt`
+borne la fenêtre verticale `[V_TOP, V_TOP+IMG_H)`. Changer la proportion = changer `IMG_H` seul.
+
+**Choix de `IMG_H`** : 480 = plein écran (×2 régulier), 384 = 4:3 (×8/5), **320 = 16:10 (×4/3)**,
+240 = ×1 net. Sauf 480 et 240, l'échelle est fractionnaire → **hauteurs de lignes inégales**
+(motif p.ex. 2-1-1 pour le 320).
+
+**Leçon matériel** : sur un moniteur 4:3 dont la **dalle est plus haute que 480** (il
+rééchantillonne lui-même), tout motif de lignes inégales **bat** avec son scaler → artefacts
+d'autant plus visibles que le motif est riche (le 4:3/384 était PIRE que le 16:10/320). Les deux
+seuls réglages **sans motif** sont les échelles entières ×1 (240) et ×2 (480). Le ×1 est
+impeccable mais l'aspect 2,13:1 s'éloigne trop du Smaky.
+
+**Retenu : `IMG_H = 320` (16:10)** — meilleur compromis proportions ↔ motif acceptable sur cet
+écran. Bords noirs de 80 lignes haut/bas. (Reste paramétrable en une constante.)
+
 ### ▶ IDÉES FUTURES
 - SDSC (≤2 Go) : adressage par octets (×512) selon CCS de CMD58.
 - Accélérer la lecture SD (DIV_FAST plus rapide si câblage propre / OneChipBook).
