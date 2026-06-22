@@ -64,7 +64,7 @@ architecture rtl of sd_spi is
     type mstate_t is (M_RST, M_POWUP, M_SENDCMD, M_GETR1, M_EXTRA,
                       M_INIT_SEQ, M_READY, M_RD_TOKEN, M_RD_DATA, M_RD_CRC,
                       M_WR_TOKEN, M_WR_DATA, M_WR_CRC, M_WR_RESP, M_WR_BUSY, M_WR_DONE,
-                      M_RD_RETRY, M_ERR);
+                      M_RD_RETRY, M_WR_RETRY, M_ERR);
     signal mstate   : mstate_t := M_RST;
     signal retstate : mstate_t := M_RST;        -- où revenir après SENDCMD/GETR1
     signal cmd_buf  : std_logic_vector(47 downto 0);  -- 6 octets de commande
@@ -75,6 +75,7 @@ architecture rtl of sd_spi is
     signal init_step: integer range 0 to 7 := 0;
     signal byte_idx : integer range 0 to 512 := 0;
     signal rd_tries : integer range 0 to 15 := 0;   -- ré-essais d'un CMD17 qui échoue
+    signal wr_tries : integer range 0 to 15 := 0;   -- ré-essais d'un CMD24 dont le token est rejeté
     signal acmd41_tries : integer range 0 to 65535 := 0;
 
     -- construit une commande SPI : 0x40|cmd, arg(32), crc|0x01
@@ -96,7 +97,8 @@ begin
     ready <= '1' when (mstate = M_READY or mstate = M_RD_TOKEN or mstate = M_RD_DATA
                        or mstate = M_RD_CRC or mstate = M_WR_TOKEN or mstate = M_WR_DATA
                        or mstate = M_WR_CRC or mstate = M_WR_RESP or mstate = M_WR_BUSY
-                       or mstate = M_WR_DONE or mstate = M_RD_RETRY) else '0';
+                       or mstate = M_WR_DONE or mstate = M_RD_RETRY
+                       or mstate = M_WR_RETRY) else '0';
     err   <= '1' when mstate = M_ERR else '0';
 
     -- ============ moteur SPI : transfère tx_byte, reçoit rx_byte ============
@@ -239,6 +241,7 @@ begin
                         elsif wr_req = '1' then
                             cs_n <= '0';
                             cmd_buf <= mkcmd(24, rd_lba, x"01"); extra_n <= 0;  -- WRITE_BLOCK
+                            wr_tries <= 3;                        -- jusqu'à 3 ré-essais si token rejeté
                             byte_idx <= 0; retstate <= M_WR_TOKEN; mstate <= M_SENDCMD;
                         end if;
 
@@ -312,8 +315,23 @@ begin
 
                     when M_WR_RESP =>                     -- token de réponse data (xxx0_0101 = accepté)
                         if spi_busy = '0' and spi_start = '0' then
-                            if rx_byte /= x"FF" then poll_cnt <= 0; mstate <= M_WR_BUSY;
-                            elsif poll_cnt >= 1000 then cs_n <= '1'; mstate <= M_READY;
+                            if rx_byte /= x"FF" then         -- token reçu : on en vérifie le verdict
+                                r1 <= rx_byte;               -- (diagnostic : visible sur dbg_r1)
+                                if (rx_byte and x"1F") = x"05" then  -- 0b???0_0101 = données acceptées
+                                    poll_cnt <= 0;           -- on enclenche un transfert pour que
+                                    tx_byte <= x"FF"; spi_start <= '1';  -- M_WR_BUSY lise un octet FRAIS
+                                    mstate <= M_WR_BUSY;             -- (sinon il consommerait le token,
+                                elsif wr_tries > 0 then              --  /= 0x00, et sauterait l'attente busy)
+                                    wr_tries <= wr_tries - 1;        -- rejet CRC (0x0B) / write-err (0x0D) :
+                                    cs_n <= '1'; byte_idx <= 0; mstate <= M_WR_RETRY;  -- ré-essai du CMD24
+                                else
+                                    cs_n <= '1'; mstate <= M_ERR;    -- rejet persistant : erreur dure
+                                end if;
+                            elsif poll_cnt >= 1000 then       -- pas de token : ré-essai, sinon erreur
+                                if wr_tries > 0 then
+                                    wr_tries <= wr_tries - 1; cs_n <= '1'; byte_idx <= 0;
+                                    mstate <= M_WR_RETRY;
+                                else cs_n <= '1'; mstate <= M_ERR; end if;
                             else tx_byte <= x"FF"; spi_start <= '1'; poll_cnt <= poll_cnt + 1; end if;
                         end if;
 
@@ -328,6 +346,15 @@ begin
                         cs_n <= '1';                      -- la carte reste occupée et le CMD17 suivant rate
                         if spi_busy = '0' and spi_start = '0' then
                             if byte_idx >= 3 then mstate <= M_READY;
+                            else tx_byte <= x"FF"; spi_start <= '1'; byte_idx <= byte_idx + 1; end if;
+                        end if;
+
+                    when M_WR_RETRY =>                    -- désélection (clocks de garde) puis ré-émission
+                        cs_n <= '1';                      -- du CMD24 ; le tampon CPU est ré-envoyé tel quel
+                        if spi_busy = '0' and spi_start = '0' then
+                            if byte_idx >= 3 then
+                                cs_n <= '0'; cmd_buf <= mkcmd(24, rd_lba, x"01"); extra_n <= 0;
+                                byte_idx <= 0; poll_cnt <= 0; retstate <= M_WR_TOKEN; mstate <= M_SENDCMD;
                             else tx_byte <= x"FF"; spi_start <= '1'; byte_idx <= byte_idx + 1; end if;
                         end if;
 

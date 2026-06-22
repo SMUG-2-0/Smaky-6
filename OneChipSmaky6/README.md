@@ -7,9 +7,11 @@ Development Board, Cyclone EP1C20, puis cible OneChipBook EP1C12).
 d'origine utilisait un Z80 en boîtier DIL 40 broches. Le cœur Z80 utilisé ici est le **T80**
 de Daniel Wallner (OpenCores).
 
-État actuel (`SM6Disk-Nios1C20/`) : le Smaky 6 **boote depuis le disque dur émulé (WD1002)**,
-charge SYS.SY (SAMOS) puis CLI.SY, et affiche la liste des fichiers — sortie VGA, SDRAM,
-contrôleur WD1002 avec contenu disque embarqué.
+État actuel (`SM6Disk-Nios1C20/`) : le Smaky 6 **boote depuis une carte micro-SD**, charge
+SYS.SY (SAMOS) puis CLI.SY, et affiche la liste des fichiers — sortie VGA, SDRAM, écran
+graphique 256×120, contrôleur WD1002 dont le disque est une **carte micro-SD réelle (SPI)**.
+La **lecture et l'écriture de secteurs fonctionnent** (création/suppression de fichiers,
+`compress`…), un secteur Smaky de 256 o étant mappé sur un bloc SD de 512 o.
 
 ---
 

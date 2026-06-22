@@ -14,6 +14,7 @@ set_global_assignment -name VHDL_FILE ../common/T80s_ce.vhd
 set_global_assignment -name VHDL_FILE ../common/sdram_ctrl.vhd
 set_global_assignment -name VHDL_FILE ../common/boot_rom.vhd
 set_global_assignment -name VHDL_FILE ../common/vram.vhd
+set_global_assignment -name VHDL_FILE ../common/gvram.vhd
 set_global_assignment -name VHDL_FILE char_rom.vhd
 set_global_assignment -name VHDL_FILE disk_rom.vhd
 set_global_assignment -name VHDL_FILE ../common/ps2_rx.vhd
