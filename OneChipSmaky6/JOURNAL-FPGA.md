@@ -519,6 +519,37 @@ Chaîne graphique superposée au texte (OU), conforme à `screenRenderer.js` :
   aligné sur le glyphe. Combinaison : (texte si !NOX) OU (graphique si GRA).
 - Au reset : texte seul (gra=0, nox=0). Ressources : 19 % LE, 30 % mémoire.
 
+## ✅ Écriture SD réparée : attente « busy » court-circuitée + vérif du token (2026-06-22)
+Symptôme rapporté : la **1re écriture passe, les accès suivants corrompent** (écriture ou
+lecture). Diagnostic dans `sd_spi.vhd`, machine d'écriture, transition **M_WR_RESP → M_WR_BUSY** :
+l'attente de fin de programmation de la carte était **purement sautée**. En arrivant du
+*data-response-token*, `M_WR_BUSY` relisait le **`rx_byte` périmé** (= le token, p.ex. `0x05`),
+le voyait `/= 0x00` et concluait « carte prête » **immédiatement**, sans jamais clocker l'octet
+de busy. La carte restait donc en programmation interne pendant qu'on remontait CS (ce qui lui
+fait relâcher la ligne busy) puis qu'on lançait la commande suivante → collision.
+=> C'est aussi pourquoi le **« correctif tenté 1 » (M_WR_DONE)** du 2026-06-18 était resté sans
+effet : ses clocks de garde désélectionnaient une carte **encore occupée**. Le chemin de lecture,
+lui, était immunisé (`M_RD_DATA` reclocke toujours avant de consommer `rx_byte`).
+
+**Correctif** : en `M_WR_RESP`, dès que le token est reçu, **relancer un transfert SPI frais**
+avant d'entrer dans `M_WR_BUSY`, qui échantillonne alors un vrai octet de statut (`0x00` tant
+que la carte programme, `0xFF` une fois prête). La garde `spi_busy='0' and spi_start='0'` couvre
+le pipeline de démarrage (motif déjà employé partout dans le fichier).
+
+**Durcissement ajouté** : vérification du *data-response-token*.
+`(token and 0x1F) = 0x05` → accepté ; rejet **CRC `0x0B`** / **write-err `0x0D`** ou **timeout
+sans token** → jusqu'à **3 ré-essais** (nouvel état `M_WR_RETRY` : désélection + ré-émission du
+`CMD24`, le tampon CPU étant intact) ; échec persistant → `M_ERR` **terminal** (maintient BSY,
+pour qu'une vraie panne d'écriture soit **bruyante** plutôt que silencieuse). Token copié dans
+`r1` → visible sur `dbg_r1`.
+
+**Validé sur matériel** : écritures successives, création/suppression de fichiers, et un
+**`compress`** (déplace plusieurs fichiers) — tous OK. Compilation Quartus 9.1 : 0 erreur.
+Commit « écriture en SD fonctionnelle » poussé sur GitHub (`SMUG-2-0/Smaky-6`).
+Au passage : README « état actuel » mis à jour (disque = micro-SD réelle, lecture **et**
+écriture) ; `SM6Disk.qsf` complété avec `gvram.vhd` ; `HD0-sd.img` (image SD de référence) et le
+manuel de la carte Nios versionnés ; nettoyage d'un projet Quartus parasite et de copies inutiles.
+
 ### ▶ IDÉES FUTURES
 - SDSC (≤2 Go) : adressage par octets (×512) selon CCS de CMD58.
 - Accélérer la lecture SD (DIV_FAST plus rapide si câblage propre / OneChipBook).
